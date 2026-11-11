@@ -1,0 +1,45 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="One Button Hero"
+config/description="Endless runner arcade de un solo boton. Graficos y sonido generados integramente por codigo."
+run/main_scene="res://scenes/main_menu.tscn"
+config/features=PackedStringArray("4.2", "GL Compatibility")
+boot_splash/bg_color=Color(0.101961, 0.109804, 0.172549, 1)
+boot_splash/show_image=false
+
+[autoload]
+
+GameData="*res://scripts/game_data.gd"
+Sfx="*res://scripts/sfx.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[layer_names]
+
+2d_physics/layer_1="mundo"
+2d_physics/layer_2="jugador"
+2d_physics/layer_3="peligros"
+2d_physics/layer_4="enemigos"
+2d_physics/layer_5="monedas"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.101961, 0.109804, 0.172549, 1)

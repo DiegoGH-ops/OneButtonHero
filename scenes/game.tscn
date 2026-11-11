@@ -1,0 +1,39 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/game.gd" id="1_game"]
+[ext_resource type="Script" path="res://scripts/background.gd" id="2_background"]
+[ext_resource type="Script" path="res://scripts/ground_renderer.gd" id="3_ground"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4_player"]
+[ext_resource type="Script" path="res://scripts/level_generator.gd" id="5_generator"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="6_hud"]
+
+[node name="Game" type="Node2D"]
+script = ExtResource("1_game")
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="."]
+layer = -10
+
+[node name="Background" type="Node2D" parent="BackgroundLayer"]
+script = ExtResource("2_background")
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="Ground" type="Node2D" parent="World"]
+script = ExtResource("3_ground")
+
+[node name="Spans" type="Node2D" parent="World"]
+
+[node name="Objects" type="Node2D" parent="World"]
+
+[node name="Player" parent="." instance=ExtResource("4_player")]
+position = Vector2(0, 558)
+
+[node name="Fx" type="Node2D" parent="."]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(320, 360)
+
+[node name="Generator" type="Node" parent="."]
+script = ExtResource("5_generator")
+
+[node name="HUD" parent="." instance=ExtResource("6_hud")]
