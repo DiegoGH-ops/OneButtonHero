@@ -91,6 +91,8 @@ var _cleanup_timer: float = 0.0
 var _forced: Array = []
 ## game.gd lo activa cuando al heroe le falta alguna vida.
 var heart_wanted: bool = false
+## Mejora "Fortuna": probabilidad extra de que una moneda sea un rubi.
+var gem_bonus: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -443,6 +445,8 @@ func _add_coin(pos: Vector2, special: bool) -> void:
 	var kind: int = Coin.Kind.COIN
 	if special:
 		kind = Coin.Kind.RUBY if _rng.randf() < 0.3 else Coin.Kind.GEM
+	elif gem_bonus > 0.0 and randf() < gem_bonus:
+		kind = Coin.Kind.RUBY
 	_add_pickup(pos, kind)
 
 

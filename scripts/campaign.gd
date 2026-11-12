@@ -132,3 +132,23 @@ static func first_clear_diamonds(world: int, level: int) -> int:
 		return 0
 	var index: int = int(float(level + 1) / 5.0) - 1
 	return int(MILESTONE_DIAMONDS[clampi(index, 0, 3)]) + world
+
+
+## Retos opcionales de un nivel: tres distintos, que rotan de nivel en nivel.
+## Tipos: no_damage, combo, legendary, perfect y precision (porcentaje).
+static func challenges(world: int, level: int) -> Array:
+	var all: Array = [
+		{"type": "no_damage", "target": 0, "text": "TERMINA SIN RECIBIR DAÑO"},
+		{"type": "combo", "target": 4 + world * 2 + int(float(level) / 4.0), "text": "COMBO PERFECTO DE %d"},
+		{"type": "legendary", "target": 1 + int(float(level) / 6.0) + int(float(world) / 2.0), "text": "%d ACCIONES LEGENDARY"},
+		{"type": "perfect", "target": 4 + int(float(level) / 3.0) + world, "text": "%d ACCIONES PERFECT"},
+		{"type": "precision", "target": mini(45 + world * 6 + level, 90), "text": "PRECISIÓN DEL %d%%"},
+	]
+	var result: Array = []
+	for offset in [0, 2, 4]:
+		var entry: Dictionary = all[(level + int(offset)) % all.size()]
+		var text: String = entry["text"]
+		if text.contains("%d"):
+			text = text % int(entry["target"])
+		result.append({"type": entry["type"], "target": entry["target"], "text": text})
+	return result

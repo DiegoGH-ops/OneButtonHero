@@ -154,6 +154,40 @@ func on_damage() -> void:
 	_attack_rating = Timing.Rating.NONE
 
 
+## Comprueba un reto de nivel (ver Campaign.challenges).
+func challenge_done(entry: Dictionary, damage_taken: int) -> bool:
+	var kind: String = entry["type"]
+	var target: int = int(entry["target"])
+	var precise: int = int(counts[3]) + int(counts[4])
+	if kind == "no_damage":
+		return damage_taken == 0
+	if kind == "combo":
+		return best_combo >= target
+	if kind == "legendary":
+		return int(counts[4]) >= target
+	if kind == "perfect":
+		return precise >= target
+	return actions() > 0 and precise * 100 >= target * actions()
+
+
+## Distancia (px) y tiempo (s) hasta el proximo peligro; INF si no hay.
+## Solo lo usan las herramientas de depuracion.
+func next_danger(pos: Vector2, speed: float) -> Vector2:
+	var best: float = INF
+	for node in get_tree().get_nodes_in_group("hazards"):
+		if node.has_method("get_danger"):
+			var d: Vector3 = node.call("get_danger")
+			if d.x > pos.x and d.x < best:
+				best = d.x
+	for item in Daylight.holes:
+		var hole: Vector2 = item
+		if hole.x > pos.x and hole.x < best:
+			best = hole.x
+	if best == INF:
+		return Vector2(INF, INF)
+	return Vector2(best - pos.x, (best - pos.x) / maxf(speed, 1.0))
+
+
 ## Acciones evaluadas en total.
 func actions() -> int:
 	return int(counts[1]) + int(counts[2]) + int(counts[3]) + int(counts[4])

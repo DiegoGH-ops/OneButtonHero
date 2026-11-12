@@ -115,6 +115,13 @@ var boss_ratio: float = -1.0:
 			boss_ratio = value
 			queue_redraw()
 
+## Texto de las herramientas de depuracion (vacio = ocultas).
+var debug_text: String = "":
+	set(value):
+		if debug_text != value:
+			debug_text = value
+			queue_redraw()
+
 var level_name: String = "":
 	set(value):
 		level_name = value
@@ -222,6 +229,13 @@ func _draw() -> void:
 		for mark in [0.33, 0.66]:
 			var m: float = mark
 			draw_rect(Rect2(400.0 + 600.0 * m - 2.0, 684.0, 4.0, 24.0), Pal.INK)
+
+	# --- Depuracion del timing (F3) ---
+	if debug_text != "":
+		var debug_lines: PackedStringArray = debug_text.split("\n", false)
+		draw_rect(Rect2(820.0, 396.0, 448.0, float(debug_lines.size()) * 22.0 + 16.0), Color(Pal.INK, 0.75))
+		for i in debug_lines.size():
+			PixelFont.draw_text(self, debug_lines[i], Vector2(832.0, 406.0 + float(i) * 22.0), 2.0, Pal.LIME)
 
 	# --- Velocidad ---
 	var right: float = 1176.0

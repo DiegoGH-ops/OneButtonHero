@@ -48,6 +48,8 @@ var demo_mode: bool = false
 var shield_active: bool = false
 ## Soul Reaper: el proximo golpe elimina al enemigo al instante.
 var soul_armed: bool = false
+## Mejora "Alcance": multiplica la distancia de ataque.
+var reach_bonus: float = 1.0
 
 var _coyote: float = 0.0
 var _buffer: float = 0.0
@@ -142,7 +144,7 @@ func press() -> void:
 
 ## Distancia a la que un enemigo convierte el boton en ataque.
 func get_attack_range() -> float:
-	return 105.0 + run_speed * 0.20
+	return (105.0 + run_speed * 0.20) * reach_bonus
 
 
 func is_enemy_in_reach(enemy: Node2D) -> bool:

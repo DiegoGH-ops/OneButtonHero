@@ -230,7 +230,16 @@ func use_consumable(id: String) -> bool:
 
 func buy_cosmetic(slot: String, id: String) -> bool:
 	var entry: Dictionary = Catalog.find(Catalog.cosmetics(slot), id)
-	if entry.is_empty() or is_owned(id) or not _spend(int(entry["price"])):
+	if entry.is_empty() or is_owned(id):
+		return false
+	# Los articulos exclusivos se pagan con diamantes.
+	var gems: int = int(entry.get("gems", 0))
+	if gems > 0:
+		if diamonds < gems:
+			return false
+		diamonds -= gems
+		wallet_changed.emit()
+	elif not _spend(int(entry["price"])):
 		return false
 	owned[id] = true
 	equipped[slot] = id
@@ -299,12 +308,41 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 		"stars": maxi(stars, int(old.get("stars", 0))),
 		"rank": maxi(rank, int(old.get("rank", 0))),
 		"score": maxi(score, int(old.get("score", 0))),
+		"ch": old.get("ch", [false, false, false]),
 	}
 	diamonds += gems
 	add_coins(coins)
 	save_data()
 	wallet_changed.emit()
 	return {"coins": coins, "diamonds": gems, "first": first}
+
+
+## Anota los retos superados de un nivel y paga los nuevos: monedas por
+## cada uno y un diamante al completar los tres.
+func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
+	var key: String = level_key(world, level)
+	var record: Dictionary = level_record(world, level)
+	var old: Array = record.get("ch", [false, false, false])
+	var merged: Array = [false, false, false]
+	var coins: int = 0
+	var all_old: bool = true
+	var all_new: bool = true
+	for i in 3:
+		var before: bool = i < old.size() and bool(old[i])
+		var now: bool = i < results.size() and bool(results[i])
+		if now and not before:
+			coins += 25 + world * 15
+		merged[i] = before or now
+		all_old = all_old and before
+		all_new = all_new and bool(merged[i])
+	var gems: int = 1 if all_new and not all_old else 0
+	record["ch"] = merged
+	campaign[key] = record
+	diamonds += gems
+	add_coins(coins)
+	save_data()
+	wallet_changed.emit()
+	return {"coins": coins, "diamonds": gems}
 
 
 # --------------------------------------------------------------- progresion --

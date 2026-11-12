@@ -259,17 +259,23 @@ func _draw_victory() -> void:
 	_win_text("¡NIVEL %s SUPERADO!" % String(_win_data["name"]), 72.0, 5.0, Pal.LIME)
 	_win_text("RANGO", 132.0, 3.0, Pal.SILVER)
 	var rank_color: Color = [Pal.SILVER, Pal.SILVER, Pal.WHITE, Pal.LIME, Pal.YELLOW, Pal.ORANGE, Pal.RED][clampi(rank, 0, 6)]
-	_win_text(String(Timing.RANK_NAMES[rank]), 164.0, 14.0, rank_color)
-	_win_text(String(Timing.RANK_TITLES[rank]), 276.0, 3.0, rank_color)
+	_win_text(String(Timing.RANK_NAMES[rank]), 160.0, 11.0, rank_color)
+	_win_text(String(Timing.RANK_TITLES[rank]), 248.0, 3.0, rank_color)
 	for i in 3:
 		var tint: Color = Color(1.0, 1.0, 1.0, 1.0) if i < stars else Color(0.2, 0.2, 0.3, 1.0)
-		PixelArt.draw(_win_canvas, "star", Vector2(541.0 + float(i) * 72.0, 312.0), 6.0, tint)
-	_win_text("PUNTOS %d" % int(_win_data["score"]), 384.0, 3.0, Pal.WHITE)
-	_win_text("PERFECT %d - LEGENDARY %d - COMBO %d - GOLPES %d" % [int(_win_data["perfect"]), int(_win_data["legendary"]), int(_win_data["combo"]), int(_win_data["damage"])], 418.0, 2.0, Pal.CYAN)
+		PixelArt.draw(_win_canvas, "star", Vector2(541.0 + float(i) * 72.0, 278.0), 6.0, tint)
+	_win_text("PUNTOS %d" % int(_win_data["score"]), 344.0, 3.0, Pal.WHITE)
+	_win_text("PERFECT %d - LEGENDARY %d - COMBO %d - GOLPES %d" % [int(_win_data["perfect"]), int(_win_data["legendary"]), int(_win_data["combo"]), int(_win_data["damage"])], 374.0, 2.0, Pal.CYAN)
+	# Retos opcionales: "+" superado, "-" pendiente.
+	var texts: Array = _win_data.get("challenges", [])
+	var results: Array = _win_data.get("results", [])
+	for i in texts.size():
+		var done: bool = i < results.size() and bool(results[i])
+		_win_text(("+ " if done else "- ") + String(texts[i]), 432.0 + float(i) * 22.0, 2.0, Pal.LIME if done else Pal.SILVER)
 	var reward: String = "+%d MONEDAS" % int(_win_data["coins"])
 	if int(_win_data["diamonds"]) > 0:
 		reward += "   +%d DIAMANTES" % int(_win_data["diamonds"])
-	_win_text(reward, 452.0, 3.0, Pal.YELLOW)
+	_win_text(reward, 400.0, 3.0, Pal.YELLOW)
 
 
 func show_victory(data: Dictionary) -> void:
@@ -320,6 +326,10 @@ func set_boss(boss_name: String, ratio: float) -> void:
 	_bar.boss_name = boss_name
 	_hint_layer.visible = false
 	_bar.boss_ratio = ratio
+
+
+func set_debug(text: String) -> void:
+	_bar.debug_text = text
 
 
 func set_level_name(text: String) -> void:

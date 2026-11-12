@@ -33,8 +33,24 @@ la fuente, las partículas, las luces, los efectos de sonido y las seis cancione
 - **Diamantes**: se ganan en los niveles 5, 10, 15 y 20 de cada mundo y al lograr tres estrellas.
 - **Modo infinito**: la partida sin fin original sigue disponible desde el menú.
 
-Pendiente para las fases siguientes: jefes, enemigos y obstáculos exclusivos de cada mundo, tienda
-de diamantes, árboles de mejoras, retos por nivel, música por mundo y herramientas de depuración.
+### Fase 2
+
+- **Jefes**: el nivel 20 de cada mundo es un combate contra su jefe (The Ancient Root, The Infernal
+  King, The Crystal Empress, The Frozen Titan, The Sand Devourer): barra de vida, tres fases, avisos,
+  fintas, oleadas que se saltan, proyectiles que se devuelven de un golpe y una ventana de
+  vulnerabilidad en la que el daño depende del timing. Datos en `BOSSES` (`scripts/campaign.gd`).
+- **Enemigos nuevos**: lobo, gólem de cristal, momia, murciélago de fuego y espíritu de ventisca;
+  cada mundo sustituye y recolorea parte de las criaturas básicas.
+- **Tienda de diamantes**: espadas, estelas y auras exclusivas con rareza (Rare, Epic, Legendary,
+  Mythic) dentro de sus pestañas; la tienda ahora tiene páginas.
+- **Mejoras ampliadas**: Fortuna, Alcance, Maestría, Botín de combo y Recuperación.
+- **Retos por nivel**: tres retos opcionales por nivel (sin daño, combo, Legendary, Perfect, precisión).
+- **Depuración**: la tecla **F3** muestra en partida las ventanas de timing, el margen de la última
+  acción, la distancia y el tiempo al próximo peligro, el combo y la dificultad.
+
+Pendiente: obstáculos y mecánicas exclusivos de cada mundo (hielo resbaladizo, plataformas que
+desaparecen), rutas seguras y arriesgadas, más enemigos por mundo, desafíos diario y semanal,
+música propia por mundo y timing en aterrizajes.
 
 ## Contenido
 

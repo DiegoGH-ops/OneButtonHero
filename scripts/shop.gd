@@ -30,6 +30,11 @@ var _info_name: PixelLabel
 var _info_lines: Array = []
 var _toaster: Toaster
 var _close_button: PixelButton
+var _page: int = 0
+var _page_label: PixelLabel
+var _prev_button: PixelButton
+var _next_button: PixelButton
+var _gems: PixelLabel
 
 
 func _ready() -> void:
@@ -51,6 +56,16 @@ func _ready() -> void:
 	coin.focus_mode = Control.FOCUS_NONE
 	coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	# Diamantes.
+	var gem_purse: Control = UI.panel(self, Rect2(690.0, 44.0, 160.0, 64.0))
+	gem_purse.set("fill", Pal.INK)
+	var gem: PixelButton = UI.button(self, "", Rect2(698.0, 50.0, 56.0, 52.0), 3.0)
+	gem.icon_sprite = "gem"
+	gem.disabled = true
+	gem.focus_mode = Control.FOCUS_NONE
+	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gems = UI.label(self, "0", Vector2(836.0, 62.0), 4.0, Pal.CYAN, 2)
+
 	_close_button = UI.button(self, "X", Rect2(1140.0, 46.0, 76.0, 60.0), 4.0)
 	_close_button.fill = Pal.RED
 	_close_button.fill_hot = Pal.ORANGE
@@ -62,6 +77,12 @@ func _ready() -> void:
 		_tab_buttons.append(tab)
 
 	_grid = UI.layer(self, "Grid")
+	# Paginas (ocho articulos por pagina).
+	_prev_button = UI.button(self, "<", Rect2(64.0, 630.0, 56.0, 44.0), 3.0)
+	_prev_button.pressed.connect(_change_page.bind(-1))
+	_next_button = UI.button(self, ">", Rect2(128.0, 630.0, 56.0, 44.0), 3.0)
+	_next_button.pressed.connect(_change_page.bind(1))
+	_page_label = UI.label(self, "", Vector2(200.0, 644.0), 2.0, Pal.SILVER, 0)
 
 	# Panel lateral: vista previa del heroe y descripcion del articulo.
 	var side: Control = UI.panel(self, Rect2(884.0, 128.0, 332.0, 540.0))
@@ -106,6 +127,7 @@ func close() -> void:
 
 func _refresh_wallet() -> void:
 	_wallet.text = str(GameData.wallet)
+	_gems.text = str(GameData.diamonds)
 
 
 func _items(category: String) -> Array:
@@ -121,12 +143,29 @@ func _select_tab(tab: int) -> void:
 	for i in _tab_buttons.size():
 		var button: PixelButton = _tab_buttons[i]
 		button.selected = i == _tab
+	_page = 0
+	_build_cards()
+
+
+func _change_page(direction: int) -> void:
+	_page += direction
+	_build_cards()
+
+
+## Crea las tarjetas de la pagina actual.
+func _build_cards() -> void:
 	for old in _cards:
 		var old_card: ShopCard = old
 		old_card.queue_free()
 	_cards = []
 	var category: String = CATEGORIES[_tab]
-	var items: Array = _items(category)
+	var all_items: Array = _items(category)
+	var pages: int = maxi(int(ceil(float(all_items.size()) / 8.0)), 1)
+	_page = clampi(_page, 0, pages - 1)
+	_prev_button.visible = pages > 1
+	_next_button.visible = pages > 1
+	_page_label.text = "PÁGINA %d/%d" % [_page + 1, pages] if pages > 1 else ""
+	var items: Array = all_items.slice(_page * 8, _page * 8 + 8)
 	for i in items.size():
 		var card: ShopCard = ShopCard.new()
 		card.category = category
@@ -164,13 +203,19 @@ func _refresh_card(card: ShopCard) -> void:
 		var cost: int = int(entry["price"])
 		card.configure(title, "TIENES: %d" % owned, str(cost), _afford_color(cost), true, -1, 0, owned > 0)
 	else:
-		var cost_c: int = int(entry["price"])
+		var gems: int = int(entry.get("gems", 0))
+		var rarity: String = String(entry.get("rarity", ""))
+		card.currency_sprite = "gem" if gems > 0 else "coin_0"
+		var cost_c: int = gems if gems > 0 else int(entry["price"])
+		var cost_color: Color = _afford_color(cost_c)
+		if gems > 0:
+			cost_color = Pal.CYAN if GameData.diamonds >= gems else Pal.RED
 		if GameData.equipped_id(card.category) == id:
 			card.configure(title, "EQUIPADO", "EN USO", Pal.LIME, false, -1, 0, true)
 		elif GameData.is_owned(id):
 			card.configure(title, "COMPRADO", "EQUIPAR", Pal.WHITE, false, -1, 0, false)
 		else:
-			card.configure(title, "", str(cost_c), _afford_color(cost_c), true, -1, 0, false)
+			card.configure(title, rarity, str(cost_c), cost_color, true, -1, 0, false)
 
 
 func _afford_color(price: int) -> Color:
@@ -206,6 +251,8 @@ func _show_info(card: ShopCard) -> void:
 		text = "AURA LUMINOSA ALREDEDOR DEL HÉROE"
 	if card.category == "consumable":
 		text += ". SE USA SOLO EN TU PRÓXIMA PARTIDA"
+	if entry.has("rarity"):
+		text += ". RAREZA %s. SE PAGA CON DIAMANTES" % String(entry["rarity"])
 	var lines: Array = _wrap(text, 24)
 	for i in _info_lines.size():
 		var label: PixelLabel = _info_lines[i]
@@ -265,6 +312,7 @@ func _on_card_pressed(card: ShopCard) -> void:
 	else:
 		Sfx.play("error")
 		card.shake()
-		_toaster.show_toast("MONEDAS INSUFICIENTES", Pal.RED)
+		var missing: String = "DIAMANTES INSUFICIENTES" if int(entry.get("gems", 0)) > 0 else "MONEDAS INSUFICIENTES"
+		_toaster.show_toast(missing, Pal.RED)
 	_refresh_all()
 	_refresh_wallet()

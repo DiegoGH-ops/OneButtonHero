@@ -12,6 +12,8 @@ const Pal = preload("res://scripts/palette.gd")
 ## Categoria: "upgrade", "consumable", "skin", "sword", "trail" o "aura".
 var category: String = ""
 var item: Dictionary = {}
+## Icono de la moneda con la que se paga ("coin_0" o "gem").
+var currency_sprite: String = "coin_0"
 
 var _title: String = ""
 var _status: String = ""
@@ -112,7 +114,7 @@ func _draw() -> void:
 			draw_rect(Rect2(o + Vector2(roundf((w - total) * 0.5) + float(i) * (pip_w + 6.0) + 2.0, 128.0), Vector2(pip_w - 4.0, 6.0)), color)
 	elif _status != "":
 		var status_w: float = PixelFont.text_width(_status, 2.0)
-		PixelFont.draw_text_shadowed(self, _status, o + Vector2(roundf((w - status_w) * 0.5), 124.0), 2.0, Pal.LIME if _highlight else Pal.SILVER, Pal.INK)
+		PixelFont.draw_text_shadowed(self, _status, o + Vector2(roundf((w - status_w) * 0.5), 124.0), 2.0, _status_color(), Pal.INK)
 
 	# Precio.
 	var price_w: float = PixelFont.text_width(_price_text, 3.0)
@@ -120,9 +122,22 @@ func _draw() -> void:
 	var px0: float = roundf((w - price_w - coin_w) * 0.5)
 	draw_rect(Rect2(o + Vector2(12.0, 148.0), Vector2(w - 24.0, 38.0)), Color(Pal.INK, 0.55))
 	if _show_coin:
-		PixelArt.draw(self, "coin_0", o + Vector2(px0, 155.0), 3.0)
+		PixelArt.draw(self, currency_sprite, o + Vector2(px0, 155.0), 3.0)
 	PixelFont.draw_text_shadowed(self, _price_text, o + Vector2(px0 + coin_w, 157.0), 3.0, _price_color, Pal.INK)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Color del estado; las rarezas tienen el suyo.
+func _status_color() -> Color:
+	if _status == "RARE":
+		return Pal.SKY
+	if _status == "EPIC":
+		return Pal.PINK
+	if _status == "LEGENDARY":
+		return Pal.ORANGE
+	if _status == "MYTHIC":
+		return Pal.RED
+	return Pal.LIME if _highlight else Pal.SILVER
 
 
 ## Icono segun la categoria, centrado en `center`.

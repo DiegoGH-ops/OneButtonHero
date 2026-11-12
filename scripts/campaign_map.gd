@@ -179,14 +179,22 @@ func _draw_content() -> void:
 	_text(title, Vector2(88.0, 520.0), 4.0, Pal.YELLOW)
 	_text("DIFICULTAD: %s" % Campaign.difficulty_name(_world, _level), Vector2(88.0, 562.0), 2.0, Pal.ORANGE)
 	if bool(def["final"]):
-		_text("SALTA SUS OLEADAS, DEVUELVE SUS PROYECTILES Y GOLPEA CUANDO SE ACERQUE", Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+		_text("SALTA, DEVUELVE PROYECTILES Y GOLPEA", Vector2(88.0, 586.0), 2.0, Pal.WHITE)
 	else:
 		_text("RECORRIDO: %d M   VELOCIDAD: %d" % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+	# Retos opcionales del nivel y cuales estan superados.
+	var challenge_list: Array = Campaign.challenges(_world, _level)
+	var done_list: Array = record.get("ch", [false, false, false])
+	_text("RETOS OPCIONALES", Vector2(548.0, 562.0), 2.0, Pal.SILVER)
+	for i in challenge_list.size():
+		var challenge: Dictionary = challenge_list[i]
+		var done: bool = i < done_list.size() and bool(done_list[i])
+		_text(("+ " if done else "- ") + String(challenge["text"]), Vector2(548.0, 586.0 + float(i) * 24.0), 2.0, Pal.LIME if done else Pal.WHITE)
 	if record.is_empty():
-		var prize: String = "PRIMERA VEZ: +%d MONEDAS" % int(def["coins"])
+		var prize: String = "PREMIO: +%d MONEDAS" % int(def["coins"])
 		var gems: int = Campaign.first_clear_diamonds(_world, _level)
 		if gems > 0:
-			prize += "  +%d DIAMANTES" % gems
+			prize += " +%d DIAMANTES" % gems
 		_text(prize, Vector2(88.0, 614.0), 2.0, Pal.LIME)
 		_text("3 ESTRELLAS: +1 DIAMANTE", Vector2(88.0, 638.0), 2.0, Pal.CYAN)
 	else:

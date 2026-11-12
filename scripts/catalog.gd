@@ -10,6 +10,11 @@ const UPGRADES := [
 	{"id": "score", "name": "PUNTUACIÓN", "desc": "+10% DE PUNTOS POR NIVEL", "icon": "star", "prices": [150, 400, 900]},
 	{"id": "bounty", "name": "RECOMPENSA", "desc": "+1 MONEDA POR ENEMIGO Y NIVEL", "icon": "goblin_a", "prices": [150, 400, 900]},
 	{"id": "energy", "name": "ENERGÍA", "desc": "LOS PODERES SE RECARGAN ANTES", "icon": "icon_bolt", "prices": [200, 500, 1000]},
+	{"id": "lucky", "name": "FORTUNA", "desc": "MÁS GEMAS Y RUBÍES EN EL CAMINO", "icon": "gem", "prices": [250, 600, 1300]},
+	{"id": "reach", "name": "ALCANCE", "desc": "LA ESPADA LLEGA MÁS LEJOS", "icon": "sword", "prices": [200, 500, 1000]},
+	{"id": "perfect", "name": "MAESTRÍA", "desc": "+20% DE PUNTOS POR ACCIÓN PERFECTA", "icon": "icon_soul", "prices": [250, 600, 1300]},
+	{"id": "combo_coins", "name": "BOTÍN DE COMBO", "desc": "+1 MONEDA POR ACCIÓN PERFECTA Y NIVEL", "icon": "chest", "prices": [300, 700, 1500]},
+	{"id": "recovery", "name": "RECUPERACIÓN", "desc": "MÁS INMUNIDAD TRAS RECIBIR UN GOLPE", "icon": "heart", "prices": [200, 500, 1000]},
 ]
 
 ## Objetos de un solo uso. Se gastan solos en la siguiente partida.
@@ -38,6 +43,11 @@ const SWORDS := [
 	{"id": "sword_esmeralda", "name": "ESPINA", "price": 500, "remap": {"w": "L", "y": "G", "o": "t"}, "slash": ["38b764", "a7f070"]},
 	{"id": "sword_sombra", "name": "PENUMBRA", "price": 800, "remap": {"w": "p", "y": "d", "o": "k"}, "slash": ["5d275d", "b13e53"]},
 	{"id": "sword_oro", "name": "SOLAR", "price": 1200, "remap": {"w": "y", "y": "o", "o": "r"}, "slash": ["ffcd75", "f4f4f4"]},
+	# Exclusivas de diamantes ("gems" = precio en diamantes).
+	{"id": "sword_amatista", "name": "AMATISTA", "price": 0, "gems": 3, "rarity": "RARE", "remap": {"w": "m", "y": "p", "o": "n"}, "slash": ["f29cb5", "5d275d"]},
+	{"id": "sword_celestial", "name": "CELESTIAL", "price": 0, "gems": 6, "rarity": "EPIC", "remap": {"w": "c", "y": "w", "o": "B"}, "slash": ["73eff7", "ffcd75"]},
+	{"id": "sword_oscura", "name": "OSCURA", "price": 0, "gems": 6, "rarity": "EPIC", "remap": {"w": "d", "y": "p", "o": "k"}, "slash": ["5d275d", "b13e53"]},
+	{"id": "sword_legendaria", "name": "LEGENDARIA", "price": 0, "gems": 15, "rarity": "MYTHIC", "remap": {"w": "y", "y": "r", "o": "p", "k": "e"}, "slash": ["ffcd75", "ef7d57"]},
 ]
 
 ## Estelas de particulas al correr.
@@ -47,6 +57,10 @@ const TRAILS := [
 	{"id": "trail_fuego", "name": "FUEGO", "price": 400, "colors": ["ef7d57", "b13e53", "ffcd75"]},
 	{"id": "trail_hielo", "name": "ESCARCHA", "price": 400, "colors": ["73eff7", "41a6f6", "f4f4f4"]},
 	{"id": "trail_arcoiris", "name": "ARCOÍRIS", "price": 900, "colors": ["b13e53", "ef7d57", "ffcd75", "38b764", "41a6f6", "5d275d"]},
+	{"id": "trail_cristales", "name": "CRISTALES", "price": 0, "gems": 3, "rarity": "RARE", "colors": ["f29cb5", "73eff7", "f4f4f4"]},
+	{"id": "trail_electrica", "name": "ELÉCTRICA", "price": 0, "gems": 5, "rarity": "EPIC", "colors": ["ffcd75", "f4f4f4", "41a6f6"]},
+	{"id": "trail_estrellas", "name": "ESTRELLAS", "price": 0, "gems": 8, "rarity": "LEGENDARY", "colors": ["f4f4f4", "ffcd75"]},
+	{"id": "trail_energia", "name": "ENERGÍA PURA", "price": 0, "gems": 12, "rarity": "MYTHIC", "colors": ["a7f070", "73eff7", "5d275d", "f4f4f4"]},
 ]
 
 ## Efectos especiales: aura luminosa alrededor del heroe.
@@ -55,6 +69,11 @@ const AURAS := [
 	{"id": "aura_dorada", "name": "AURA DORADA", "price": 600, "color": "ffcd75"},
 	{"id": "aura_arcana", "name": "AURA ARCANA", "price": 600, "color": "b13e53"},
 	{"id": "aura_glacial", "name": "AURA GLACIAL", "price": 600, "color": "73eff7"},
+	{"id": "aura_fuego", "name": "AURA DE FUEGO", "price": 0, "gems": 3, "rarity": "RARE", "color": "ef7d57"},
+	{"id": "aura_electrica", "name": "AURA ELÉCTRICA", "price": 0, "gems": 4, "rarity": "RARE", "color": "f4f4f4"},
+	{"id": "aura_violeta", "name": "AURA VIOLETA", "price": 0, "gems": 5, "rarity": "EPIC", "color": "b06fd0"},
+	{"id": "aura_celestial", "name": "AURA CELESTIAL", "price": 0, "gems": 8, "rarity": "LEGENDARY", "color": "41a6f6"},
+	{"id": "aura_oscura", "name": "AURA OSCURA", "price": 0, "gems": 8, "rarity": "LEGENDARY", "color": "8a5a9a"},
 ]
 
 ## Poderes activables (teclas 1-2-3 / Q-W-E o botones en pantalla).

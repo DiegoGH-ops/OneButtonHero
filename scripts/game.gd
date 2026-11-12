@@ -69,6 +69,8 @@ var _soul_ready: bool = false
 var precision: Precision
 ## Jefe final (solo en el nivel 20 de cada mundo).
 var _boss: Boss
+## Herramientas de depuracion del timing (tecla F3).
+var _debug: bool = false
 var _shake: float = 0.0
 var _zoom_punch: float = 0.0
 var _next_milestone: int = MILESTONE_METERS
@@ -84,6 +86,9 @@ var _bounty: int = 0
 var _shield_regen: float = 0.0
 var _shield_timer: float = 0.0
 var _cooldown_factor: float = 1.0
+var _perfect_mult: float = 1.0
+var _combo_coins: int = 0
+var _recovery: float = 0.0
 var _double_coins: bool = false
 var _magnet_boost: float = 0.0
 
@@ -187,6 +192,11 @@ func _apply_shop_items() -> void:
 	_score_mult = 1.0 + 0.10 * float(GameData.upgrade_level("score"))
 	_bounty = GameData.upgrade_level("bounty")
 	_cooldown_factor = 1.0 - 0.15 * float(GameData.upgrade_level("energy"))
+	_perfect_mult = 1.0 + 0.2 * float(GameData.upgrade_level("perfect"))
+	_combo_coins = GameData.upgrade_level("combo_coins")
+	_recovery = 0.4 * float(GameData.upgrade_level("recovery"))
+	player.reach_bonus = 1.0 + 0.12 * float(GameData.upgrade_level("reach"))
+	generator.gem_bonus = 0.05 * float(GameData.upgrade_level("lucky"))
 	var shield_level: int = clampi(GameData.upgrade_level("shield"), 0, 3)
 	player.shield_active = shield_level > 0
 	_shield_regen = SHIELD_REGEN[shield_level]
@@ -211,6 +221,11 @@ func _apply_shop_items() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	var key: InputEventKey = event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == KEY_F3:
+		_debug = not _debug
+		hud.set_debug("")
+		return
 	if _state != State.PLAYING:
 		return
 	if event.is_action_pressed(GameData.ACTION):
@@ -407,6 +422,18 @@ func _update_hud() -> void:
 		var total: float = float(power["cooldown"]) * _cooldown_factor
 		hud.set_power(i, float(_power_cooldowns[i]) / total, i == 0 and player.is_turbo())
 	hud.set_combo(precision.perfects, precision.multiplier())
+	if _debug:
+		var danger: Vector2 = precision.next_danger(player.position, player.get_speed())
+		var lines: PackedStringArray = PackedStringArray()
+		lines.append("ULTIMA ACCION: %s  MARGEN %d MS" % [String(Timing.NAMES[precision.last_rating]) if precision.last_rating >= 2 else "NORMAL", int(precision.last_slack * 1000.0)])
+		lines.append("VENTANAS MS: L %d  P %d  G %d" % [int(Timing.LEGENDARY_WINDOW * precision.window_scale * 1000.0), int(Timing.PERFECT_WINDOW * precision.window_scale * 1000.0), int(Timing.GOOD_WINDOW * precision.window_scale * 1000.0)])
+		if danger.x == INF:
+			lines.append("PELIGRO: NINGUNO")
+		else:
+			lines.append("PELIGRO A %d PX  %d MS" % [int(danger.x), int(danger.y * 1000.0)])
+		lines.append("COMBO %d  X%.1f  VELOCIDAD %d" % [precision.perfects, precision.multiplier(), int(player.get_speed())])
+		lines.append("DIFICULTAD %.2f" % (float(_def.get("difficulty", clampf(float(_level) / 9.0, 0.0, 1.0)))))
+		hud.set_debug("\n".join(lines))
 	if _boss != null and is_instance_valid(_boss):
 		hud.set_boss(_boss.title(), float(_boss.hp) / float(maxi(_boss.max_hp, 1)))
 	elif _level_mode and _goal_x != INF:
@@ -532,7 +559,12 @@ func _on_boss_struck() -> void:
 ## Respuesta a una accion evaluada: puntos, texto, sonido y efectos propios
 ## de cada categoria.
 func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
-	var gained: int = _add_points(float(Timing.BONUS[rating]))
+	var bonus: float = float(Timing.BONUS[rating])
+	if rating >= Timing.Rating.PERFECT:
+		bonus *= _perfect_mult
+		if _combo_coins > 0:
+			_add_coins(float(_combo_coins))
+	var gained: int = _add_points(bonus)
 	var where: Vector2 = player.position + Vector2(0.0, -34.0)
 	var color: Color = Pal.LIME
 	var size: float = 3.0
@@ -744,9 +776,9 @@ func _lose_life(fell_in_hole: bool) -> void:
 		return
 	if fell_in_hole:
 		_respawn_player()
-		player.start_invulnerability(2.2)
+		player.start_invulnerability(2.2 + _recovery)
 	else:
-		player.start_invulnerability(1.6)
+		player.start_invulnerability(1.6 + _recovery)
 
 
 ## Reaparece al otro lado del hueco.
@@ -807,6 +839,15 @@ func _level_complete() -> void:
 	var level: int = int(_def["level"])
 	var final_score: int = _score()
 	var rewards: Dictionary = GameData.complete_level(world, level, stars, rank, final_score)
+	# Retos opcionales del nivel.
+	var challenge_list: Array = Campaign.challenges(world, level)
+	var challenge_texts: Array = []
+	var challenge_results: Array = []
+	for item in challenge_list:
+		var challenge: Dictionary = item
+		challenge_texts.append(String(challenge["text"]))
+		challenge_results.append(precision.challenge_done(challenge, _damage_taken))
+	var extra: Dictionary = GameData.complete_challenges(world, level, challenge_results)
 	_bank_run()
 	GameData.check_achievements()
 	Sfx.play("victory")
@@ -818,7 +859,8 @@ func _level_complete() -> void:
 		"name": String(_def["name"]), "rank": rank, "stars": stars, "score": final_score,
 		"perfect": int(precision.counts[3]), "legendary": int(precision.counts[4]),
 		"combo": precision.best_combo, "damage": _damage_taken,
-		"coins": int(_coins_f) + int(rewards["coins"]), "diamonds": int(rewards["diamonds"]),
+		"coins": int(_coins_f) + int(rewards["coins"]) + int(extra["coins"]), "diamonds": int(rewards["diamonds"]) + int(extra["diamonds"]),
+		"challenges": challenge_texts, "results": challenge_results,
 		"has_next": has_next,
 	})
 
