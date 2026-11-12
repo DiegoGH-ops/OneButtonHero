@@ -87,6 +87,14 @@ const BOSSES := [
 		"phases": [["wall", "orb", "wave"], ["wall", "double_orb", "double_wave"], ["wall", "double_orb", "double_wave", "boulder", "feint"]]},
 ]
 
+## Economia por mundos (ver tools/simulacion_economia.py):
+## WORLD_REWARD multiplica las recompensas fijas (primera vez, jefe, retos,
+## modos y maestria); WORLD_COIN, las monedas recogidas en la partida.
+## Repetir un mundo que ya has dejado atras paga REPLAY_FACTOR.
+const WORLD_REWARD := [1.0, 2.0, 3.4, 5.2, 7.5]
+const WORLD_COIN := [1.0, 1.5, 2.1, 2.8, 3.6]
+const REPLAY_FACTOR := 0.6
+
 ## Hora del dia de cada nivel (se repite cada cinco).
 const LEVEL_TIMES := [0.20, 0.40, 0.56, 0.80, 0.05]
 ## Diamantes por superar por primera vez los niveles 5, 10, 15 y 20.
@@ -95,6 +103,15 @@ const MILESTONE_DIAMONDS := [1, 2, 3, 5]
 
 static func world_count() -> int:
 	return WORLDS.size()
+
+
+static func world_reward(world: int) -> float:
+	return float(WORLD_REWARD[clampi(world, 0, WORLD_REWARD.size() - 1)])
+
+
+## Monedas por superar un nivel por primera vez.
+static func first_clear_coins(world: int, level: int) -> int:
+	return int((60.0 + 5.0 * float(level)) * world_reward(world))
 
 
 static func theme(world: int) -> Dictionary:
@@ -146,7 +163,7 @@ static func level_def(world: int, level: int) -> Dictionary:
 		"unlocked": unlocked, "focus": [focus_a, focus_b],
 		"seed": 1000 + world * 100 + level,
 		"time": LEVEL_TIMES[level % LEVEL_TIMES.size()],
-		"coins": 30 + world * 20 + level * 4,
+		"coins": first_clear_coins(world, level),
 		# Contrarreloj: tiempo objetivo (exige aprovechar hielo y rebotes).
 		"par_time": int(meters * PIXELS_PER_METER / (360.0 + float(world) * 80.0 + float(level) * 4.0) * 0.93) if not is_final else 60 + world * 12,
 	}

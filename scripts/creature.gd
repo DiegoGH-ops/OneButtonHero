@@ -173,6 +173,8 @@ func hit() -> int:
 		return 0
 	if archetype == SENTINEL and _state != 2:
 		_blocked = 0.35
+		# Rompeescudos: cada bloqueo acerca el momento de vulnerabilidad.
+		_time += 0.2 * Daylight.shield_break
 		Sfx.play("hit", 1.4)
 		return 0
 	hp -= 1
@@ -183,7 +185,7 @@ func hit() -> int:
 		return -1
 	dead = true
 	_set_active(false)
-	if archetype == SPLITTER and not _is_mini:
+	if archetype == SPLITTER and not _is_mini and not Daylight.no_split:
 		_split()
 	queue_free()
 	return get_points()
@@ -235,7 +237,7 @@ func _process(delta: float) -> void:
 		BRUTE, BARRICADE:
 			# Avanza hacia el heroe mas despacio que el: hay tiempo justo.
 			if dx < 260.0 and hp > 0:
-				position.x += (speed - 70.0 * _adj) * delta
+				position.x += (speed - 70.0 * _adj * Daylight.brute_factor) * delta
 		SHIFTER:
 			var period: float = 1.4 / _adj
 			_state = int(_time / period) % 2
@@ -262,7 +264,7 @@ func _process(delta: float) -> void:
 				_flash = 0.2
 				Sfx.play("land", 0.6)
 		PROJECTILE:
-			position.x -= 230.0 * delta
+			position.x -= 230.0 * Daylight.projectile_factor * delta
 	modulate = Daylight.unlit() if archetype == PROJECTILE or archetype == SHIFTER else Color(1.0, 1.0, 1.0)
 	if dx < -900.0 and (archetype != CHASER or _passed):
 		queue_free()
@@ -278,7 +280,7 @@ func _process_chaser(dx: float, hero: Vector2, speed: float, delta: float) -> vo
 			_set_active(true)
 			Sfx.play("error", 0.7)
 		return
-	position.x += (speed + 200.0 * _adj) * delta
+	position.x += (speed + 200.0 * _adj * Daylight.chaser_factor) * delta
 	if not _passed and global_position.x > hero.x + 60.0:
 		_passed = true
 		Daylight.dodges += 1

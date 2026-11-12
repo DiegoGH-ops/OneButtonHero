@@ -95,6 +95,14 @@ var _buffer_time: float = JUMP_BUFFER_TIME
 var _ice_grip: float = 0.0
 var _stomp_radius: float = STOMP_RADIUS
 var _ledge: float = 14.0
+## Mejoras del arbol: planeo, suspension, rebotes, velocidad y golpes dobles.
+var _glide: float = 0.0
+var _hang: float = 0.0
+var _bounce_mult: float = 1.0
+var _stomp_bounce: float = 1.0
+var _speed_mult: float = 1.0
+var _vreach: float = 1.0
+var _crit: float = 0.0
 
 var _skin: Dictionary = {}
 var _skin_key: String = ""
@@ -137,12 +145,24 @@ func refresh_stats() -> void:
 	_ice_grip = clampf(Buffs.stat("ice_grip") / 100.0, 0.0, 0.8)
 	_stomp_radius = STOMP_RADIUS + Buffs.stat("stomp")
 	_ledge = 14.0 + Buffs.stat("ledge")
-	# Silueta agil: cuerpo hasta 3 px mas estrecho para roces justos.
-	var shrink: float = clampf(Buffs.stat("hitbox"), 0.0, 3.0)
+	_glide = clampf(Buffs.stat("glide") / 100.0, 0.0, 0.65)
+	_hang = clampf(Buffs.stat("hang") / 100.0, 0.0, 0.6)
+	_bounce_mult = Buffs.factor("bounce")
+	_stomp_bounce = Buffs.factor("stomp_bounce")
+	_speed_mult = clampf(Buffs.factor("run_speed"), 0.85, 1.2)
+	_vreach = Buffs.factor("vreach")
+	_crit = clampf(Buffs.stat("crit") / 100.0, 0.0, 0.6)
+	# Silueta agil: cuerpo hasta 4 px mas estrecho para roces justos.
+	var shrink: float = clampf(Buffs.stat("hitbox"), 0.0, 4.0)
 	var hurt_shape: CollisionShape2D = hurt_box.get_node("CollisionShape2D")
 	var rect: RectangleShape2D = RectangleShape2D.new()
 	rect.size = Vector2(20.0 - shrink * 2.0, 42.0 - shrink)
 	hurt_shape.shape = rect
+	# Tajo amplio: el area de ataque crece en vertical.
+	var attack_shape: CollisionShape2D = attack_area.get_node("CollisionShape2D")
+	var swing: RectangleShape2D = RectangleShape2D.new()
+	swing.size = Vector2(130.0, 130.0 * _vreach)
+	attack_shape.shape = swing
 
 
 ## Lee de GameData el aspecto, la espada y la estela equipados.
@@ -223,7 +243,7 @@ func is_enemy_in_reach(enemy: Node2D) -> bool:
 		return false
 	var dx: float = enemy.global_position.x - global_position.x
 	var dy: float = absf(enemy.global_position.y - global_position.y)
-	return dx > -30.0 and dx < get_attack_range() and dy < 120.0
+	return dx > -30.0 and dx < get_attack_range() and dy < 120.0 * _vreach
 
 
 func _nearest_enemy_in_reach() -> Node2D:
@@ -266,7 +286,7 @@ func start_invulnerability(seconds: float) -> void:
 
 
 func get_speed() -> float:
-	return run_speed * (1.0 + 0.3 * _ice * (1.0 - _ice_grip))
+	return run_speed * _speed_mult * (1.0 + 0.3 * _ice * (1.0 - _ice_grip))
 
 
 ## Animacion de golpe (solo la usa la Pluma de Fenix al salvarte).
@@ -313,7 +333,15 @@ func _physics_process(delta: float) -> void:
 
 	var on_floor: bool = is_on_floor()
 	if not on_floor:
-		velocity.y = minf(velocity.y + GRAVITY * delta, STOMP_SPEED if _stomping else MAX_FALL_SPEED)
+		var fall_gravity: float = GRAVITY
+		if not _stomping:
+			# Suspension: la gravedad afloja cerca del punto mas alto.
+			if _hang > 0.0 and absf(velocity.y) < 170.0:
+				fall_gravity *= 1.0 - _hang
+			# Planeo: manteniendo el boton al caer se desciende mas despacio.
+			elif _glide > 0.0 and velocity.y > 0.0 and Input.is_action_pressed(GameData.ACTION):
+				fall_gravity *= 1.0 - _glide
+		velocity.y = minf(velocity.y + fall_gravity * delta, STOMP_SPEED if _stomping else MAX_FALL_SPEED)
 
 	if on_floor:
 		_coyote = _coyote_time
@@ -326,7 +354,7 @@ func _physics_process(delta: float) -> void:
 		var pad: Node2D = _pad_under()
 		if pad != null:
 			var perfect: bool = _buffer > 0.0
-			_do_jump(SUPER_BOUNCE_VELOCITY if perfect else BOUNCE_VELOCITY)
+			_do_jump(SUPER_BOUNCE_VELOCITY * _bounce_mult if perfect else BOUNCE_VELOCITY)
 			_jumping = false
 			bounced.emit(global_position, perfect)
 	if _buffer > 0.0 and _coyote > 0.0:
@@ -413,6 +441,9 @@ func _strike(area: Area2D) -> void:
 	var kind: int = int(area.get("kind"))
 	var hit_pos: Vector2 = area.global_position
 	var result: int = int(area.call("hit"))
+	# Golpe critico: contra acorazados el golpe puede contar doble.
+	if result < 0 and _crit > 0.0 and area.get("mash") == true and randf() < _crit and is_instance_valid(area):
+		result = int(area.call("hit"))
 	if result > 0:
 		enemy_killed.emit(result, hit_pos, kind)
 	elif result < 0:
@@ -430,7 +461,7 @@ func _check_contacts() -> void:
 			continue
 		if is_enemy and _stomping and not area.get("mash") == true and area.global_position.y > global_position.y - 10.0:
 			_strike(area)
-			velocity.y = JUMP_VELOCITY * 0.6
+			velocity.y = JUMP_VELOCITY * 0.6 * _stomp_bounce
 			_stomping = false
 			stomped.emit(global_position, 1)
 			continue

@@ -31,6 +31,18 @@ var run: Dictionary = {"mode": "endless"}
 var tree: Dictionary = {}
 ## Power-ups de tienda comprados -> activado (true) o desactivado.
 var powerups: Dictionary = {}
+## Gemas acumuladas para la mejora "Fragmentos" (se funden en diamantes).
+var shards: int = 0
+
+## Herramientas del panel de administrador (ver admin_panel.gd).
+## admin_worlds: "normal" (progreso real), "all" (todos abiertos) o "locked".
+var admin_worlds: String = "normal"
+## Todos los niveles de los mundos abiertos accesibles sin superar el anterior.
+var admin_levels: bool = false
+## Comprar mejoras del arbol sin gastar monedas ni cumplir requisitos.
+var admin_free_tree: bool = false
+## Cosmeticos en prueba (no se guardan): ranura -> id. Se equipan sin poseerlos.
+var trial: Dictionary = {}
 var owned: Dictionary = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
 var equipped: Dictionary = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
 
@@ -110,6 +122,10 @@ func load_data() -> void:
 	_merge(campaign, cfg.get_value("profile", "campaign", {}))
 	_merge(tree, cfg.get_value("profile", "tree", {}))
 	_merge(powerups, cfg.get_value("profile", "powerups", {}))
+	shards = int(cfg.get_value("profile", "shards", 0))
+	admin_worlds = String(cfg.get_value("admin", "worlds", "normal"))
+	admin_levels = bool(cfg.get_value("admin", "levels", false))
+	admin_free_tree = bool(cfg.get_value("admin", "free_tree", false))
 	_refund_old_items(cfg.get_value("profile", "upgrades", {}), cfg.get_value("profile", "stock", {}))
 	_merge(owned, cfg.get_value("profile", "owned", {}))
 	_merge(equipped, cfg.get_value("profile", "equipped", {}))
@@ -142,6 +158,10 @@ func save_data() -> void:
 	cfg.set_value("profile", "campaign", campaign)
 	cfg.set_value("profile", "tree", tree)
 	cfg.set_value("profile", "powerups", powerups)
+	cfg.set_value("profile", "shards", shards)
+	cfg.set_value("admin", "worlds", admin_worlds)
+	cfg.set_value("admin", "levels", admin_levels)
+	cfg.set_value("admin", "free_tree", admin_free_tree)
 	cfg.set_value("profile", "owned", owned)
 	cfg.set_value("profile", "equipped", equipped)
 	cfg.set_value("profile", "stats", stats)
@@ -185,7 +205,8 @@ func equipped_id(slot: String) -> String:
 ## Datos del cosmetico equipado en una ranura ("skin", "sword", "trail", "aura").
 func equipped_item(slot: String) -> Dictionary:
 	var list: Array = Catalog.cosmetics(slot)
-	var entry: Dictionary = Catalog.find(list, equipped_id(slot))
+	var id: String = String(trial.get(slot, equipped_id(slot)))
+	var entry: Dictionary = Catalog.find(list, id)
 	if entry.is_empty():
 		entry = list[0]
 	return entry
@@ -199,12 +220,21 @@ func _spend(price: int) -> bool:
 	return true
 
 
+## Precio en diamantes con el descuento de la mejora "Regateo".
+func diamond_price(entry: Dictionary) -> int:
+	var gems: int = int(entry.get("gems", 0))
+	if gems <= 0:
+		return 0
+	var discount: float = clampf(Buffs.stat("diamond_discount"), 0.0, 50.0)
+	return maxi(int(roundf(float(gems) * (1.0 - discount / 100.0))), 1)
+
+
 func buy_cosmetic(slot: String, id: String) -> bool:
 	var entry: Dictionary = Catalog.find(Catalog.cosmetics(slot), id)
 	if entry.is_empty() or is_owned(id) or entry.has("reward"):
 		return false
 	# Los articulos exclusivos se pagan con diamantes.
-	var gems: int = int(entry.get("gems", 0))
+	var gems: int = diamond_price(entry)
 	if gems > 0:
 		if diamonds < gems:
 			return false
@@ -222,8 +252,37 @@ func buy_cosmetic(slot: String, id: String) -> bool:
 func equip(slot: String, id: String) -> void:
 	if is_owned(id):
 		equipped[slot] = id
+		trial.erase(slot)
 		Buffs.invalidate()
 		save_data()
+
+
+## Panel de administrador: prueba un cosmetico sin comprarlo ni guardarlo.
+func try_cosmetic(slot: String, id: String) -> void:
+	if not Catalog.find(Catalog.cosmetics(slot), id).is_empty():
+		trial[slot] = id
+		Buffs.invalidate()
+
+
+func clear_trials() -> void:
+	trial = {}
+	Buffs.invalidate()
+
+
+## Mejora "Fragmentos": las gemas recogidas se acumulan y cada cierto numero
+## se funden en un diamante. Devuelve los diamantes conseguidos.
+func add_gem_shards(count: int) -> int:
+	var level: int = int(Buffs.stat("shards"))
+	if level <= 0 or count <= 0:
+		return 0
+	var need: int = [40, 40, 30, 22, 15][clampi(level, 0, 4)]
+	shards += count
+	var made: int = int(float(shards) / float(need))
+	shards -= made * need
+	if made > 0:
+		diamonds += made
+		notice.emit("FRAGMENTOS: +%d DIAMANTE" % made)
+	return made
 
 
 # --------------------------------------------- power-ups y arbol de mejoras --
@@ -254,9 +313,17 @@ func is_powerup_active(id: String) -> bool:
 	return bool(powerups.get(id, false))
 
 
+## Cada mundo vende sus dos power-ups en cuanto se llega a el.
+func is_powerup_available(id: String) -> bool:
+	var entry: Dictionary = Catalog.find(Catalog.POWERUPS, id)
+	return not entry.is_empty() and is_world_unlocked(int(entry["world"]))
+
+
 func buy_powerup(id: String) -> bool:
 	var entry: Dictionary = Catalog.find(Catalog.POWERUPS, id)
-	if entry.is_empty() or is_powerup_owned(id) or not _spend(int(entry["price"])):
+	if entry.is_empty() or is_powerup_owned(id) or not is_powerup_available(id):
+		return false
+	if not _spend(int(entry["price"])):
 		return false
 	powerups[id] = true
 	Buffs.invalidate()
@@ -276,34 +343,111 @@ func node_level(id: String) -> int:
 	return int(tree.get(id, 0))
 
 
+func node_max_level(id: String) -> int:
+	return int(Catalog.tree_node(id).get("lv", 0))
+
+
 ## Precio del siguiente nivel de un nodo (-1 si esta al maximo).
 func node_price(id: String) -> int:
-	var node: Dictionary = Catalog.find(Catalog.TREE, id)
-	if node.is_empty():
-		return -1
-	var prices: Array = node["prices"]
+	var prices: Array = Catalog.tree_prices(id)
 	var level: int = node_level(id)
 	return int(prices[level]) if level < prices.size() else -1
 
 
+## Suma de niveles comprados en una categoria.
+func branch_levels(branch_id: String) -> int:
+	var total: int = 0
+	for key in tree:
+		var node: Dictionary = Catalog.tree_node(String(key))
+		if not node.is_empty() and String(node["cat"]) == branch_id:
+			total += int(tree[key])
+	return total
+
+
+## Niveles comprados en todo el arbol.
+func tree_total_levels() -> int:
+	var total: int = 0
+	for key in tree:
+		if not Catalog.tree_node(String(key)).is_empty():
+			total += int(tree[key])
+	return total
+
+
+## Requisito especial de un nodo (secretas y maestrias). Devuelve
+## [cumplido, texto del requisito, progreso actual, objetivo].
+func node_condition(id: String) -> Array:
+	var node: Dictionary = Catalog.tree_node(id)
+	var cond: Dictionary = node.get("cond", {})
+	if cond.is_empty():
+		return [true, "", 0, 0]
+	if cond.has("stat"):
+		var stat_name: String = cond["stat"]
+		var current: int = int(stats.get(stat_name, 0))
+		if stat_name == "total_stars":
+			current = total_stars()
+		elif stat_name == "owned_count":
+			current = owned.size()
+		var goal: int = int(cond["min"])
+		return [current >= goal, String(node.get("hint", "")), current, goal]
+	if cond.has("cats"):
+		var sum: int = 0
+		var names: PackedStringArray = PackedStringArray()
+		for cat in cond["cats"]:
+			sum += branch_levels(String(cat))
+			names.append(String(Catalog.branch(String(cat)).get("name", "")))
+		var need: int = int(cond["min"])
+		return [sum >= need, "%d NIVELES EN %s" % [need, " Y ".join(names)], sum, need]
+	if cond.has("levels"):
+		var have: int = tree_total_levels()
+		var target: int = int(cond["levels"])
+		return [have >= target, "%d NIVELES DE MEJORA EN TOTAL" % target, have, target]
+	if cond.has("all_cats"):
+		var each: int = int(cond["all_cats"])
+		var done: int = 0
+		var cats: Array = Catalog.core_branches()
+		for cat in cats:
+			if branch_levels(String(cat)) >= each:
+				done += 1
+		return [done >= cats.size(), String(node.get("hint", "")), done, cats.size()]
+	return [true, "", 0, 0]
+
+
+## Las mejoras secretas no se revelan hasta cumplir su requisito.
+func node_revealed(id: String) -> bool:
+	var node: Dictionary = Catalog.tree_node(id)
+	if String(node.get("tier", "")) != "secret":
+		return true
+	return admin_free_tree or node_level(id) > 0 or bool(node_condition(id)[0])
+
+
 ## Motivo por el que un nodo no se puede comprar ("" si se puede).
 func node_block_reason(id: String) -> String:
-	var node: Dictionary = Catalog.find(Catalog.TREE, id)
+	var node: Dictionary = Catalog.tree_node(id)
 	if node.is_empty():
 		return "NO EXISTE"
-	var excluded: String = String(node.get("excludes", ""))
-	if excluded != "" and node_level(excluded) > 0:
-		return "INCOMPATIBLE CON " + String(Catalog.find(Catalog.TREE, excluded).get("name", ""))
-	for req in node.get("requires", []):
-		if node_level(String(req)) <= 0:
-			return "REQUIERE " + String(Catalog.find(Catalog.TREE, String(req)).get("name", ""))
 	if node_price(id) < 0:
 		return "NIVEL MÁXIMO"
+	var excluded: String = String(node.get("ex", ""))
+	if excluded != "" and node_level(excluded) > 0:
+		return "INCOMPATIBLE CON " + String(Catalog.tree_node(excluded).get("name", ""))
+	if admin_free_tree:
+		return ""
+	var world: int = int(node.get("w", 0))
+	if not is_world_unlocked(world):
+		return "REQUIERE LLEGAR AL MUNDO %d" % (world + 1)
+	for req in node.get("req", []):
+		if node_level(String(req)) <= 0:
+			return "REQUIERE " + String(Catalog.tree_node(String(req)).get("name", ""))
+	var cond: Array = node_condition(id)
+	if not bool(cond[0]):
+		return "REQUIERE %s (%d/%d)" % [String(cond[1]), int(cond[2]), int(cond[3])]
 	return ""
 
 
 func buy_node(id: String) -> bool:
-	if node_block_reason(id) != "" or not _spend(node_price(id)):
+	if node_block_reason(id) != "":
+		return false
+	if not admin_free_tree and not _spend(node_price(id)):
 		return false
 	tree[id] = node_level(id) + 1
 	Buffs.invalidate()
@@ -328,15 +472,56 @@ func level_stars(world: int, level: int) -> int:
 	return int(level_record(world, level).get("stars", 0))
 
 
-## Un mundo se abre al superar el nivel 20 del anterior.
+## Un mundo se abre al superar el nivel 20 del anterior. El panel de
+## administrador puede abrirlos todos o bloquearlos todos.
 func is_world_unlocked(world: int) -> bool:
-	return world <= 0 or level_stars(world - 1, Campaign.LEVELS_PER_WORLD - 1) > 0
+	if world <= 0:
+		return true
+	if admin_worlds == "all":
+		return true
+	if admin_worlds == "locked":
+		return false
+	return level_stars(world - 1, Campaign.LEVELS_PER_WORLD - 1) > 0
 
 
 func is_level_unlocked(world: int, level: int) -> bool:
 	if not is_world_unlocked(world):
 		return false
+	if admin_levels:
+		return true
 	return level <= 0 or level_stars(world, level - 1) > 0
+
+
+## Mundo conquistado: su jefe ya ha caido.
+func is_world_conquered(world: int) -> bool:
+	return level_stars(world, Campaign.LEVELS_PER_WORLD - 1) > 0
+
+
+func conquered_worlds() -> int:
+	var count: int = 0
+	for w in Campaign.world_count():
+		if is_world_conquered(w):
+			count += 1
+	return count
+
+
+## Mundo mas avanzado al que se ha llegado (por progreso real).
+func highest_world() -> int:
+	var best: int = 0
+	for w in Campaign.world_count():
+		if w == 0 or level_stars(w - 1, Campaign.LEVELS_PER_WORLD - 1) > 0:
+			best = w
+	return best
+
+
+## Multiplicador de las monedas recogidas durante una partida de campana:
+## cada mundo paga mas que el anterior, y repetir un mundo que ya has dejado
+## atras paga menos (la mejora "Veterano" reduce esa penalizacion).
+func run_coin_factor(world: int) -> float:
+	var factor: float = float(Campaign.WORLD_COIN[clampi(world, 0, Campaign.WORLD_COIN.size() - 1)])
+	if world < highest_world():
+		factor *= minf(Campaign.REPLAY_FACTOR + Buffs.stat("replay") / 100.0, 1.0)
+	return factor * (1.0 + Buffs.stat("world_coins") / 100.0 * float(conquered_worlds()))
 
 
 func total_stars() -> int:
@@ -353,24 +538,36 @@ func total_stars() -> int:
 func complete_level(world: int, level: int, stars: int, rank: int, score: int) -> Dictionary:
 	var old: Dictionary = level_record(world, level)
 	var first: bool = old.is_empty()
+	var reward: float = Campaign.world_reward(world)
 	var coins: int = 0
 	var gems: int = 0
 	var unlocked_items: Array = []
 	if first:
-		coins += 30 + world * 20 + level * 4
-		gems += Campaign.first_clear_diamonds(world, level)
-		add_stat("levels_cleared", 1)
+		var base: float = float(Campaign.first_clear_coins(world, level))
 		# Hitos: nivel 1 recompensa inicial; 5 espada; 10 aura; 15 estela;
 		# 20 jefe: botin, aspecto exclusivo y siguiente mundo.
 		if level == 0:
-			coins += 100 + world * 100
+			base += 150.0 * reward
+		coins += int(base * Buffs.factor("level_coins"))
+		gems += Campaign.first_clear_diamonds(world, level)
+		add_stat("levels_cleared", 1)
 		if level == Campaign.LEVELS_PER_WORLD - 1:
-			coins += 500 * (world + 1)
+			coins += int(800.0 * reward * Buffs.factor("boss_coins"))
+			gems += int(Buffs.stat("boss_diamonds"))
 			add_stat("bosses", 1)
 		unlocked_items = grant_level_rewards(world, level)
-	# Tres estrellas por primera vez: un diamante.
+	# Estrellas nuevas: mejora "Estrellas de oro".
+	var new_stars: int = maxi(stars - int(old.get("stars", 0)), 0)
+	if new_stars > 0 and Buffs.stat("star_coins") > 0.0:
+		coins += int(Buffs.stat("star_coins") * float(new_stars) * reward)
+	# Tres estrellas por primera vez: un diamante (y quiza otro con Constelacion).
 	if stars >= 3 and int(old.get("stars", 0)) < 3:
 		gems += 1
+		if randf() * 100.0 < Buffs.stat("star_diamonds"):
+			gems += 1
+	# Interes: un porcentaje de los ahorros, con tope segun el mundo.
+	if Buffs.stat("interest") > 0.0:
+		coins += mini(int(float(wallet) * Buffs.stat("interest") / 100.0), int(150.0 * reward))
 	campaign[level_key(world, level)] = {
 		"stars": maxi(stars, int(old.get("stars", 0))),
 		"rank": maxi(rank, int(old.get("rank", 0))),
@@ -379,11 +576,25 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 		"modes": old.get("modes", {}),
 		"dia": old.get("dia", false),
 	}
+	# Maestria del mundo: las 60 estrellas dan un gran premio (una vez).
+	var mastery_key: String = "mastery_%d" % world
+	if not bool(campaign.get(mastery_key, false)) and world_stars(world) >= Campaign.LEVELS_PER_WORLD * 3:
+		campaign[mastery_key] = true
+		coins += int(1500.0 * reward)
+		gems += 3
+		call_deferred("emit_signal", "notice", "¡MUNDO DOMINADO! +%d Y 3 DIAMANTES" % int(1500.0 * reward))
 	diamonds += gems
 	add_coins(coins)
 	save_data()
 	wallet_changed.emit()
 	return {"coins": coins, "diamonds": gems, "first": first, "items": unlocked_items}
+
+
+func world_stars(world: int) -> int:
+	var total: int = 0
+	for i in Campaign.LEVELS_PER_WORLD:
+		total += level_stars(world, i)
+	return total
 
 
 ## Entrega los objetos de aspecto ligados a un nivel. Devuelve sus nombres.
@@ -409,12 +620,15 @@ func complete_mode(world: int, level: int, mode: String) -> Dictionary:
 	record["modes"] = modes
 	campaign[level_key(world, level)] = record
 	add_stat("modes_cleared", 1)
-	var coins: int = 100 + world * 50
-	diamonds += 1
+	var coins: int = int(120.0 * Campaign.world_reward(world) * Buffs.factor("mode_coins"))
+	var gems: int = 1
+	if randf() * 100.0 < Buffs.stat("mode_diamonds"):
+		gems += 1
+	diamonds += gems
 	add_coins(coins)
 	save_data()
 	wallet_changed.emit()
-	return {"coins": coins, "diamonds": 1}
+	return {"coins": coins, "diamonds": gems}
 
 
 func mode_done(world: int, level: int, mode: String) -> bool:
@@ -452,7 +666,7 @@ func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
 		var before: bool = i < old.size() and bool(old[i])
 		var now: bool = i < results.size() and bool(results[i])
 		if now and not before:
-			coins += 25 + world * 15
+			coins += int(30.0 * Campaign.world_reward(world) * Buffs.factor("challenge_coins"))
 		merged[i] = before or now
 		all_old = all_old and before
 		all_new = all_new and bool(merged[i])
@@ -522,7 +736,7 @@ func claim_login() -> Dictionary:
 	login_streak = login_streak + 1 if today == login_day + 1 else 1
 	login_day = today
 	var day: int = (login_streak - 1) % 7 + 1
-	var coins: int = 40 * day
+	var coins: int = int(40.0 * float(day) * Buffs.factor("login"))
 	var gems: int = 1 if day == 7 else 0
 	diamonds += gems
 	add_coins(coins)
@@ -543,9 +757,10 @@ func add_mission_progress(stat: String, amount: int) -> void:
 		weekly_progress[week_key] = week_value
 		if week_value >= int(week_mission["target"]):
 			weekly_done[week_key] = true
-			add_coins(int(week_mission["reward"]))
+			var week_reward: int = int(float(week_mission["reward"]) * Buffs.factor("weekly"))
+			add_coins(week_reward)
 			diamonds += 1
-			notice.emit("DESAFÍO SEMANAL: +%d Y 1 DIAMANTE" % int(week_mission["reward"]))
+			notice.emit("DESAFÍO SEMANAL: +%d Y 1 DIAMANTE" % week_reward)
 	for item in missions:
 		var mission: Dictionary = item
 		var id: String = mission["id"]
@@ -555,8 +770,9 @@ func add_mission_progress(stat: String, amount: int) -> void:
 		mission_progress[id] = value
 		if value >= int(mission["target"]):
 			mission_done[id] = true
-			add_coins(int(mission["reward"]))
-			notice.emit("MISIÓN CUMPLIDA: +%d MONEDAS" % int(mission["reward"]))
+			var mission_reward: int = int(float(mission["reward"]) * Buffs.factor("mission"))
+			add_coins(mission_reward)
+			notice.emit("MISIÓN CUMPLIDA: +%d MONEDAS" % mission_reward)
 
 
 func mission_text(mission: Dictionary) -> String:
@@ -578,8 +794,9 @@ func check_achievements() -> void:
 			continue
 		if int(stats.get(String(entry["stat"]), 0)) >= int(entry["target"]):
 			achievements[id] = true
-			add_coins(int(entry["reward"]))
-			notice.emit("LOGRO: %s  +%d" % [String(entry["name"]), int(entry["reward"])])
+			var prize: int = int(float(entry["reward"]) * Buffs.factor("achievement"))
+			add_coins(prize)
+			notice.emit("LOGRO: %s  +%d" % [String(entry["name"]), prize])
 
 
 ## Registra el final de una partida. Devuelve true si hay nuevo record.
@@ -609,6 +826,8 @@ func reset_progress() -> void:
 	weekly_done = {}
 	tree = {}
 	powerups = {}
+	shards = 0
+	trial = {}
 	owned = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
 	equipped = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
 	for key in stats:

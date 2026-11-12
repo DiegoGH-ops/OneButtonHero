@@ -17,6 +17,7 @@ const Fx = preload("res://scripts/fx.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
 const PixelButton = preload("res://scripts/pixel_button.gd")
 const Pal = preload("res://scripts/palette.gd")
+const Campaign = preload("res://scripts/campaign.gd")
 
 const TABS := ["HÉROES", "ESPADAS", "ESTELAS", "AURAS", "PODERES"]
 const CATEGORIES := ["skin", "sword", "trail", "aura", "powerup"]
@@ -193,13 +194,17 @@ func _refresh_card(card: ShopCard) -> void:
 	var title: String = entry["name"]
 	if card.category == "powerup":
 		var cost: int = int(entry["price"])
+		var world: int = int(entry["world"])
+		card.band_color = Color(String(entry["color"]))
 		if GameData.is_powerup_owned(id):
 			var on: bool = GameData.is_powerup_active(id)
 			card.configure(title, "ACTIVO" if on else "INACTIVO", "DESACTIVAR" if on else "ACTIVAR", Pal.WHITE, false, -1, 0, on)
+		elif not GameData.is_powerup_available(id):
+			card.configure(title, "MUNDO %d" % (world + 1), "BLOQUEADO", Pal.SILVER, false, -1, 0, false)
 		else:
-			card.configure(title, "POWER-UP", str(cost), _afford_color(cost), true, -1, 0, false)
+			card.configure(title, "MUNDO %d" % (world + 1), str(cost), _afford_color(cost), true, -1, 0, false)
 		return
-	var gems: int = int(entry.get("gems", 0))
+	var gems: int = GameData.diamond_price(entry)
 	var rarity: String = String(entry.get("rarity", ""))
 	if entry.has("reward") and not GameData.is_owned(id):
 		# Recompensa de campana: no se vende.
@@ -243,13 +248,17 @@ func _show_info(card: ShopCard) -> void:
 	_info_name.text = String(entry["name"])
 	var lines: Array = []
 	if card.category == "powerup":
+		var world: int = int(entry["world"])
+		var world_name: String = String(Campaign.WORLDS[world]["name"])
 		_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
+		lines.append("PODER DE %s" % world_name)
 		lines.append_array(_wrap(String(entry["desc"]), 24))
-		lines.append("")
-		lines.append("SE COMPRA UNA VEZ Y SE")
-		lines.append("ACTIVA O DESACTIVA AQUÍ")
+		lines.append("CONTRAPARTIDA:")
+		lines.append_array(_wrap(String(entry["cost"]), 24))
+		if not GameData.is_powerup_available(id):
+			lines.append("SE VENDE AL LLEGAR AL MUNDO %d" % (world + 1))
 	else:
-		var gems: int = int(entry.get("gems", 0))
+		var gems: int = GameData.diamond_price(entry)
 		if entry.has("reward"):
 			var parts: PackedStringArray = String(entry["reward"]).split("_")
 			_info_price.text = "RECOMPENSA DEL NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1]
@@ -259,7 +268,7 @@ func _show_info(card: ShopCard) -> void:
 			_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
 		var buff: Dictionary = entry.get("buff", {})
 		lines.append("BUFF:")
-		lines.append_array(_wrap(Buffs.describe(buff), 24))
+		lines.append_array(_wrap(Buffs.describe(buff, Buffs.affinity(card.category)), 24))
 		if entry.has("rarity"):
 			lines.append("RAREZA: " + String(entry["rarity"]))
 		lines.append("")
@@ -273,7 +282,11 @@ func _show_info(card: ShopCard) -> void:
 	for i in _info_lines.size():
 		var label: PixelLabel = _info_lines[i]
 		label.text = String(lines[i]) if i < lines.size() else ""
-		label.color = Pal.LIME if i == 1 and card.category != "powerup" else Pal.WHITE
+		label.color = Pal.WHITE
+		if card.category != "powerup" and i == 1:
+			label.color = Pal.LIME
+		elif card.category == "powerup" and (i == 0 or String(label.text).begins_with("CONTRAPARTIDA") or String(label.text).begins_with("SE VENDE")):
+			label.color = Pal.ORANGE if i > 0 else Color(String(entry["color"]))
 
 
 ## Parte un texto en lineas de como mucho `width` caracteres.
@@ -305,6 +318,11 @@ func _on_card_pressed(card: ShopCard) -> void:
 			_refresh_all()
 			_show_info(card)
 			return
+		if not GameData.is_powerup_available(id):
+			Sfx.play("error")
+			card.shake()
+			_toaster.show_toast("LLEGA AL MUNDO %d PARA COMPRARLO" % (int(entry["world"]) + 1), Pal.SILVER)
+			return
 		bought = GameData.buy_powerup(id)
 	elif GameData.is_owned(id):
 		# Ya comprado: solo se equipa (y su buff sustituye al anterior).
@@ -330,6 +348,8 @@ func _on_card_pressed(card: ShopCard) -> void:
 		var center: Vector2 = card.position + card.size * 0.5
 		Fx.burst(_grid, center, Pal.YELLOW, 22, 420.0, 0.6, 9.0, 900.0, 180.0, Vector2.UP)
 		Fx.burst(_grid, center, Pal.WHITE, 10, 260.0, 0.4, 6.0, 500.0, 180.0, Vector2.UP)
+		Fx.ring(_grid, center, Pal.YELLOW, 110.0)
+		Fx.ring(_grid, center, Pal.WHITE, 60.0)
 	else:
 		Sfx.play("error")
 		card.shake()

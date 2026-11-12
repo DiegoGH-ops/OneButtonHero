@@ -78,6 +78,12 @@ func _draw() -> void:
 			draw_rect(Rect2(x, GROUND_Y, 4.0, DEPTH), Pal.INK)
 		if hole_right:
 			draw_rect(Rect2(x + TILE - 4.0, GROUND_Y, 4.0, DEPTH), Pal.INK)
+			# Ojo del abismo: el borde del hueco se marca con un aviso que late.
+			if Daylight.hole_sight:
+				var blink: float = 0.55 + 0.45 * sin(float(Time.get_ticks_msec()) * 0.012)
+				draw_rect(Rect2(x + TILE - 12.0, GROUND_Y - 10.0, 12.0, 6.0), Color(Pal.RED, blink))
+				draw_rect(Rect2(x + TILE - 8.0, GROUND_Y - 34.0, 4.0, 16.0), Color(Pal.YELLOW, blink))
+				draw_rect(Rect2(x + TILE - 8.0, GROUND_Y - 14.0, 4.0, 4.0), Color(Pal.YELLOW, blink))
 
 		# Decoracion estable (hierba, flores, setas) lejos de los bordes.
 		if decor_on and not hole_left and not hole_right and PixelArt.hash01(i, 5) < 0.24:

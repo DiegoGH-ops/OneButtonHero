@@ -93,6 +93,10 @@ var _storm_timer: float = 20.0
 var _storm: float = 0.0
 var _death_time: float = 0.0
 var _endless_creatures: int = 0
+## Multiplicador de las monedas de esta partida (economia por mundos).
+var _coin_factor: float = 1.0
+## Tiempo bala (mejora del arbol): segundos reales que quedan.
+var _slowmo: float = 0.0
 
 # Dia y noche y eventos.
 var _phase: int = -1
@@ -127,6 +131,15 @@ func _ready() -> void:
 	Daylight.mash_factor = Buffs.factor("mash")
 	Daylight.counter_factor = Buffs.factor("counter")
 	Daylight.magnet_radius = Buffs.stat("magnet")
+	Daylight.projectile_factor = clampf(1.0 - Buffs.stat("projectile_slow") / 100.0, 0.35, 1.0)
+	Daylight.chaser_factor = clampf(1.0 - Buffs.stat("chaser_slow") / 100.0, 0.5, 1.0)
+	Daylight.brute_factor = clampf(1.0 - Buffs.stat("brute_slow") / 100.0, 0.5, 1.0)
+	Daylight.shield_break = Buffs.stat("shield_break")
+	Daylight.no_split = Buffs.has("no_split")
+	Daylight.hole_sight = Buffs.has("hole_sight")
+	Daylight.attack_rating = 0
+	Daylight.reflected = 0
+	Daylight.invincible = false
 	generator.setup(spans_root, objects_root)
 	precision = Precision.new()
 	add_child(precision)
@@ -134,6 +147,7 @@ func _ready() -> void:
 	precision.bonus = Vector3(Buffs.factor("legend"), Buffs.factor("perfect"), Buffs.factor("good"))
 	precision.land_bonus = Buffs.factor("land")
 	precision.methodical = Buffs.has("methodical")
+	precision.perfects = int(Buffs.stat("combo_start"))
 	generator.gem_bonus = Buffs.stat("gems") / 100.0
 	if Buffs.has("diamond_sense"):
 		generator.diamond_chance = 1.0
@@ -162,6 +176,7 @@ func _ready() -> void:
 			_boss.setup(int(_def["world"]), generator)
 			_boss.struck.connect(_on_boss_struck)
 			_boss.defeated.connect(_level_complete)
+		_coin_factor = GameData.run_coin_factor(int(_def["world"]))
 	ground.holes = generator.holes
 	Daylight.holes = generator.holes
 
@@ -193,6 +208,9 @@ func _ready() -> void:
 	_announce_new_content()
 	if Buffs.has("phoenix"):
 		hud.toast("PLUMA DE FÉNIX ACTIVA", Pal.ORANGE)
+	if _level_mode and not is_equal_approx(_coin_factor, 1.0):
+		var conquered: bool = int(_def["world"]) < GameData.highest_world()
+		hud.toast(("MUNDO SUPERADO: MONEDAS X%.1f" if conquered else "MONEDAS DEL MUNDO X%.1f") % _coin_factor, Pal.YELLOW)
 	camera.make_current()
 	_update_camera()
 	_update_daylight(true)
@@ -223,7 +241,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	var real_delta: float = delta
+	var real_delta: float = delta / maxf(Engine.time_scale, 0.05)
+	# Tiempo bala: se cuenta en tiempo real y devuelve el ritmo normal.
+	if _slowmo > 0.0:
+		_slowmo -= real_delta
+		if _slowmo <= 0.0:
+			Engine.time_scale = 1.0
 	if _state == State.PLAYING:
 		if _level_mode:
 			# En campana la velocidad sube poco a poco hasta la meta.
@@ -295,6 +318,7 @@ func _update_timers(delta: float) -> void:
 			hud.toast("¡VENTISCA!" if bool(Daylight.theme.get("ice", false)) else "¡TORMENTA DE ARENA!", Color(storm_hex))
 		_storm = maxf(_storm - delta, 0.0)
 		var haze: float = clampf(minf(_storm, 7.0 - _storm) * 0.5, 0.0, 1.0) * 0.42 if _storm > 0.0 else 0.0
+		haze *= clampf(1.0 - Buffs.stat("storm_clear") / 100.0, 0.1, 1.0)
 		hud.set_haze(Color(storm_hex), haze)
 	_event_timer -= delta
 	if _event_timer <= 0.0 and not _level_mode:
@@ -336,9 +360,10 @@ func _update_daylight(first: bool) -> void:
 	elif phase == Daylight.Phase.SUNSET:
 		hud.toast("ATARDECER", Pal.ORANGE)
 	elif phase == Daylight.Phase.DAWN and previous == Daylight.Phase.NIGHT:
-		hud.show_banner("AMANECE", "HAS SOBREVIVIDO A LA NOCHE: +30 MONEDAS")
+		var night_prize: float = 30.0 * Buffs.factor("night_coins")
+		hud.show_banner("AMANECE", "HAS SOBREVIVIDO A LA NOCHE: +%d MONEDAS" % int(night_prize * _coin_factor))
 		if _was_night:
-			_add_coins(30.0, false)
+			_add_coins(night_prize, false)
 			GameData.add_stat("nights_survived", 1)
 			GameData.add_mission_progress("nights", 1)
 			GameData.check_achievements()
@@ -372,8 +397,9 @@ func _update_feel(delta: float) -> void:
 	if _combo_reward_index < COMBO_REWARDS.size() and precision.perfects >= int(COMBO_REWARDS[_combo_reward_index]):
 		var target: int = COMBO_REWARDS[_combo_reward_index]
 		_combo_reward_index += 1
-		_add_coins(float(target), false)
-		hud.toast("COMBO %d: +%d MONEDAS" % [target, target], Pal.ORANGE)
+		var combo_prize: float = float(target) * Buffs.factor("combo_reward")
+		_add_coins(combo_prize, false)
+		hud.toast("COMBO %d: +%d MONEDAS" % [target, int(combo_prize * _coin_factor)], Pal.ORANGE)
 
 
 func _challenge_name() -> String:
@@ -424,7 +450,7 @@ func _add_points(base: float) -> int:
 
 ## Suma monedas a la partida. `boosted` aplica los multiplicadores.
 func _add_coins(amount: float, boosted: bool = true) -> void:
-	var total: float = amount
+	var total: float = amount * _coin_factor
 	if boosted:
 		total *= Buffs.factor("coins")
 		if _gold_rush > 0.0:
@@ -480,9 +506,9 @@ func _update_hud() -> void:
 func _check_milestones() -> void:
 	if _meters() < _next_milestone:
 		return
-	var reward: int = 10 + int(_next_milestone / float(MILESTONE_METERS)) * 2
-	_add_coins(float(reward), false)
-	hud.toast("%d M: +%d MONEDAS" % [_next_milestone, reward], Pal.YELLOW)
+	var reward: float = (10.0 + float(int(_next_milestone / float(MILESTONE_METERS)) * 2)) * Buffs.factor("milestone")
+	_add_coins(reward, false)
+	hud.toast("%d M: +%d MONEDAS" % [_next_milestone, int(reward * _coin_factor)], Pal.YELLOW)
 	Sfx.play("coin")
 	_next_milestone += MILESTONE_METERS
 
@@ -515,8 +541,8 @@ func _start_random_event() -> void:
 		generator.start_event("horde")
 		hud.show_banner("¡HORDA!", "ENEMIGOS EN CADENA: SUBE TU COMBO")
 	else:
-		_gold_rush = 12.0
-		hud.show_banner("FIEBRE DEL ORO", "MONEDAS X2 DURANTE 12 SEGUNDOS")
+		_gold_rush = 12.0 + Buffs.stat("rush")
+		hud.show_banner("FIEBRE DEL ORO", "MONEDAS X2 DURANTE %d SEGUNDOS" % int(_gold_rush))
 	Sfx.play("level")
 
 
@@ -530,6 +556,10 @@ func _on_boss_struck() -> void:
 		amount = 3
 	elif rating == Timing.Rating.PERFECT:
 		amount = 2
+	# Cazador de jefes: probabilidad de un punto de dano extra.
+	if randf() * 100.0 < Buffs.stat("boss_damage"):
+		amount += 1
+		Fx.popup(fx_root, _boss.position + Vector2(40.0, -190.0), "¡CRÍTICO!", Pal.ORANGE, 3.0)
 	if rating >= Timing.Rating.GOOD:
 		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
 		precision.register(rating, label, _boss.position)
@@ -552,6 +582,16 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 			bonus *= Buffs.factor("attack_points")
 		else:
 			bonus *= Buffs.factor("jump_points")
+		if kind == "land":
+			bonus *= Buffs.factor("land_points")
+		elif kind == "dodge":
+			bonus *= Buffs.factor("dodge_points")
+	if rating == Timing.Rating.LEGENDARY:
+		bonus *= Buffs.factor("legend_points")
+		# Tiempo bala: un instante a camara lenta tras cada LEGENDARY.
+		if Buffs.stat("slowmo") > 0.0 and _state == State.PLAYING:
+			_slowmo = 0.10 + 0.08 * Buffs.stat("slowmo")
+			Engine.time_scale = 0.55
 		if Buffs.stat("combo_coins") > 0.0:
 			_add_coins(Buffs.stat("combo_coins"))
 	# Especializaciones del arbol (excluyentes entre si).
@@ -650,7 +690,7 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		Fx.popup(fx_root, pos + Vector2(0.0, -26.0), "+%d" % value, Pal.YELLOW, 3.0)
 	elif kind == Coin.Kind.GEM or kind == Coin.Kind.RUBY:
 		var is_gem: bool = kind == Coin.Kind.GEM
-		_add_coins(5.0 if is_gem else 3.0)
+		_add_coins((5.0 if is_gem else 3.0) + Buffs.stat("gem_coins"))
 		var gained: int = _add_points(float(value))
 		GameData.add_mission_progress("coins", 5 if is_gem else 3)
 		if is_gem:
@@ -662,12 +702,14 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % gained, color, 4.0)
 	else:
 		# Cofre del tesoro.
-		_add_coins(25.0)
+		var chest_coins: float = 25.0 * Buffs.factor("chest")
+		_add_coins(chest_coins)
 		GameData.add_mission_progress("coins", 25)
 		Sfx.play("buy")
 		_zoom_punch = 0.6
 		Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 30, 420.0, 0.7, 8.0, 900.0, 70.0, Vector2.UP)
-		Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "¡COFRE! +25", Pal.YELLOW, 4.0)
+		Fx.ring(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 80.0)
+		Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "¡COFRE! +%d" % int(chest_coins * _coin_factor * Buffs.factor("coins")), Pal.YELLOW, 4.0)
 
 
 func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
@@ -686,8 +728,10 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), impact, 10 + maxi(rating - 1, 0) * 10, 300.0 + float(rating) * 60.0, 0.45, 7.0, 200.0, 180.0, Vector2.UP)
 	if rating >= Timing.Rating.PERFECT:
 		Fx.ring(fx_root, pos + Vector2(0.0, -24.0), Color(String(slash[1])), 60.0 + float(rating) * 15.0)
-	# Proyectil de jefe devuelto con un golpe perfecto: contraataque.
-	if kind == Enemy.Kind.ORB and _boss != null and is_instance_valid(_boss) and rating >= Timing.Rating.PERFECT:
+	# Proyectil de jefe devuelto con un golpe perfecto (o GOOD con la mejora
+	# "Devolucion facil"): contraataque.
+	var reflect_rating: int = Timing.Rating.GOOD if Buffs.has("boss_reflect") else Timing.Rating.PERFECT
+	if kind == Enemy.Kind.ORB and _boss != null and is_instance_valid(_boss) and rating >= reflect_rating:
 		_boss.reflect()
 		Fx.popup(fx_root, _boss.position + Vector2(0.0, -150.0), "¡CONTRAATAQUE! -1", Pal.LIME, 4.0)
 	var kill_points: float = float(points)
@@ -695,6 +739,11 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 		kill_points *= 2.0
 	if Buffs.has("zen"):
 		kill_points *= 0.5
+	# Proyectiles cortados: mejoras "Devolver" y "Espejo de acero".
+	if kind == Enemy.Kind.ORB or kind == 109:
+		kill_points = (kill_points + 20.0) * Buffs.factor("reflect_points")
+		if Buffs.stat("reflect_coins") > 0.0:
+			_add_coins(Buffs.stat("reflect_coins"))
 	var gained: int = _add_points(kill_points)
 	if Buffs.stat("bounty") > 0.0:
 		_add_coins(Buffs.stat("bounty"))
@@ -722,6 +771,8 @@ func _on_stomped(pos: Vector2, kills: int) -> void:
 	Fx.ring(fx_root, pos, Pal.WHITE, 70.0 + Buffs.stat("stomp"))
 	Fx.burst(fx_root, pos, Pal.SILVER, 12, 300.0, 0.35, 6.0, 600.0, 70.0, Vector2.UP)
 	if kills > 0:
+		var stomp_gain: int = _add_points(30.0 * float(kills) * Buffs.factor("stomp_points"))
+		Fx.popup(fx_root, pos + Vector2(0.0, -80.0), "+%d" % stomp_gain, Pal.SILVER, 3.0)
 		precision.register(Timing.Rating.PERFECT, "PISOTÓN", pos, "attack")
 
 
@@ -730,6 +781,8 @@ func _on_bounced(pos: Vector2, perfect: bool) -> void:
 	Sfx.play("jump", 1.4 if perfect else 1.2)
 	Fx.burst(fx_root, pos, Pal.YELLOW, 10, 260.0, 0.35, 6.0, 300.0, 60.0, Vector2.UP)
 	if perfect:
+		_add_points(40.0 * Buffs.factor("bounce_points"))
+		Fx.ring(fx_root, pos, Pal.YELLOW, 70.0)
 		precision.register(Timing.Rating.PERFECT, "SUPER REBOTE", pos, "jump")
 
 
@@ -737,7 +790,7 @@ func _on_bounced(pos: Vector2, perfect: bool) -> void:
 func _check_dodges() -> void:
 	while Daylight.dodges > 0:
 		Daylight.dodges -= 1
-		_add_points(60.0)
+		_add_points(60.0 * Buffs.factor("dodge_points"))
 		precision.register(Timing.Rating.PERFECT, "¡ESQUIVADO!", player.position, "dodge")
 
 
@@ -815,6 +868,9 @@ func _bank_run() -> bool:
 	GameData.stats["best_combo"] = maxi(int(GameData.stats.get("best_combo", 0)), precision.best_combo)
 	GameData.add_stat("perfects", int(precision.counts[3]))
 	GameData.add_stat("legendaries", int(precision.counts[4]))
+	var fused: int = GameData.add_gem_shards(_gems)
+	if fused > 0:
+		hud.toast("FRAGMENTOS FUNDIDOS: +%d DIAMANTE" % fused, Pal.CYAN)
 	return GameData.finish_run(_score(), int(_coins_f), _kills, _gems, _meters())
 
 
@@ -850,7 +906,7 @@ func _level_complete() -> void:
 		"picked": _picked, "pickups": generator.pickups_spawned, "coins": int(_coins_f),
 		"time": _run_time, "par": float(_def.get("par_time", 0)) / 0.93,
 	}
-	var grade: float = precision.grade(info)
+	var grade: float = precision.grade(info) + Buffs.stat("rank_bonus")
 	var rank: int = Timing.rank_for(grade)
 	# La Pluma de Fenix limita el rango maximo a A.
 	if _phoenix_used:

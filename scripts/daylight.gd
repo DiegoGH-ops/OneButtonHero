@@ -32,6 +32,23 @@ static var mash_factor: float = 1.0
 static var counter_factor: float = 1.0
 ## Perseguidores esquivados desde el ultimo fotograma (lo lee game.gd).
 static var dodges: int = 0
+## Mejoras y power-ups que alteran a los enemigos (los fija game.gd):
+## velocidad de proyectiles, perseguidores y brutos (1 = normal), golpes
+## bloqueados que adelantan la apertura del escudo, divisibles que no se
+## dividen y aviso en el borde de los huecos.
+static var projectile_factor: float = 1.0
+static var chaser_factor: float = 1.0
+static var brute_factor: float = 1.0
+static var shield_break: float = 0.0
+static var no_split: bool = false
+static var hole_sight: bool = false
+## Categoria del ultimo ataque del heroe (timing.gd). Algunos enemigos solo
+## caen con un golpe PERFECT o mejor.
+static var attack_rating: int = 0
+## Proyectiles cortados desde el ultimo fotograma (lo lee game.gd).
+static var reflected: int = 0
+## Modo de prueba del panel de administrador: el heroe no muere.
+static var invincible: bool = false
 
 
 static func phase() -> int:
