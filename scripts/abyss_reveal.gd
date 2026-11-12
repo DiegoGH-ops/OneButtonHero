@@ -255,13 +255,13 @@ func _draw_piece_card() -> void:
 	draw_rect(card, Color(Pal.INK, 0.9 * a))
 	draw_rect(card, Color(Pal.VIOLET, a), false, 4.0)
 	var cx: float = x + 280.0
-	_text("PIEZA %d DE 4 - %s" % [_piece + 1, String(SLOT_NAMES[_piece])], 252.0, 2.0, Color(Pal.SILVER, a), cx)
+	_text(Loc.s("PIEZA %d DE 4 - %s") % [_piece + 1, Loc.s(String(SLOT_NAMES[_piece]))], 252.0, 2.0, Color(Pal.SILVER, a), cx)
 	_text(String(item.get("name", "")), 286.0, 4.0, Color(Pal.WHITE, a), cx)
 	_text("MÍTICO", 330.0, 3.0, Color(Catalog.rarity_color("MÍTICO"), a), cx)
 	var lines: Array = _wrap(Catalog.cosmetic_desc(item), 40)
 	for i in lines.size():
 		_text(String(lines[i]), 372.0 + float(i) * 22.0, 2.0, Color(Pal.SILVER, a), cx)
-	_text("BUFF: " + Buffs.describe(item.get("buff", {})), 470.0, 2.0, Color(Pal.LIME, a), cx)
+	_text(Loc.s("BUFF: ") + Buffs.describe(item.get("buff", {})), 470.0, 2.0, Color(Pal.LIME, a), cx)
 	# Destello de aparicion.
 	var flash: float = 1.0 - clampf(_step_time / 0.4, 0.0, 1.0)
 	if flash > 0.0:
@@ -301,14 +301,5 @@ func _draw_sparks() -> void:
 
 
 static func _wrap(text: String, width: int) -> Array:
-	var lines: Array = []
-	var line: String = ""
-	for word in text.split(" "):
-		if line.length() + String(word).length() + 1 > width and line != "":
-			lines.append(line)
-			line = String(word)
-		else:
-			line = String(word) if line == "" else line + " " + String(word)
-	if line != "":
-		lines.append(line)
-	return lines
+	# Traduce y corta por palabras (o por caracteres en chino y japones).
+	return Loc.wrap(text, width)

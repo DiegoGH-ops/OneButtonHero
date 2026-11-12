@@ -1278,7 +1278,7 @@ func _draw_brute(guard: bool) -> void:
 		_draw_hp_bar(-150.0, "¡ESPERA!")
 	else:
 		PixelArt.draw_glow(self, Vector2(0.0, -60.0), 70.0, Color(Pal.ORANGE, 0.35))
-		_draw_hp_bar(-150.0, "¡PULSA RÁPIDO! x%d" % hp)
+		_draw_hp_bar(-150.0, Loc.s("¡PULSA RÁPIDO! x%d") % hp)
 
 
 func _draw_gargoyle() -> void:
@@ -1342,7 +1342,7 @@ func _draw_golem() -> void:
 		for k in 3:
 			var d: float = fposmod(_time * 2.0 + float(k) * 0.33, 1.0)
 			draw_rect(Rect2(-30.0 + float(k) * 26.0, -90.0 - d * 50.0, 6.0, 6.0), Color(Pal.CYAN, 1.0 - d))
-	_draw_hp_bar(-150.0, ("¡FURIA! x%d" % hp) if enraged else ("¡PULSA RÁPIDO! x%d" % hp))
+	_draw_hp_bar(-150.0, (Loc.s("¡FURIA! x%d") % hp) if enraged else (Loc.s("¡PULSA RÁPIDO! x%d") % hp))
 
 
 func _draw_geode() -> void:
@@ -1379,7 +1379,7 @@ func _draw_yeti() -> void:
 		for k in 3:
 			var a: float = _time * 6.0 + float(k) * TAU / 3.0
 			PixelArt.draw(self, "star", Vector2(cos(a) * 30.0 - 9.0, -118.0 + sin(a) * 8.0), 2.0)
-		_draw_hp_bar(-150.0, "¡ATURDIDO! x%d" % hp)
+		_draw_hp_bar(-150.0, Loc.s("¡ATURDIDO! x%d") % hp)
 	else:
 		_draw_hp_bar(-150.0, "¡SALTA LA ONDA!" if _state == 1 else "x%d" % hp)
 
@@ -1429,7 +1429,7 @@ func _draw_beetle() -> void:
 	_skin(Vector2(-28.0 + push, -52.0), 4.0)
 	draw_rect(Rect2(-30.0, -60.0, 60.0, 10.0), Color(Pal.TEAL, 0.9))
 	if _state >= 2:
-		_draw_hp_bar(-56.0, "¡PULSA RÁPIDO! x%d" % hp)
+		_draw_hp_bar(-56.0, Loc.s("¡PULSA RÁPIDO! x%d") % hp)
 
 
 func _draw_mummy() -> void:

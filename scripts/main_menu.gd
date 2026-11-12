@@ -10,6 +10,7 @@ const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const Shop = preload("res://scripts/shop.gd")
 const ProgressPanel = preload("res://scripts/progress_panel.gd")
 const ResetDialog = preload("res://scripts/reset_dialog.gd")
+const LanguageMenu = preload("res://scripts/language_menu.gd")
 const CampaignMap = preload("res://scripts/campaign_map.gd")
 const SkillTree = preload("res://scripts/skill_tree.gd")
 const AdminPanel = preload("res://scripts/admin_panel.gd")
@@ -29,6 +30,8 @@ const MENU_DAY_LENGTH := 60.0
 var _scroll: float = 0.0
 var _time: float = 0.0
 var _reset_dialog: ResetDialog
+var _language_button: PixelButton
+var _language_menu: LanguageMenu
 
 var _title_top: PixelLabel
 var _title_main: PixelLabel
@@ -95,6 +98,7 @@ func _ready() -> void:
 	ui_root.add_child(_toaster)
 	GameData.notice.connect(_on_notice)
 	GameData.wallet_changed.connect(_refresh_texts)
+	Loc.language_changed.connect(_on_language_changed)
 	_refresh_texts()
 	_update_scene()
 	Sfx.play_music("menu")
@@ -102,7 +106,7 @@ func _ready() -> void:
 	# Recompensa por jugar hoy (racha de dias seguidos; el dia 7 da diamante).
 	var login: Dictionary = GameData.claim_login()
 	if not login.is_empty():
-		var text: String = "DÍA %d: +%d MONEDAS" % [int(login["day"]), int(login["coins"])]
+		var text: String = Loc.s("DÍA %d: +%d MONEDAS") % [int(login["day"]), int(login["coins"])]
 		if int(login["diamonds"]) > 0:
 			text += " +1 DIAMANTE"
 		_toaster.show_toast(text, Pal.YELLOW)
@@ -132,7 +136,7 @@ func _update_scene() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _admin.visible or (_reset_dialog != null and is_instance_valid(_reset_dialog)):
+	if _admin.visible or (_reset_dialog != null and is_instance_valid(_reset_dialog)) or (_language_menu != null and is_instance_valid(_language_menu)):
 		return
 	if event.is_action_pressed("ui_cancel") and _settings_layer.visible:
 		_close_settings()
@@ -217,9 +221,9 @@ func _build_main() -> void:
 
 
 func _refresh_texts() -> void:
-	var heading: String = "RÉCORD: %d  -  MEJOR DISTANCIA: %d M" % [GameData.high_score, int(GameData.stats.get("best_distance", 0))]
+	var heading: String = Loc.s("RÉCORD: %d  -  MEJOR DISTANCIA: %d M") % [GameData.high_score, int(GameData.stats.get("best_distance", 0))]
 	if GameData.title != "":
-		heading = GameData.title + "  -  " + heading
+		heading = Loc.s(GameData.title) + "  -  " + heading
 	_record.text = heading
 	if _progress_button != null:
 		var ready_count: int = GameData.claimable_count()
@@ -273,30 +277,35 @@ func _build_settings() -> void:
 	_settings_layer = UI.layer(ui_root, "Settings")
 	_settings_layer.visible = false
 	UI.dim(_settings_layer, 0.7)
-	UI.panel(_settings_layer, Rect2(340.0, 40.0, 600.0, 640.0))
-	UI.label(_settings_layer, "CONFIGURACIÓN", Vector2(640.0, 72.0), 5.0, Pal.YELLOW)
+	UI.panel(_settings_layer, Rect2(340.0, 20.0, 600.0, 680.0))
+	UI.label(_settings_layer, "CONFIGURACIÓN", Vector2(640.0, 44.0), 5.0, Pal.YELLOW)
+	# Idioma: el nombre de cada idioma aparece en su propia escritura.
+	_language_button = UI.button(_settings_layer, "", Rect2(400.0, 104.0, 480.0, 52.0), 3.0)
+	_language_button.icon_sprite = "arrow_down"
+	_language_button.fill = Pal.TEAL
+	_language_button.pressed.connect(_open_language_menu)
 
-	_sfx_button = UI.button(_settings_layer, "", Rect2(400.0, 132.0, 480.0, 52.0), 3.0)
+	_sfx_button = UI.button(_settings_layer, "", Rect2(400.0, 166.0, 480.0, 52.0), 3.0)
 	_sfx_button.pressed.connect(_toggle_sfx)
-	var sfx_minus: PixelButton = UI.button(_settings_layer, "-", Rect2(400.0, 194.0, 64.0, 52.0), 4.0)
+	var sfx_minus: PixelButton = UI.button(_settings_layer, "-", Rect2(400.0, 226.0, 64.0, 48.0), 4.0)
 	sfx_minus.pressed.connect(_change_sfx_volume.bind(-0.1))
-	var sfx_plus: PixelButton = UI.button(_settings_layer, "+", Rect2(816.0, 194.0, 64.0, 52.0), 4.0)
+	var sfx_plus: PixelButton = UI.button(_settings_layer, "+", Rect2(816.0, 226.0, 64.0, 48.0), 4.0)
 	sfx_plus.pressed.connect(_change_sfx_volume.bind(0.1))
-	_sfx_volume = UI.label(_settings_layer, "", Vector2(640.0, 208.0), 3.0, Pal.WHITE)
+	_sfx_volume = UI.label(_settings_layer, "", Vector2(640.0, 240.0), 3.0, Pal.WHITE)
 
-	_music_button = UI.button(_settings_layer, "", Rect2(400.0, 264.0, 480.0, 52.0), 3.0)
+	_music_button = UI.button(_settings_layer, "", Rect2(400.0, 284.0, 480.0, 52.0), 3.0)
 	_music_button.pressed.connect(_toggle_music)
-	var music_minus: PixelButton = UI.button(_settings_layer, "-", Rect2(400.0, 326.0, 64.0, 52.0), 4.0)
+	var music_minus: PixelButton = UI.button(_settings_layer, "-", Rect2(400.0, 344.0, 64.0, 48.0), 4.0)
 	music_minus.pressed.connect(_change_music_volume.bind(-0.1))
-	var music_plus: PixelButton = UI.button(_settings_layer, "+", Rect2(816.0, 326.0, 64.0, 52.0), 4.0)
+	var music_plus: PixelButton = UI.button(_settings_layer, "+", Rect2(816.0, 344.0, 64.0, 48.0), 4.0)
 	music_plus.pressed.connect(_change_music_volume.bind(0.1))
-	_music_volume = UI.label(_settings_layer, "", Vector2(640.0, 340.0), 3.0, Pal.WHITE)
+	_music_volume = UI.label(_settings_layer, "", Vector2(640.0, 358.0), 3.0, Pal.WHITE)
 
-	_shake_button = UI.button(_settings_layer, "", Rect2(400.0, 396.0, 480.0, 52.0), 3.0)
+	_shake_button = UI.button(_settings_layer, "", Rect2(400.0, 402.0, 480.0, 52.0), 3.0)
 	_shake_button.pressed.connect(_toggle_shake)
-	_fullscreen_button = UI.button(_settings_layer, "", Rect2(400.0, 458.0, 480.0, 52.0), 3.0)
+	_fullscreen_button = UI.button(_settings_layer, "", Rect2(400.0, 462.0, 480.0, 52.0), 3.0)
 	_fullscreen_button.pressed.connect(_toggle_fullscreen)
-	_reset_button = UI.button(_settings_layer, "BORRAR PROGRESO", Rect2(400.0, 520.0, 480.0, 52.0), 3.0)
+	_reset_button = UI.button(_settings_layer, "BORRAR PROGRESO", Rect2(400.0, 524.0, 480.0, 52.0), 3.0)
 	_reset_button.fill = Pal.RED
 	_reset_button.fill_hot = Pal.ORANGE
 	_reset_button.pressed.connect(_reset_progress)
@@ -312,17 +321,38 @@ func _build_settings() -> void:
 	_refresh_settings()
 
 
+func _open_language_menu() -> void:
+	if _language_menu != null and is_instance_valid(_language_menu):
+		return
+	_language_menu = LanguageMenu.new()
+	ui_root.add_child(_language_menu)
+	_language_menu.closed.connect(_on_language_menu_closed)
+
+
+func _on_language_menu_closed() -> void:
+	_language_menu = null
+	_language_button.grab_focus()
+
+
+## Idioma cambiado: los textos calculados se rehacen (el resto se traduce
+## solo al redibujarse).
+func _on_language_changed() -> void:
+	_refresh_settings()
+	_refresh_texts()
+
+
 func _yes_no(value: bool) -> String:
-	return "SÍ" if value else "NO"
+	return Loc.s("SÍ") if value else Loc.s("NO")
 
 
 func _refresh_settings() -> void:
-	_sfx_button.caption = "EFECTOS DE SONIDO: %s" % _yes_no(GameData.sfx_enabled)
-	_music_button.caption = "MÚSICA: %s" % _yes_no(GameData.music_enabled)
-	_sfx_volume.text = "VOLUMEN EFECTOS %d%%" % int(roundf(GameData.sfx_volume * 100.0))
-	_music_volume.text = "VOLUMEN MÚSICA %d%%" % int(roundf(GameData.music_volume * 100.0))
-	_shake_button.caption = "TEMBLOR DE CÁMARA: %s" % _yes_no(GameData.screen_shake)
-	_fullscreen_button.caption = "PANTALLA COMPLETA: %s" % _yes_no(GameData.fullscreen)
+	_sfx_button.caption = Loc.s("EFECTOS DE SONIDO: %s") % _yes_no(GameData.sfx_enabled)
+	_music_button.caption = Loc.s("MÚSICA: %s") % _yes_no(GameData.music_enabled)
+	_sfx_volume.text = Loc.s("VOLUMEN EFECTOS %d%%") % int(roundf(GameData.sfx_volume * 100.0))
+	_music_volume.text = Loc.s("VOLUMEN MÚSICA %d%%") % int(roundf(GameData.music_volume * 100.0))
+	_shake_button.caption = Loc.s("TEMBLOR DE CÁMARA: %s") % _yes_no(GameData.screen_shake)
+	_fullscreen_button.caption = Loc.s("PANTALLA COMPLETA: %s") % _yes_no(GameData.fullscreen)
+	_language_button.caption = Loc.s("IDIOMA / LANGUAGE") + ": " + Loc.language_name(Loc.language)
 
 
 func _open_settings() -> void:

@@ -170,7 +170,7 @@ func _draw() -> void:
 	var score_w: float = PixelFont.text_width(score_text, 6.0)
 	PixelFont.draw_text_shadowed(self, score_text, Vector2(roundf(640.0 - score_w * 0.5), 14.0), 6.0, Pal.WHITE, Pal.INK, true)
 	var best: int = maxi(high_score, score)
-	var record_text: String = "RÉCORD %d" % best
+	var record_text: String = Loc.s("RÉCORD %d") % best
 	var record_w: float = PixelFont.text_width(record_text, 2.0)
 	var record_color: Color = Pal.YELLOW if score > high_score and high_score > 0 else Pal.SILVER
 	PixelFont.draw_text_shadowed(self, record_text, Vector2(roundf(640.0 - record_w * 0.5), 72.0), 2.0, record_color, Pal.INK, true)
@@ -180,7 +180,7 @@ func _draw() -> void:
 
 	# --- Combo de precision (muy visible; cambia con el multiplicador) ---
 	if combo_count > 0:
-		var combo_text: String = "COMBO %d" % combo_count
+		var combo_text: String = Loc.s("COMBO %d") % combo_count
 		if combo_mult > 1.0:
 			combo_text += "  X%.1f" % combo_mult
 		var combo_px: float = 3.0
@@ -247,5 +247,5 @@ func _draw() -> void:
 			else:
 				color = Pal.RED
 		draw_rect(Rect2(bar_x + float(i) * (pip_w + pip_gap), 44.0, pip_w, 12.0), color)
-	var info: String = "NIVEL %d - %d M/S" % [level, speed_value]
+	var info: String = Loc.s("NIVEL %d - %d M/S") % [level, speed_value]
 	PixelFont.draw_text_shadowed(self, info, Vector2(right - PixelFont.text_width(info, 2.0), 68.0), 2.0, Pal.YELLOW, Pal.INK, true)

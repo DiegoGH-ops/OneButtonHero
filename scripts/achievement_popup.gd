@@ -120,9 +120,9 @@ func _draw_card() -> void:
 	var text_center: float = text_x + (rect.end.x - text_x - 16.0) * 0.5
 	var header: String = "¡LOGRO LEGENDARIO!" if tier >= 5 else "LOGRO DESBLOQUEADO"
 	_text(header, text_center, rect.position.y + (20.0 if big else 12.0), 3.0 if big else 2.0, color)
-	_text(String(_current["name"]), text_center, rect.position.y + (60.0 if big else 36.0), 5.0 if big else 3.0, Pal.WHITE)
-	_text(Achievements.tier_name(tier) + " - " + String(_current["cat"]), text_center, rect.position.y + (110.0 if big else 70.0), 2.0, color)
-	_text("+%d MONEDAS  +%d DIAMANTES" % [int(_current["coins"]), int(_current["gems"])], text_center, rect.position.y + (140.0 if big else 92.0), 2.0, Pal.YELLOW)
+	_text(Achievements.title(_current), text_center, rect.position.y + (60.0 if big else 36.0), 5.0 if big else 3.0, Pal.WHITE)
+	_text(Loc.s(Achievements.tier_name(tier)) + " - " + Loc.s(String(_current["cat"])), text_center, rect.position.y + (110.0 if big else 70.0), 2.0, color)
+	_text(Loc.s("+%d MONEDAS  +%d DIAMANTES") % [int(_current["coins"]), int(_current["gems"])], text_center, rect.position.y + (140.0 if big else 92.0), 2.0, Pal.YELLOW)
 	for item in _sparks:
 		var spark: Dictionary = item
 		var k: float = 1.0 - float(spark["t"]) / float(spark["life"])

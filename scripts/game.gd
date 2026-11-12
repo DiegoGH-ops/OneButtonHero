@@ -228,10 +228,10 @@ func _ready() -> void:
 	hud.menu_requested.connect(_go_to_menu)
 	hud.next_requested.connect(_next_level)
 	if _level_mode and _boss == null:
-		hud.set_level_name("NIVEL " + String(_def["name"]))
+		hud.set_level_name(Loc.s("NIVEL ") + String(_def["name"]))
 	hud.set_max_lives(0)
 	if _challenge != "normal":
-		hud.toast("MODO: " + _challenge_name(), Pal.ORANGE)
+		hud.toast(Loc.s("MODO: ") + _challenge_name(), Pal.ORANGE)
 	hud.set_high_score(GameData.high_score)
 
 	_announce_new_content()
@@ -452,7 +452,7 @@ func _update_daylight(first: bool) -> void:
 		hud.toast("ATARDECER", Pal.ORANGE)
 	elif phase == Daylight.Phase.DAWN and previous == Daylight.Phase.NIGHT:
 		var night_prize: float = 30.0 * Buffs.factor("night_coins")
-		hud.show_banner("AMANECE", "HAS SOBREVIVIDO A LA NOCHE: +%d MONEDAS" % int(night_prize * _coin_factor))
+		hud.show_banner("AMANECE", Loc.s("HAS SOBREVIVIDO A LA NOCHE: +%d MONEDAS") % int(night_prize * _coin_factor))
 		if _was_night:
 			_add_coins(night_prize, false)
 			GameData.add_stat("nights_survived", 1)
@@ -489,14 +489,14 @@ func _update_feel(delta: float) -> void:
 		_combo_reward_index += 1
 		var combo_prize: float = float(target) * Buffs.factor("combo_reward")
 		_add_coins(combo_prize, false)
-		hud.toast("COMBO %d: +%d MONEDAS" % [target, int(combo_prize * _coin_factor)], Pal.ORANGE)
+		hud.toast(Loc.s("COMBO %d: +%d MONEDAS") % [target, int(combo_prize * _coin_factor)], Pal.ORANGE)
 
 
 func _challenge_name() -> String:
 	for item in Campaign.MODES:
 		var mode: Dictionary = item
 		if String(mode["id"]) == _challenge:
-			return String(mode["name"])
+			return Loc.s(String(mode["name"]))
 	return ""
 
 
@@ -564,27 +564,27 @@ func _update_hud() -> void:
 	var mult: float = _point_multiplier()
 	var mult_text: String = ""
 	if mult > 1.04:
-		mult_text = "PUNTOS X%.1f" % mult
+		mult_text = Loc.s("PUNTOS X%.1f") % mult
 	var effects: PackedStringArray = PackedStringArray()
 	if Buffs.has("phoenix"):
 		effects.append("FÉNIX USADO" if _phoenix_used else "FÉNIX LISTO")
 	if _gold_rush > 0.0:
-		effects.append("FIEBRE DEL ORO %d" % int(ceilf(_gold_rush)))
+		effects.append(Loc.s("FIEBRE DEL ORO %d") % int(ceilf(_gold_rush)))
 	if _jump_chain > 0:
-		effects.append("CADENA %d/3" % (_jump_chain % 3))
+		effects.append(Loc.s("CADENA %d/3") % (_jump_chain % 3))
 	hud.set_status(Daylight.phase_name(), Daylight.darkness() > 0.5, mult_text, "\n".join(effects))
 	hud.set_combo(precision.perfects, precision.multiplier())
 	if _debug:
 		var danger: Vector2 = precision.next_danger(player.position, player.get_speed())
 		var lines: PackedStringArray = PackedStringArray()
-		lines.append("ULTIMA ACCION: %s  MARGEN %d MS" % [String(Timing.NAMES[precision.last_rating]) if precision.last_rating >= 2 else "NORMAL", int(precision.last_slack * 1000.0)])
-		lines.append("VENTANAS MS: L %d  P %d  G %d" % [int(Timing.LEGENDARY_WINDOW * precision.window_scale * precision.bonus.x * 1000.0), int(Timing.PERFECT_WINDOW * precision.window_scale * precision.bonus.y * 1000.0), int(Timing.GOOD_WINDOW * precision.window_scale * precision.bonus.z * 1000.0)])
+		lines.append(Loc.s("ULTIMA ACCION: %s  MARGEN %d MS") % [String(Timing.NAMES[precision.last_rating]) if precision.last_rating >= 2 else "NORMAL", int(precision.last_slack * 1000.0)])
+		lines.append(Loc.s("VENTANAS MS: L %d  P %d  G %d") % [int(Timing.LEGENDARY_WINDOW * precision.window_scale * precision.bonus.x * 1000.0), int(Timing.PERFECT_WINDOW * precision.window_scale * precision.bonus.y * 1000.0), int(Timing.GOOD_WINDOW * precision.window_scale * precision.bonus.z * 1000.0)])
 		if danger.x == INF:
 			lines.append("PELIGRO: NINGUNO")
 		else:
-			lines.append("PELIGRO A %d PX  %d MS" % [int(danger.x), int(danger.y * 1000.0)])
-		lines.append("COMBO %d  X%.1f  VELOCIDAD %d" % [precision.perfects, precision.multiplier(), int(player.get_speed())])
-		lines.append("DIFICULTAD %.2f" % (float(_def.get("difficulty", clampf(float(_level) / 9.0, 0.0, 1.0)))))
+			lines.append(Loc.s("PELIGRO A %d PX  %d MS") % [int(danger.x), int(danger.y * 1000.0)])
+		lines.append(Loc.s("COMBO %d  X%.1f  VELOCIDAD %d") % [precision.perfects, precision.multiplier(), int(player.get_speed())])
+		lines.append(Loc.s("DIFICULTAD %.2f") % (float(_def.get("difficulty", clampf(float(_level) / 9.0, 0.0, 1.0)))))
 		hud.set_debug("\n".join(lines))
 	if _boss != null and is_instance_valid(_boss):
 		hud.set_boss(_boss.title(), float(_boss.hp) / float(maxi(_boss.max_hp, 1)))
@@ -598,7 +598,7 @@ func _check_milestones() -> void:
 		return
 	var reward: float = (10.0 + float(int(_next_milestone / float(MILESTONE_METERS)) * 2)) * Buffs.factor("milestone")
 	_add_coins(reward, false)
-	hud.toast("%d M: +%d MONEDAS" % [_next_milestone, int(reward * _coin_factor)], Pal.YELLOW)
+	hud.toast(Loc.s("%d M: +%d MONEDAS") % [_next_milestone, int(reward * _coin_factor)], Pal.YELLOW)
 	Sfx.play("coin")
 	_next_milestone += MILESTONE_METERS
 
@@ -615,8 +615,8 @@ func _level_up() -> void:
 	if _endless_creatures < Bestiary.INTRO_LEVELS.size() - 1:
 		_endless_creatures += 1
 		var data: Array = Bestiary.entry(0, _endless_creatures)
-		subtitle = "NUEVO ENEMIGO: " + String(data[0])
-	hud.show_banner("NIVEL %d" % (_level + 1), subtitle)
+		subtitle = Loc.s("NUEVO ENEMIGO: ") + Loc.s(String(data[0]))
+	hud.show_banner(Loc.s("NIVEL %d") % (_level + 1), subtitle)
 	_zoom_punch = 1.0
 	Sfx.play("level")
 
@@ -632,7 +632,7 @@ func _start_random_event() -> void:
 		hud.show_banner("¡HORDA!", "ENEMIGOS EN CADENA: SUBE TU COMBO")
 	else:
 		_gold_rush = 12.0 + Buffs.stat("rush")
-		hud.show_banner("FIEBRE DEL ORO", "MONEDAS X2 DURANTE %d SEGUNDOS" % int(_gold_rush))
+		hud.show_banner("FIEBRE DEL ORO", Loc.s("MONEDAS X2 DURANTE %d SEGUNDOS") % int(_gold_rush))
 	Sfx.play("level")
 
 
@@ -733,7 +733,7 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 				var chain_points: int = _add_points(120.0 * Buffs.factor("chain"))
 				Sfx.play("combo")
 				Fx.ring(fx_root, where, Pal.CYAN, 90.0)
-				hud.toast("¡CADENA PERFECTA! +%d" % chain_points, Pal.CYAN)
+				hud.toast(Loc.s("¡CADENA PERFECTA! +%d") % chain_points, Pal.CYAN)
 		else:
 			_jump_chain = 0
 
@@ -871,7 +871,7 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		_zoom_punch = 0.6
 		Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 30, 420.0, 0.7, 8.0, 900.0, 70.0, Vector2.UP)
 		Fx.ring(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 80.0)
-		Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "¡COFRE! +%d" % int(chest_coins * _coin_factor * Buffs.factor("coins")), Pal.YELLOW, 4.0)
+		Fx.popup(fx_root, pos + Vector2(0.0, -60.0), Loc.s("¡COFRE! +%d") % int(chest_coins * _coin_factor * Buffs.factor("coins")), Pal.YELLOW, 4.0)
 
 
 func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
@@ -966,7 +966,7 @@ func _check_rapid() -> void:
 			var window: float = float(info.get("window", 1.0))
 			var gained: int = _add_points(150.0 * (1.0 + left / maxf(window, 0.1)))
 			precision.register(Timing.Rating.PERFECT, "RAPID SIX", player.position, "attack")
-			Fx.popup(fx_root, player.position + Vector2(60.0, -150.0), "RAPID SIX +%d" % gained, Pal.YELLOW, 4.0)
+			Fx.popup(fx_root, player.position + Vector2(60.0, -150.0), Loc.s("RAPID SIX +%d") % gained, Pal.YELLOW, 4.0)
 			lights.flash(Pal.YELLOW, 0.3, 0.3)
 			_shake = maxf(_shake, 0.6)
 			_zoom_punch = 1.0
@@ -1008,17 +1008,17 @@ func _announce_new_content() -> void:
 	if not _level_mode or bool(_def.get("final", false)):
 		if not _level_mode:
 			var first: Array = Bestiary.entry(0, 0)
-			hud.toast("UN GOLPE Y CAES. ENEMIGO: " + String(first[0]), Pal.ORANGE)
+			hud.toast(Loc.s("UN GOLPE Y CAES. ENEMIGO: ") + Loc.s(String(first[0])), Pal.ORANGE)
 		return
 	var world_index: int = int(_def["world"])
 	var level: int = int(_def["level"])
 	var newcomers: Array = Bestiary.introduced_list(level)
 	if not newcomers.is_empty():
 		var first_data: Array = Bestiary.entry(world_index, int(newcomers[0]))
-		hud.show_banner("NUEVO: " + String(first_data[0]), String(first_data[6]))
+		hud.show_banner(Loc.s("NUEVO: ") + Loc.s(String(first_data[0])), Loc.s(String(first_data[6])))
 		for i in range(1, newcomers.size()):
 			var data: Array = Bestiary.entry(world_index, int(newcomers[i]))
-			hud.toast("TAMBIÉN: %s. %s" % [String(data[0]), String(data[6])], Pal.ORANGE)
+			hud.toast(Loc.s("TAMBIÉN: %s. %s") % [Loc.s(String(data[0])), Loc.s(String(data[6]))], Pal.ORANGE)
 	elif level == 4:
 		hud.show_banner("TODOS A LA VEZ", "LOS CINCO ENEMIGOS DEL MUNDO SE COMBINAN")
 	# Obstaculos nuevos del mundo que se estrenan en este nivel.
@@ -1027,14 +1027,14 @@ func _announce_new_content() -> void:
 		if info.is_empty():
 			continue
 		if newcomers.is_empty() and level != 4:
-			hud.show_banner("NUEVO OBSTÁCULO: " + String(info[0]), String(info[1]))
+			hud.show_banner(Loc.s("NUEVO OBSTÁCULO: ") + Loc.s(String(info[0])), Loc.s(String(info[1])))
 		else:
-			hud.toast("NUEVO OBSTÁCULO: %s. %s" % [String(info[0]), String(info[1])], Pal.CYAN)
+			hud.toast(Loc.s("NUEVO OBSTÁCULO: %s. %s") % [Loc.s(String(info[0])), Loc.s(String(info[1]))], Pal.CYAN)
 	if world_index == 0:
 		for item in LevelGenerator.MECHANICS:
 			var mechanic: Array = item
 			if int(mechanic[1]) == level:
-				hud.toast("MECÁNICA NUEVA: %s. %s" % [String(mechanic[2]), String(mechanic[3])], Pal.CYAN)
+				hud.toast(Loc.s("MECÁNICA NUEVA: %s. %s") % [Loc.s(String(mechanic[2])), Loc.s(String(mechanic[3]))], Pal.CYAN)
 		if level == 2:
 			hud.toast("PISOTÓN: PULSA CAYENDO DESDE LO ALTO", Pal.CYAN)
 
@@ -1095,7 +1095,7 @@ func _setup_test() -> void:
 	_def = {"world": world_index, "level": 0, "final": false}
 	generator.configure_test(world_index, int(GameData.run.get("creature", -1)), int(GameData.run.get("pattern", -1)))
 	Daylight.invincible = bool(GameData.run.get("invincible", false))
-	hud.set_level_name("PRUEBA" + (" - INVENCIBLE" if Daylight.invincible else ""))
+	hud.set_level_name(Loc.s("PRUEBA") + (" - INVENCIBLE" if Daylight.invincible else ""))
 	hud.toast("MODO PRUEBA: NO SE GUARDA NADA", Pal.ORANGE)
 
 
@@ -1141,7 +1141,7 @@ func _bank_run() -> bool:
 	GameData.track_max("rapid_streak_run", _run_rapid_streak_best)
 	var fused: int = GameData.add_gem_shards(_gems)
 	if fused > 0:
-		hud.toast("FRAGMENTOS FUNDIDOS: +%d DIAMANTE" % fused, Pal.CYAN)
+		hud.toast(Loc.s("FRAGMENTOS FUNDIDOS: +%d DIAMANTE") % fused, Pal.CYAN)
 	return GameData.finish_run(_score(), int(_coins_f), _kills, _gems, _meters())
 
 
@@ -1220,14 +1220,14 @@ func _level_complete() -> void:
 			var paid: Dictionary = GameData.complete_mode(world_index, level, _challenge)
 			extra["coins"] = int(extra["coins"]) + int(paid["coins"])
 			extra["diamonds"] = int(extra["diamonds"]) + int(paid["diamonds"])
-			mode_line = "MODO %s SUPERADO" % _challenge_name()
+			mode_line = Loc.s("MODO %s SUPERADO") % _challenge_name()
 		else:
-			mode_line = "MODO %s NO SUPERADO" % _challenge_name()
+			mode_line = Loc.s("MODO %s NO SUPERADO") % _challenge_name()
 	_track_level_result(world_index, level, rank, stars, float(info["par"]))
 	var items: Array = rewards.get("items", [])
 	if not items.is_empty():
 		Sfx.play("unlock")
-		hud.toast("DESBLOQUEADO: " + ", ".join(PackedStringArray(items)), Pal.CYAN)
+		hud.toast(Loc.s("DESBLOQUEADO: ") + ", ".join(PackedStringArray(items)), Pal.CYAN)
 	_bank_run()
 	Sfx.play("victory")
 	Sfx.play_music("victory")
@@ -1247,7 +1247,7 @@ func _level_complete() -> void:
 		"combo": precision.best_combo, "damage": _damage_taken,
 		"coins": int(_coins_f) + int(rewards["coins"]) + int(extra["coins"]), "diamonds": int(rewards["diamonds"]) + int(extra["diamonds"]),
 		"challenges": challenge_texts, "results": challenge_results, "mode": mode_line,
-		"has_next": has_next,
+		"has_next": has_next, "mode_ok": mode_line != "" and _challenge_met(),
 	}
 	# Ultimo jefe derrotado por primera vez: presentacion del Caballero del Abismo.
 	if GameData.abyss_pending:

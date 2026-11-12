@@ -22,6 +22,7 @@ boot_splash/show_image=false
 GameData="*res://scripts/game_data.gd"
 Sfx="*res://scripts/sfx.gd"
 Transition="*res://scripts/transition.gd"
+Loc="*res://scripts/loc.gd"
 
 [display]
 
@@ -29,6 +30,11 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/strings.en.translation", "res://translations/strings.es.translation", "res://translations/strings.zh_CN.translation", "res://translations/strings.hi.translation", "res://translations/strings.ar.translation", "res://translations/strings.pt.translation", "res://translations/strings.bn.translation", "res://translations/strings.fr.translation", "res://translations/strings.ru.translation", "res://translations/strings.id.translation", "res://translations/strings.ur.translation", "res://translations/strings.de.translation", "res://translations/strings.ja.translation", "res://translations/strings.pa.translation", "res://translations/strings.mr.translation", "res://translations/strings.te.translation", "res://translations/strings.tr.translation", "res://translations/strings.ko.translation", "res://translations/strings.ta.translation", "res://translations/strings.vi.translation", "res://translations/strings.it.translation")
+locale/fallback="en"
 
 [layer_names]
 

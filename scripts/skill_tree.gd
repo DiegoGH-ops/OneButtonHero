@@ -428,9 +428,9 @@ func _buy_selected() -> void:
 	Fx.burst(_map, center, Pal.WHITE, 12, 260.0, 0.4, 6.0, 0.0, 180.0, Vector2.UP)
 	Fx.ring(_map, center, Pal.YELLOW, 70.0 + 30.0 * _zoom)
 	Fx.ring(_map, center, accent, 120.0)
-	var text: String = "¡%s NIVEL %d!" % [String(node["name"]), level]
+	var text: String = Loc.s("¡%s NIVEL %d!") % [Loc.s(String(node["name"])), level]
 	if level >= int(node["lv"]):
-		text = "¡%s COMPLETADA!" % String(node["name"])
+		text = Loc.s("¡%s COMPLETADA!") % Loc.s(String(node["name"]))
 	_toaster.show_toast(text, Pal.LIME)
 	_refresh()
 
@@ -455,7 +455,7 @@ func _draw() -> void:
 		if GameData.node_level(String(node["id"])) >= int(node["lv"]):
 			complete += 1
 	var pct: int = int(100.0 * float(total_levels) / float(maxi(max_levels, 1)))
-	TextCache.draw(self, "NIVELES %d/%d  -  MEJORAS COMPLETAS %d/%d  -  %d%%" % [total_levels, max_levels, complete, Catalog.TREE.size(), pct], Vector2(30.0, 76.0), 2.0, Pal.SILVER)
+	TextCache.draw(self, Loc.s("NIVELES %d/%d  -  MEJORAS COMPLETAS %d/%d  -  %d%%") % [total_levels, max_levels, complete, Catalog.TREE.size(), pct], Vector2(30.0, 76.0), 2.0, Pal.SILVER)
 	# Barra de progreso global.
 	draw_rect(Rect2(560.0, 76.0, 300.0, 12.0), Pal.INK)
 	draw_rect(Rect2(562.0, 78.0, 296.0 * float(pct) / 100.0, 8.0), Pal.YELLOW)
@@ -529,7 +529,7 @@ func _draw_map() -> void:
 		_draw_node(node, rect, detail)
 	_map.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# Indicadores sobre el mapa (sin zoom).
-	var zoom_text: String = "ZOOM %d%%" % int(roundf(_zoom * 100.0))
+	var zoom_text: String = Loc.s("ZOOM %d%%") % int(roundf(_zoom * 100.0))
 	TextCache.draw(_map, zoom_text, Vector2(map_size.x - 80.0 - TextCache.width(zoom_text, 2.0), 22.0), 2.0, Pal.SILVER)
 	TextCache.draw(_map, "RUEDA: ZOOM - ARRASTRA: MOVER - Q/E: CATEGORÍA", Vector2(226.0, map_size.y - 30.0), 2.0, Color(Pal.SILVER, 0.8))
 
@@ -856,7 +856,7 @@ func _draw_info() -> void:
 		TextCache.draw(_info, String(line), Vector2(x, y), 3.0, Pal.YELLOW)
 		y += 28.0
 	# Niveles.
-	TextCache.draw(_info, "NIVEL %d/%d" % [level, max_level], Vector2(x, y + 2.0), 2.0, Pal.WHITE)
+	TextCache.draw(_info, Loc.s("NIVEL %d/%d") % [level, max_level], Vector2(x, y + 2.0), 2.0, Pal.WHITE)
 	for k in max_level:
 		var p: Vector2 = Vector2(x + 130.0 + float(k) * 30.0, y)
 		_info.draw_rect(Rect2(p, Vector2(26.0, 14.0)), Pal.INK)
@@ -913,7 +913,7 @@ func _requirements(node: Dictionary) -> Array:
 	var result: Array = []
 	var world: int = int(node.get("w", 0))
 	if world > 0:
-		result.append(["LLEGAR AL MUNDO %d" % (world + 1), GameData.is_world_unlocked(world)])
+		result.append([Loc.s("LLEGAR AL MUNDO %d") % (world + 1), GameData.is_world_unlocked(world)])
 	for req in node.get("req", []):
 		var parent: Dictionary = Catalog.tree_node(String(req))
 		var req_name: String = String(parent.get("name", "")) if GameData.node_revealed(String(req)) else "MEJORA SECRETA"
@@ -924,21 +924,10 @@ func _requirements(node: Dictionary) -> Array:
 	var excluded: String = String(node.get("ex", ""))
 	if excluded != "":
 		var other: String = String(Catalog.tree_node(excluded).get("name", ""))
-		result.append(["INCOMPATIBLE CON " + other, GameData.node_level(excluded) <= 0])
+		result.append([Loc.s("INCOMPATIBLE CON ") + Loc.s(other), GameData.node_level(excluded) <= 0])
 	return result
 
 
 func _wrap(text: String, width: int) -> Array:
-	var lines: Array = []
-	var current: String = ""
-	for word in text.split(" ", false):
-		if current.length() + word.length() + 1 > width and current != "":
-			lines.append(current)
-			current = word
-		elif current == "":
-			current = word
-		else:
-			current += " " + word
-	if current != "":
-		lines.append(current)
-	return lines
+	# Traduce y corta por palabras (o por caracteres en chino y japones).
+	return Loc.wrap(text, width)

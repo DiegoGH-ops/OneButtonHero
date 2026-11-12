@@ -211,7 +211,7 @@ func _claim(id: String) -> void:
 		_flashes[id] = 0.6
 		var text: String = "+%d" % int(paid["coins"])
 		if int(paid["diamonds"]) > 0:
-			text += "  +%d DIAMANTE%s" % [int(paid["diamonds"]), "S" if int(paid["diamonds"]) > 1 else ""]
+			text += "  " + Loc.s("+%d DIAMANTES") % int(paid["diamonds"])
 		_floaters.append({"id": id, "text": text, "t": 0.0})
 	_busy = false
 
@@ -223,7 +223,7 @@ func _on_claim_all() -> void:
 	var total: Dictionary = GameData.claim_all(String(Missions.CATEGORIES[_mission_cat]))
 	if int(total["count"]) > 0:
 		Sfx.play("unlock")
-		_floaters.append({"id": "", "text": "%d MISIONES: +%d MONEDAS +%d DIAMANTES" % [int(total["count"]), int(total["coins"]), int(total["diamonds"])], "t": 0.0})
+		_floaters.append({"id": "", "text": Loc.s("%d MISIONES: +%d MONEDAS +%d DIAMANTES") % [int(total["count"]), int(total["coins"]), int(total["diamonds"])], "t": 0.0})
 	else:
 		Sfx.play("error")
 	_busy = false
@@ -243,7 +243,7 @@ func _cycle_title() -> void:
 
 func _refresh_title_button() -> void:
 	var current: String = GameData.title if GameData.title != "" else "SIN TÍTULO"
-	_title_button.caption = "TÍTULO: " + current
+	_title_button.caption = Loc.s("TÍTULO: ") + Loc.s(current)
 	_title_button.disabled = GameData.unlocked_titles().is_empty()
 
 
@@ -306,15 +306,15 @@ func _draw_missions() -> void:
 	for item in list:
 		if GameData.mission_state(item) == 4:
 			done += 1
-	var info: String = "%d / %d COBRADAS" % [done, list.size()]
+	var info: String = Loc.s("%d / %d COBRADAS") % [done, list.size()]
 	if cat_id == "diaria":
-		info += "  -  NUEVAS EN " + _time_left(1)
+		info += Loc.s("  -  NUEVAS EN ") + _time_left(1)
 	elif cat_id == "semanal":
-		info += "  -  NUEVAS EN " + _time_left(7)
+		info += Loc.s("  -  NUEVAS EN ") + _time_left(7)
 	elif GameData.admin_active():
 		info += "  -  MODO ADMINISTRADOR: NO SE REGISTRA PROGRESO"
 	_text(info, Vector2(64.0, 162.0), 2.0, Pal.SILVER if not GameData.admin_active() else Pal.ORANGE)
-	_text_right("%d MISIONES EN TOTAL" % Missions.all().size(), 1216.0, 162.0, 2.0, Pal.STEEL)
+	_text_right(Loc.s("%d MISIONES EN TOTAL") % Missions.all().size(), 1216.0, 162.0, 2.0, Pal.STEEL)
 	var top: float = LIST.position.y - _scroll
 	for i in list.size():
 		var y: float = top + float(i) * MISSION_ROW
@@ -338,7 +338,7 @@ func _time_left(days: int) -> String:
 	var hours: int = int(seconds / 3600.0)
 	if hours >= 24:
 		return "%d D %d H" % [int(hours / 24.0), hours % 24]
-	return "%d H %d MIN" % [hours, int(fposmod(seconds, 3600.0) / 60.0)]
+	return Loc.s("%d H %d MIN") % [hours, int(fposmod(seconds, 3600.0) / 60.0)]
 
 
 func _mission_row(mission: Dictionary, y: float) -> void:
@@ -365,8 +365,8 @@ func _mission_row(mission: Dictionary, y: float) -> void:
 		return
 	_canvas.draw_rect(Rect2(rect.position + Vector2(3.0, 3.0), Vector2(8.0, rect.size.y - 6.0)), cat_color)
 	var hidden: bool = String(mission["cat"]) == "secreta" and state == 0
-	var label_name: String = "???" if hidden else String(mission["name"])
-	var desc: String = ("PISTA: " + String(mission.get("hint", ""))) if hidden else String(mission["desc"])
+	var label_name: String = "???" if hidden else Missions.title(mission)
+	var desc: String = (Loc.s("PISTA: ") + Missions.hint(mission)) if hidden else Missions.text(mission)
 	_text(label_name, rect.position + Vector2(24.0, 10.0), 3.0, Pal.WHITE if state < 4 else Pal.SILVER)
 	# Dificultad.
 	var diff: int = int(mission["diff"])
@@ -385,9 +385,9 @@ func _mission_row(mission: Dictionary, y: float) -> void:
 	_canvas.draw_rect(Rect2(bar.position + Vector2(2.0, 2.0), Vector2((bar.size.x - 4.0) * ratio, 8.0)), bar_color)
 	_text("%s / %s" % [_short(value), _short(target)], bar.position + Vector2(bar.size.x + 12.0, -3.0), 2.0, Pal.WHITE)
 	# Recompensa.
-	var reward: String = "+%s MONEDAS" % _short(GameData.mission_coins(mission))
+	var reward: String = Loc.s("+%s MONEDAS") % _short(GameData.mission_coins(mission))
 	if int(mission["gems"]) > 0:
-		reward += "  +%d DIAMANTE%s" % [int(mission["gems"]), "S" if int(mission["gems"]) > 1 else ""]
+		reward += "  " + Loc.s("+%d DIAMANTES") % int(mission["gems"])
 	_text(reward, Vector2(rect.position.x + 640.0, rect.position.y + 60.0), 2.0, Pal.YELLOW)
 	# Estado y boton de cobro.
 	var state_color: Color = Color(String(STATE_COLORS[state]))
@@ -436,8 +436,8 @@ func _draw_achievements() -> void:
 	for item in Achievements.all():
 		if GameData.has_achievement(String(Dictionary(item)["id"])):
 			owned += 1
-	_text("%d / %d LOGROS" % [owned, total], Vector2(64.0, 108.0), 3.0, Pal.YELLOW)
-	_text("PRESTIGIO %d" % GameData.prestige(), Vector2(64.0, 138.0), 2.0, Pal.CYAN)
+	_text(Loc.s("%d / %d LOGROS") % [owned, total], Vector2(64.0, 108.0), 3.0, Pal.YELLOW)
+	_text(Loc.s("PRESTIGIO %d") % GameData.prestige(), Vector2(64.0, 138.0), 2.0, Pal.CYAN)
 	if GameData.admin_active():
 		_text_right("MODO ADMINISTRADOR: LOS LOGROS ESTÁN EN PAUSA", 1216.0, 112.0, 2.0, Pal.ORANGE)
 	# Lista de categorias a la izquierda.
@@ -475,13 +475,13 @@ func _ach_row(entry: Dictionary, y: float) -> void:
 			_canvas.draw_rect(Rect2(sx, rect.position.y + 3.0, 26.0, rect.size.y - 6.0), Color(color, 0.18))
 	var secret_locked: bool = bool(entry.get("secret", false)) and not got
 	Achievements.draw_medal(_canvas, rect.position + Vector2(38.0, rect.size.y * 0.5), 26.0, tier, Achievements.icon_for(entry), not got)
-	var label_name: String = "???" if secret_locked else String(entry["name"])
-	var desc: String = ("PISTA: " + String(entry["hint"])) if secret_locked else String(entry["desc"])
+	var label_name: String = "???" if secret_locked else Achievements.title(entry)
+	var desc: String = (Loc.s("PISTA: ") + Achievements.hint(entry)) if secret_locked else Achievements.text(entry)
 	_text(label_name, rect.position + Vector2(80.0, 8.0), 3.0, color if got else Pal.WHITE)
 	_text(desc, rect.position + Vector2(80.0, 34.0), 2.0, Pal.SILVER)
 	_text_right(Achievements.tier_name(tier), rect.end.x - 14.0, rect.position.y + 8.0, 2.0, color)
 	if got:
-		_text_right("OBTENIDO " + GameData.achievement_date(id), rect.end.x - 14.0, rect.position.y + 28.0, 2.0, Pal.LIME)
+		_text_right(Loc.s("OBTENIDO ") + GameData.achievement_date(id), rect.end.x - 14.0, rect.position.y + 28.0, 2.0, Pal.LIME)
 	else:
 		var target: int = int(entry["target"])
 		var value: int = GameData.achievement_progress(entry)
@@ -490,8 +490,6 @@ func _ach_row(entry: Dictionary, y: float) -> void:
 		_canvas.draw_rect(Rect2(bar.position + Vector2(2.0, 2.0), Vector2((bar.size.x - 4.0) * float(value) / float(maxi(target, 1)), 6.0)), color)
 		_text_right("%s / %s" % [_short(value), _short(target)], bar.position.x - 10.0, rect.position.y + 28.0, 2.0, Pal.WHITE)
 	var reward: String = Achievements.reward_text(entry)
-	if entry.has("title"):
-		reward = reward.replace("TÍTULO", "TÍTULO \"%s\"" % String(entry["title"]))
 	_text(reward, rect.position + Vector2(80.0, 52.0), 2.0, Pal.YELLOW if not got else Pal.STEEL)
 
 
@@ -507,11 +505,11 @@ func _draw_stats() -> void:
 		_canvas.draw_rect(rect.grow(-3.0), Pal.NAVY.lerp(Pal.INK, 0.3 if row % 2 == 0 else 0.5))
 		_text(String(pair[1]), rect.position + Vector2(16.0, 9.0), 2.0, Pal.WHITE)
 		_text_right(str(int(GameData.stats.get(String(pair[0]), 0))), rect.end.x - 16.0, rect.position.y + 9.0, 2.0, Pal.YELLOW)
-	_text("PRESTIGIO %d" % GameData.prestige(), Vector2(660.0, 506.0), 3.0, Pal.CYAN)
-	_text("MONEDERO %d   DIAMANTES %d" % [GameData.wallet, GameData.diamonds], Vector2(660.0, 540.0), 2.0, Pal.YELLOW)
+	_text(Loc.s("PRESTIGIO %d") % GameData.prestige(), Vector2(660.0, 506.0), 3.0, Pal.CYAN)
+	_text(Loc.s("MONEDERO %d   DIAMANTES %d") % [GameData.wallet, GameData.diamonds], Vector2(660.0, 540.0), 2.0, Pal.YELLOW)
 	# Insignias de los logros de platino o mejor.
 	var badges: Array = GameData.badges()
-	_text("INSIGNIAS (%d)" % badges.size(), Vector2(64.0, 506.0), 3.0, Pal.YELLOW)
+	_text(Loc.s("INSIGNIAS (%d)") % badges.size(), Vector2(64.0, 506.0), 3.0, Pal.YELLOW)
 	if badges.is_empty():
 		_text("CONSIGUE LOGROS DE PLATINO O MEJOR", Vector2(64.0, 546.0), 2.0, Pal.STEEL)
 	for i in mini(badges.size(), 18):

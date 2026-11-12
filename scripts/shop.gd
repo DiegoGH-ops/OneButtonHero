@@ -166,7 +166,7 @@ func _build_cards() -> void:
 	_page = clampi(_page, 0, pages - 1)
 	_prev_button.visible = pages > 1
 	_next_button.visible = pages > 1
-	_page_label.text = "PÁGINA %d/%d" % [_page + 1, pages] if pages > 1 else ""
+	_page_label.text = Loc.s("PÁGINA %d/%d") % [_page + 1, pages] if pages > 1 else ""
 	var items: Array = all_items.slice(_page * 8, _page * 8 + 8)
 	for i in items.size():
 		var card: ShopCard = ShopCard.new()
@@ -200,9 +200,9 @@ func _refresh_card(card: ShopCard) -> void:
 			var on: bool = GameData.is_powerup_active(id)
 			card.configure(title, "ACTIVO" if on else "INACTIVO", "DESACTIVAR" if on else "ACTIVAR", Pal.WHITE, false, -1, 0, on)
 		elif not GameData.is_powerup_available(id):
-			card.configure(title, "MUNDO %d" % (world + 1), "BLOQUEADO", Pal.SILVER, false, -1, 0, false)
+			card.configure(title, Loc.s("MUNDO %d") % (world + 1), "BLOQUEADO", Pal.SILVER, false, -1, 0, false)
 		else:
-			card.configure(title, "MUNDO %d" % (world + 1), str(cost), _afford_color(cost), true, -1, 0, false)
+			card.configure(title, Loc.s("MUNDO %d") % (world + 1), str(cost), _afford_color(cost), true, -1, 0, false)
 		return
 	var gems: int = GameData.diamond_price(entry)
 	var rarity: String = String(entry.get("rarity", ""))
@@ -251,33 +251,33 @@ func _show_info(card: ShopCard) -> void:
 	if card.category == "powerup":
 		var world: int = int(entry["world"])
 		var world_name: String = String(Campaign.WORLDS[world]["name"])
-		_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
-		lines.append("PODER DE %s" % world_name)
+		_info_price.text = Loc.s("PRECIO: %d MONEDAS") % int(entry["price"])
+		lines.append(Loc.s("PODER DE %s") % Loc.s(world_name))
 		lines.append_array(_wrap(String(entry["desc"]), 24))
 		lines.append("CONTRAPARTIDA:")
 		lines.append_array(_wrap(String(entry["cost"]), 24))
 		if not GameData.is_powerup_available(id):
-			lines.append("SE VENDE AL LLEGAR AL MUNDO %d" % (world + 1))
+			lines.append(Loc.s("SE VENDE AL LLEGAR AL MUNDO %d") % (world + 1))
 	else:
 		var gems: int = GameData.diamond_price(entry)
 		if entry.has("reward"):
 			_info_price.text = Catalog.reward_text(String(entry["reward"]))
 		elif gems > 0:
-			_info_price.text = "PRECIO: %d DIAMANTES" % gems
+			_info_price.text = Loc.s("PRECIO: %d DIAMANTES") % gems
 		else:
-			_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
+			_info_price.text = Loc.s("PRECIO: %d MONEDAS") % int(entry["price"])
 		var buff: Dictionary = entry.get("buff", {})
 		lines.append_array(_wrap(Catalog.cosmetic_desc(entry), 24))
 		lines.append("BUFF:")
 		lines.append_array(_wrap(Buffs.describe(buff, Buffs.affinity(card.category)), 24))
 		if entry.has("rarity"):
-			lines.append("RAREZA: " + String(entry["rarity"]))
+			lines.append(Loc.s("RAREZA: ") + Loc.s(String(entry["rarity"])))
 		lines.append("")
 		var current: Dictionary = GameData.equipped_item(card.category)
 		if String(current.get("id", "")) == id:
 			lines.append("YA LO TIENES EQUIPADO")
 		else:
-			lines.append("%s EQUIPADO:" % String(SLOT_NAMES.get(card.category, "")))
+			lines.append(Loc.s("%s EQUIPADO:") % Loc.s(String(SLOT_NAMES.get(card.category, ""))))
 			lines.append(String(current.get("name", "")))
 			lines.append_array(_wrap(Buffs.describe(current.get("buff", {})), 24))
 	for i in _info_lines.size():
@@ -288,25 +288,14 @@ func _show_info(card: ShopCard) -> void:
 			label.color = Pal.LIME
 		elif card.category != "powerup" and i < 2 and lines.size() > 0 and String(lines[0]) != "BUFF:" and String(label.text) != "BUFF:":
 			label.color = Pal.SILVER
-		elif card.category == "powerup" and (i == 0 or String(label.text).begins_with("CONTRAPARTIDA") or String(label.text).begins_with("SE VENDE")):
+		elif card.category == "powerup" and (i == 0 or String(label.text).begins_with("CONTRAPARTIDA") or String(label.text).begins_with(Loc.s("SE VENDE AL LLEGAR AL MUNDO %d").split("%")[0])):
 			label.color = Pal.ORANGE if i > 0 else Color(String(entry["color"]))
 
 
 ## Parte un texto en lineas de como mucho `width` caracteres.
 func _wrap(text: String, width: int) -> Array:
-	var lines: Array = []
-	var current: String = ""
-	for word in text.split(" ", false):
-		if current.length() + word.length() + 1 > width and current != "":
-			lines.append(current)
-			current = word
-		elif current == "":
-			current = word
-		else:
-			current += " " + word
-	if current != "":
-		lines.append(current)
-	return lines
+	# Traduce y corta por palabras (o por caracteres en chino y japones).
+	return Loc.wrap(text, width)
 
 
 func _on_card_pressed(card: ShopCard) -> void:
@@ -324,7 +313,7 @@ func _on_card_pressed(card: ShopCard) -> void:
 		if not GameData.is_powerup_available(id):
 			Sfx.play("error")
 			card.shake()
-			_toaster.show_toast("LLEGA AL MUNDO %d PARA COMPRARLO" % (int(entry["world"]) + 1), Pal.SILVER)
+			_toaster.show_toast(Loc.s("LLEGA AL MUNDO %d PARA COMPRARLO") % (int(entry["world"]) + 1), Pal.SILVER)
 			return
 		bought = GameData.buy_powerup(id)
 	elif GameData.is_owned(id):

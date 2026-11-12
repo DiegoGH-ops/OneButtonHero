@@ -292,7 +292,7 @@ func _draw_lock() -> void:
 		message = "ACCESO CONCEDIDO"
 		color = Pal.LIME
 	elif _lockout > 0.0:
-		message = "DEMASIADOS INTENTOS: ESPERA %d S" % int(ceilf(_lockout))
+		message = Loc.s("DEMASIADOS INTENTOS: ESPERA %d S") % int(ceilf(_lockout))
 	elif _time - _error_time < 1.6:
 		message = "CÓDIGO INCORRECTO"
 	if message != "":
@@ -383,11 +383,11 @@ func _build_tab() -> void:
 
 func _build_worlds() -> void:
 	var mode_names: Dictionary = {"normal": "PROGRESO NORMAL", "all": "TODOS ABIERTOS", "locked": "TODOS BLOQUEADOS"}
-	_label("ESTADO DE LOS MUNDOS: " + String(mode_names.get(GameData.admin_worlds, "")), Vector2(56.0, 176.0), 2.0, Pal.YELLOW)
+	_label(Loc.s("ESTADO DE LOS MUNDOS: ") + Loc.s(String(mode_names.get(GameData.admin_worlds, ""))), Vector2(56.0, 176.0), 2.0, Pal.YELLOW)
 	_button("DESBLOQUEAR TODOS", Rect2(56.0, 204.0, 280.0, 46.0), _set_worlds.bind("all"), Pal.GREEN.darkened(0.2))
 	_button("BLOQUEAR TODOS", Rect2(346.0, 204.0, 280.0, 46.0), _set_worlds.bind("locked"), Pal.RED.darkened(0.2))
 	_button("PROGRESO NORMAL", Rect2(636.0, 204.0, 280.0, 46.0), _set_worlds.bind("normal"), Pal.STEEL)
-	_button("NIVELES SIN RESTRICCIÓN: " + ("SÍ" if GameData.admin_levels else "NO"), Rect2(56.0, 260.0, 570.0, 46.0), _toggle_levels, Pal.PURPLE)
+	_button(Loc.s("NIVELES SIN RESTRICCIÓN: ") + (Loc.s("SÍ") if GameData.admin_levels else Loc.s("NO")), Rect2(56.0, 260.0, 570.0, 46.0), _toggle_levels, Pal.PURPLE)
 	_label("TELETRANSPORTE: ELIGE MUNDO Y NIVEL (NO HACE FALTA HABERLOS ABIERTO)", Vector2(56.0, 326.0), 2.0, Pal.SILVER)
 	for i in Campaign.world_count():
 		var world: Dictionary = Campaign.WORLDS[i]
@@ -398,20 +398,20 @@ func _build_worlds() -> void:
 		var row: int = int(float(i) / 10.0)
 		var b: PixelButton = _button(str(i + 1), Rect2(56.0 + float(column) * 76.0, 410.0 + float(row) * 58.0, 68.0, 50.0), _pick_level.bind(i), Pal.RED if i == Campaign.LEVELS_PER_WORLD - 1 else Pal.BLUE, 3.0)
 		b.selected = i == _level
-	_button("JUGAR NIVEL %d-%d" % [_world + 1, _level + 1], Rect2(840.0, 410.0, 380.0, 50.0), _play_level, Pal.GREEN, 3.0)
-	_button("IR AL MUNDO %d" % (_world + 1), Rect2(840.0, 468.0, 380.0, 50.0), _go_world, Pal.TEAL, 3.0)
-	_label("LAS PARTIDAS LANZADAS DESDE AQUÍ CUENTAN COMO PARTIDAS REALES.", Vector2(56.0, 540.0), 2.0, Pal.SILVER)
+	_button(Loc.s("JUGAR NIVEL %d-%d") % [_world + 1, _level + 1], Rect2(840.0, 410.0, 380.0, 50.0), _play_level, Pal.GREEN, 3.0)
+	_button(Loc.s("IR AL MUNDO %d") % (_world + 1), Rect2(840.0, 468.0, 380.0, 50.0), _go_world, Pal.TEAL, 3.0)
+	_label("LAS PARTIDAS LANZADAS DESDE AQUÍ NO CUENTAN PARA LOGROS NI MISIONES.", Vector2(56.0, 540.0), 2.0, Pal.SILVER)
 	_label("USA LA PESTAÑA PRUEBAS PARA JUGAR SIN GUARDAR RESULTADOS.", Vector2(56.0, 562.0), 2.0, Pal.SILVER)
 
 
 func _set_worlds(mode: String) -> void:
 	GameData.admin_worlds = mode
-	_done("MUNDOS: " + {"all": "TODOS DESBLOQUEADOS", "locked": "TODOS BLOQUEADOS", "normal": "PROGRESO NORMAL"}[mode])
+	_done(Loc.s("MUNDOS: ") + Loc.s(String({"all": "TODOS DESBLOQUEADOS", "locked": "TODOS BLOQUEADOS", "normal": "PROGRESO NORMAL"}[mode])))
 
 
 func _toggle_levels() -> void:
 	GameData.admin_levels = not GameData.admin_levels
-	_done("NIVELES SIN RESTRICCIÓN: " + ("SÍ" if GameData.admin_levels else "NO"))
+	_done(Loc.s("NIVELES SIN RESTRICCIÓN: ") + (Loc.s("SÍ") if GameData.admin_levels else Loc.s("NO")))
 
 
 func _pick_world(world: int) -> void:
@@ -439,12 +439,12 @@ func _go_world() -> void:
 # --------------------------------------------------------------- economia --
 
 func _build_economy() -> void:
-	_label("MONEDAS: %d" % GameData.wallet, Vector2(56.0, 176.0), 3.0, Pal.YELLOW)
+	_label(Loc.s("MONEDAS: %d") % GameData.wallet, Vector2(56.0, 176.0), 3.0, Pal.YELLOW)
 	var coin_steps: Array = [100, 1000, 10000, 100000, -1000, -10000]
 	for i in coin_steps.size():
 		var amount: int = coin_steps[i]
 		_button(("+" if amount > 0 else "") + str(amount), Rect2(56.0 + float(i) * 190.0, 210.0, 180.0, 46.0), _add_coins.bind(amount), Pal.GREEN.darkened(0.2) if amount > 0 else Pal.RED.darkened(0.2))
-	_label("DIAMANTES: %d" % GameData.diamonds, Vector2(56.0, 286.0), 3.0, Pal.CYAN)
+	_label(Loc.s("DIAMANTES: %d") % GameData.diamonds, Vector2(56.0, 286.0), 3.0, Pal.CYAN)
 	var gem_steps: Array = [1, 10, 100, -1, -10]
 	for i in gem_steps.size():
 		var gems: int = gem_steps[i]
@@ -472,12 +472,12 @@ func _draw_entry() -> void:
 
 func _add_coins(amount: int) -> void:
 	GameData.wallet = maxi(GameData.wallet + amount, 0)
-	_done("MONEDAS: %d" % GameData.wallet)
+	_done(Loc.s("MONEDAS: %d") % GameData.wallet)
 
 
 func _add_diamonds(amount: int) -> void:
 	GameData.diamonds = maxi(GameData.diamonds + amount, 0)
-	_done("DIAMANTES: %d" % GameData.diamonds)
+	_done(Loc.s("DIAMANTES: %d") % GameData.diamonds)
 
 
 func _entry_digit(digit: int) -> void:
@@ -493,13 +493,13 @@ func _entry_erase() -> void:
 func _set_coins() -> void:
 	GameData.wallet = int(_entry) if _entry != "" else 0
 	_entry = ""
-	_done("MONEDAS FIJADAS EN %d" % GameData.wallet)
+	_done(Loc.s("MONEDAS FIJADAS EN %d") % GameData.wallet)
 
 
 func _set_diamonds() -> void:
 	GameData.diamonds = int(_entry) if _entry != "" else 0
 	_entry = ""
-	_done("DIAMANTES FIJADOS EN %d" % GameData.diamonds)
+	_done(Loc.s("DIAMANTES FIJADOS EN %d") % GameData.diamonds)
 
 
 func _reset_resources() -> void:
@@ -516,11 +516,11 @@ func _reset_resources() -> void:
 # --------------------------------------------------------------- progreso --
 
 func _build_progress() -> void:
-	_label("MEJORAS: %d/%d NIVELES COMPRADOS" % [GameData.tree_total_levels(), _tree_max_levels()], Vector2(56.0, 176.0), 2.0, Pal.YELLOW)
+	_label(Loc.s("MEJORAS: %d/%d NIVELES COMPRADOS") % [GameData.tree_total_levels(), _tree_max_levels()], Vector2(56.0, 176.0), 2.0, Pal.YELLOW)
 	_button("DESBLOQUEAR TODO EL ÁRBOL", Rect2(56.0, 204.0, 380.0, 50.0), _unlock_tree, Pal.GREEN.darkened(0.2))
 	var reset_text: String = "¿SEGURO? PULSA OTRA VEZ" if _confirm == "tree" else "RESTABLECER EL ÁRBOL"
 	_button(reset_text, Rect2(446.0, 204.0, 380.0, 50.0), _reset_tree, Pal.RED)
-	_button("COMPRAS GRATIS EN EL ÁRBOL: " + ("SÍ" if GameData.admin_free_tree else "NO"), Rect2(56.0, 264.0, 560.0, 50.0), _toggle_free_tree, Pal.PURPLE)
+	_button(Loc.s("COMPRAS GRATIS EN EL ÁRBOL: ") + (Loc.s("SÍ") if GameData.admin_free_tree else Loc.s("NO")), Rect2(56.0, 264.0, 560.0, 50.0), _toggle_free_tree, Pal.PURPLE)
 	_button("ABRIR EL ÁRBOL", Rect2(626.0, 264.0, 300.0, 50.0), _open_tree, Pal.TEAL)
 	_label("DESBLOQUEAR UNA CATEGORÍA CONCRETA:", Vector2(56.0, 336.0), 2.0, Pal.SILVER)
 	for i in Catalog.TREE_BRANCHES.size():
@@ -530,7 +530,7 @@ func _build_progress() -> void:
 		var b: PixelButton = _button(String(branch["short"]), Rect2(56.0 + float(column) * 236.0, 362.0 + float(row) * 54.0, 226.0, 46.0), _pick_category.bind(i), Color(String(branch["color"])).darkened(0.55))
 		b.selected = i == _category
 	var picked: Dictionary = Catalog.TREE_BRANCHES[_category]
-	_button("COMPLETAR " + String(picked["short"]), Rect2(56.0, 534.0, 420.0, 50.0), _unlock_category, Pal.GREEN.darkened(0.2))
+	_button(Loc.s("COMPLETAR ") + Loc.s(String(picked["short"])), Rect2(56.0, 534.0, 420.0, 50.0), _unlock_category, Pal.GREEN.darkened(0.2))
 	_label("CON COMPRAS GRATIS ACTIVADAS NO SE GASTAN MONEDAS NI SE EXIGEN REQUISITOS.", Vector2(56.0, 604.0), 2.0, Pal.SILVER)
 
 
@@ -570,7 +570,7 @@ func _reset_tree() -> void:
 
 func _toggle_free_tree() -> void:
 	GameData.admin_free_tree = not GameData.admin_free_tree
-	_done("COMPRAS GRATIS: " + ("SÍ" if GameData.admin_free_tree else "NO"))
+	_done(Loc.s("COMPRAS GRATIS: ") + (Loc.s("SÍ") if GameData.admin_free_tree else Loc.s("NO")))
 
 
 func _open_tree() -> void:
@@ -589,7 +589,7 @@ func _unlock_category() -> void:
 		var node: Dictionary = item
 		if String(node["cat"]) == String(branch["id"]):
 			_max_node(node)
-	_done("CATEGORÍA %s COMPLETA" % String(branch["short"]))
+	_done(Loc.s("CATEGORÍA %s COMPLETA") % Loc.s(String(branch["short"])))
 
 
 # ----------------------------------------------------------------- tienda --
@@ -637,7 +637,7 @@ func _cycle_trial(slot: String, direction: int) -> void:
 	_trial_index[slot] = index
 	var entry: Dictionary = list[index]
 	GameData.try_cosmetic(slot, String(entry["id"]))
-	_status = "PROBANDO: " + String(entry["name"])
+	_status = Loc.s("PROBANDO: ") + Loc.s(String(entry["name"]))
 	Sfx.play("click")
 	_build_tab()
 
@@ -676,7 +676,7 @@ func _build_tests() -> void:
 		b.selected = i == _test_pattern
 	_button("PROBAR PATRÓN", Rect2(56.0, 614.0, 300.0, 46.0), _test_pattern_run, Pal.GREEN.darkened(0.2))
 	_button("NIVEL DE PRUEBA LIBRE", Rect2(366.0, 614.0, 320.0, 46.0), _test_free_run, Pal.BLUE)
-	_button("INVENCIBLE: " + ("SÍ" if _invincible else "NO"), Rect2(696.0, 614.0, 260.0, 46.0), _toggle_invincible, Pal.ORANGE.darkened(0.3))
+	_button(Loc.s("INVENCIBLE: ") + (Loc.s("SÍ") if _invincible else Loc.s("NO")), Rect2(696.0, 614.0, 260.0, 46.0), _toggle_invincible, Pal.ORANGE.darkened(0.3))
 	_button("VER SECUENCIA ABISMO", Rect2(966.0, 614.0, 260.0, 46.0), _preview_abyss, Pal.PURPLE)
 	_label("LAS PRUEBAS NO GUARDAN MONEDAS, RÉCORDS NI PROGRESO.", Vector2(366.0, 344.0), 2.0, Pal.LIME)
 
@@ -730,11 +730,11 @@ func _test_free_run() -> void:
 
 func _draw_panel() -> void:
 	TextCache.draw(_canvas, "ADMINISTRADOR", Vector2(56.0, 40.0), 6.0, Pal.ORANGE)
-	var info: String = "MONEDAS %d   DIAMANTES %d" % [GameData.wallet, GameData.diamonds]
+	var info: String = Loc.s("MONEDAS %d   DIAMANTES %d") % [GameData.wallet, GameData.diamonds]
 	TextCache.draw(_canvas, info, Vector2(1070.0 - TextCache.width(info, 2.0), 48.0), 2.0, Pal.YELLOW)
 	var badge: String = "HERRAMIENTA DE DESARROLLO"
 	TextCache.draw(_canvas, badge, Vector2(1070.0 - TextCache.width(badge, 2.0), 72.0), 2.0, Pal.SILVER)
 	_canvas.draw_rect(Rect2(48.0, 160.0, 1184.0, 2.0), Color(Pal.ORANGE, 0.5))
 	if _status != "":
-		TextCache.draw(_canvas, "ÚLTIMA ACCIÓN: " + _status, Vector2(56.0, 672.0), 2.0, Pal.LIME)
+		TextCache.draw(_canvas, Loc.s("ÚLTIMA ACCIÓN: ") + _status, Vector2(56.0, 672.0), 2.0, Pal.LIME)
 	_draw_entry()

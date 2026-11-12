@@ -146,7 +146,7 @@ func _refresh_mode() -> void:
 	var cleared: bool = GameData.level_stars(_world, _level) > 0
 	var mode: Dictionary = Campaign.MODES[_mode]
 	var done: bool = _mode > 0 and GameData.mode_done(_world, _level, String(mode["id"]))
-	_mode_button.caption = ("MODO: " + String(mode["name"]) + (" +" if done else "")) if cleared else "MODOS: SUPERA EL NIVEL"
+	_mode_button.caption = (Loc.s("MODO: ") + Loc.s(String(mode["name"])) + (" +" if done else "")) if cleared else "MODOS: SUPERA EL NIVEL"
 	_mode_button.disabled = not cleared
 	_canvas.queue_redraw()
 
@@ -170,14 +170,14 @@ func _draw_content() -> void:
 	var open_world: bool = GameData.is_world_unlocked(_world)
 
 	# Progreso total y cabecera del mundo.
-	var total: String = "ESTRELLAS %d/%d   DIAMANTES %d" % [GameData.total_stars(), Campaign.world_count() * Campaign.LEVELS_PER_WORLD * 3, GameData.diamonds]
+	var total: String = Loc.s("ESTRELLAS %d/%d   DIAMANTES %d") % [GameData.total_stars(), Campaign.world_count() * Campaign.LEVELS_PER_WORLD * 3, GameData.diamonds]
 	_text(total, Vector2(1116.0 - PixelFont.text_width(total, 2.0), 72.0), 2.0, Pal.CYAN)
-	_text("MUNDO %d: %s" % [_world + 1, String(world["name"])], Vector2(64.0, 196.0), 4.0, world_color)
+	_text(Loc.s("MUNDO %d: %s") % [_world + 1, Loc.s(String(world["name"]))], Vector2(64.0, 196.0), 4.0, world_color)
 	_text(String(world["subtitle"]), Vector2(64.0, 232.0), 2.0, Pal.SILVER)
 	var world_stars: int = 0
 	for i in Campaign.LEVELS_PER_WORLD:
 		world_stars += GameData.level_stars(_world, i)
-	var summary: String = "%d/60 ESTRELLAS" % world_stars
+	var summary: String = Loc.s("%d/60 ESTRELLAS") % world_stars
 	if not open_world:
 		summary = "BLOQUEADO: SUPERA EL NIVEL 20 DEL MUNDO ANTERIOR"
 	_text(summary, Vector2(1216.0 - PixelFont.text_width(summary, 2.0), 204.0), 2.0, Pal.YELLOW if open_world else Pal.RED)
@@ -199,18 +199,18 @@ func _draw_content() -> void:
 	var record: Dictionary = GameData.level_record(_world, _level)
 	_canvas.draw_rect(Rect2(64.0, 500.0, 800.0, 168.0), Pal.INK)
 	_canvas.draw_rect(Rect2(68.0, 504.0, 792.0, 160.0), Pal.NAVY.lerp(Pal.INK, 0.4))
-	var title: String = "NIVEL %s" % String(def["name"])
+	var title: String = Loc.s("NIVEL %s") % String(def["name"])
 	if bool(def["final"]):
 		var boss: Dictionary = Campaign.BOSSES[_world]
-		title = "JEFE: %s" % String(boss["name"])
+		title = Loc.s("JEFE: %s") % Loc.s(String(boss["name"]))
 	_text(title, Vector2(88.0, 520.0), 4.0, Pal.YELLOW)
-	_text("DIFICULTAD: %s" % Campaign.difficulty_name(_world, _level), Vector2(88.0, 562.0), 2.0, Pal.ORANGE)
+	_text(Loc.s("DIFICULTAD: %s") % Loc.s(Campaign.difficulty_name(_world, _level)), Vector2(88.0, 562.0), 2.0, Pal.ORANGE)
 	if bool(def["final"]):
 		_text("SALTA, DEVUELVE PROYECTILES Y GOLPEA", Vector2(88.0, 586.0), 2.0, Pal.WHITE)
 	else:
-		_text("RECORRIDO: %d M   VELOCIDAD: %d" % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+		_text(Loc.s("RECORRIDO: %d M   VELOCIDAD: %d") % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
 	if _mode > 0:
-		_text("RETO: " + Campaign.mode_text(_mode, _world, _level), Vector2(88.0, 476.0), 2.0, Pal.ORANGE)
+		_text(Loc.s("RETO: ") + Campaign.mode_text(_mode, _world, _level), Vector2(88.0, 476.0), 2.0, Pal.ORANGE)
 	elif GameData.level_stars(_world, _level) > 0 and not GameData.hidden_diamond_taken(_world, _level) and not bool(def["final"]):
 		_text("DIAMANTE OCULTO EN LA RUTA ALTA", Vector2(88.0, 476.0), 2.0, Pal.CYAN)
 	# Retos opcionales del nivel y cuales estan superados.
@@ -222,13 +222,13 @@ func _draw_content() -> void:
 		var done: bool = i < done_list.size() and bool(done_list[i])
 		_text(("+ " if done else "- ") + String(challenge["text"]), Vector2(548.0, 586.0 + float(i) * 24.0), 2.0, Pal.LIME if done else Pal.WHITE)
 	if record.is_empty():
-		var prize: String = "PREMIO: +%d MONEDAS" % int(def["coins"])
+		var prize: String = Loc.s("PREMIO: +%d MONEDAS") % int(def["coins"])
 		var gems: int = Campaign.first_clear_diamonds(_world, _level)
 		if gems > 0:
-			prize += " +%d DIAMANTES" % gems
+			prize += Loc.s(" +%d DIAMANTES") % gems
 		_text(prize, Vector2(88.0, 614.0), 2.0, Pal.LIME)
 		_text("3 ESTRELLAS: +1 DIAMANTE", Vector2(88.0, 638.0), 2.0, Pal.CYAN)
 	else:
 		var rank: int = clampi(int(record.get("rank", 0)), 0, 6)
-		_text("MEJOR RANGO: %s (%s)" % [String(Timing.RANK_NAMES[rank]), String(Timing.RANK_TITLES[rank])], Vector2(88.0, 614.0), 2.0, Pal.LIME)
-		_text("RÉCORD: %d PUNTOS" % int(record.get("score", 0)), Vector2(88.0, 638.0), 2.0, Pal.CYAN)
+		_text(Loc.s("MEJOR RANGO: %s (%s)") % [String(Timing.RANK_NAMES[rank]), Loc.s(String(Timing.RANK_TITLES[rank]))], Vector2(88.0, 614.0), 2.0, Pal.LIME)
+		_text(Loc.s("RÉCORD: %d PUNTOS") % int(record.get("score", 0)), Vector2(88.0, 638.0), 2.0, Pal.CYAN)

@@ -106,14 +106,19 @@ func _draw() -> void:
 		if sx - band * 0.6 > px and sx + band < w - px:
 			draw_colored_polygon(PackedVector2Array([Vector2(sx, body_y + px), Vector2(sx + band, body_y + px), Vector2(sx + band - band * 0.6, body_y + body_h - px), Vector2(sx - band * 0.6, body_y + body_h - px)]), Color(1.0, 1.0, 1.0, 0.18))
 
-	var text_w: float = PixelFont.text_width(caption, px)
 	var icon_w: float = 0.0
 	var icon_size: Vector2 = Vector2.ZERO
 	if icon_sprite != "":
 		icon_size = PixelArt.size_of(icon_sprite, px)
 		icon_w = icon_size.x + (px * 3.0 if caption != "" else 0.0)
+	# Textos traducidos mas largos: la letra se reduce hasta que quepan.
+	var text_px: float = px
+	var text_w: float = PixelFont.text_width(caption, text_px)
+	while text_px > 1.0 and text_w + icon_w > w - px * 4.0:
+		text_px -= 1.0
+		text_w = PixelFont.text_width(caption, text_px)
 	var start_x: float = roundf((w - text_w - icon_w) * 0.5)
 	if icon_sprite != "":
 		PixelArt.draw(self, icon_sprite, Vector2(start_x, body_y + roundf((body_h - icon_size.y) * 0.5)), px)
-	var text_pos: Vector2 = Vector2(start_x + icon_w, body_y + roundf((body_h - PixelFont.text_height(px)) * 0.5))
-	PixelFont.draw_text_shadowed(self, caption, text_pos, px, text_color if not disabled else Pal.SILVER, Pal.INK)
+	var text_pos: Vector2 = Vector2(start_x + icon_w, body_y + roundf((body_h - PixelFont.text_height(text_px)) * 0.5))
+	PixelFont.draw_text_shadowed(self, caption, text_pos, text_px, text_color if not disabled else Pal.SILVER, Pal.INK)

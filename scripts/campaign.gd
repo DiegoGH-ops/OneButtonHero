@@ -235,9 +235,9 @@ static func mode_target(mode: String, world: int, level: int) -> int:
 
 static func mode_text(mode_index: int, world: int, level: int) -> String:
 	var mode: Dictionary = MODES[mode_index]
-	var text: String = mode["desc"]
+	var text: String = Loc.s(String(mode["desc"]))
 	if String(mode["id"]) == "speed" and level >= LEVELS_PER_WORLD - 1:
-		return "DERRÓTALO EN %d SEGUNDOS" % mode_target("speed", world, level)
+		return Loc.s("DERRÓTALO EN %d SEGUNDOS") % mode_target("speed", world, level)
 	if text.contains("%d"):
 		text = text % mode_target(String(mode["id"]), world, level)
 	return text

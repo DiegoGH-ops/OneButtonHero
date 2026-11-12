@@ -5,6 +5,7 @@ extends Control
 const PixelLabel = preload("res://scripts/pixel_label.gd")
 const PixelPanel = preload("res://scripts/pixel_panel.gd")
 const Pal = preload("res://scripts/palette.gd")
+const PixelFont = preload("res://scripts/pixel_font.gd")
 
 const MAX_VISIBLE := 4
 
@@ -23,7 +24,7 @@ func show_toast(text: String, color: Color = Pal.YELLOW) -> void:
 	var box: Control = Control.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(box)
-	var width: float = maxf(float(text.length()) * 18.0 + 56.0, 320.0)
+	var width: float = minf(maxf(PixelFont.text_width(text, 3.0) + 56.0, 320.0), 1260.0)
 	var panel: PixelPanel = PixelPanel.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.accent = color

@@ -384,7 +384,7 @@ func damage(amount: int) -> void:
 		_timer = 1.5
 		_queue = []
 		_scheduled = []
-		_label = "FASE %d" % (phase + 1)
+		_label = Loc.s("FASE %d") % (phase + 1)
 		_label_color = Pal.RED
 		_target_offset = FAR_OFFSET + 60.0
 		_set_core_active(false)

@@ -75,7 +75,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _matches() -> bool:
-	return _field != null and is_instance_valid(_field) and _field.text == CONFIRM_TEXT
+	if _field == null or not is_instance_valid(_field):
+		return false
+	# El texto exacto en el idioma actual (o en ingles o espanol, por si el
+	# teclado no permite escribir ese alfabeto).
+	var typed: String = _field.text
+	return typed == Loc.s(CONFIRM_TEXT) or typed == "DELETE ALL" or typed == CONFIRM_TEXT
 
 
 # ------------------------------------------------------------------ pasos --
@@ -120,7 +125,12 @@ func _show(step: int) -> void:
 		Step.FINAL:
 			_panel(Rect2(180.0, 80.0, 920.0, 560.0), Color("120208"), Pal.RED)
 			_field = LineEdit.new()
-			_field.placeholder_text = "ESCRIBE AQUÍ"
+			_field.placeholder_text = Loc.s("ESCRIBE AQUÍ")
+			# Arabe y urdu: el campo se escribe de derecha a izquierda.
+			if Loc.is_rtl():
+				_field.text_direction = Control.TEXT_DIRECTION_RTL
+			if Loc.uses_vector():
+				_field.add_theme_font_override("font", Loc.font())
 			_field.max_length = 24
 			_field.context_menu_enabled = false
 			_field.alignment = HORIZONTAL_ALIGNMENT_CENTER

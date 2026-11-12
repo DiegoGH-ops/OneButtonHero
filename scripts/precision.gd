@@ -166,7 +166,7 @@ func on_land(pos: Vector2, speed: float) -> void:
 		if past >= 0.0 and past < 70.0:
 			var rating: int = Timing.rate(past / maxf(speed, 1.0) * 0.8 / land_bonus, window_scale, bonus)
 			if rating >= Timing.Rating.PERFECT:
-				register(rating, "ATERRIZAJE " + String(Timing.NAMES[rating]), pos, "land")
+				register(rating, Loc.s("ATERRIZAJE ") + String(Timing.NAMES[rating]), pos, "land")
 			return
 
 

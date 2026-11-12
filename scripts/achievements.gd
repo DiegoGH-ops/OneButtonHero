@@ -116,7 +116,7 @@ static func all() -> Array:
 		var start: int = int(ladder[5])
 		for j in targets.size():
 			var tier: int = clampi(start + j, 0, 5)
-			var desc: String = String(ladder[4]) % int(targets[j])
+			var desc: String = String(ladder[4])
 			_add({"id": "%s_%d" % [String(ladder[1]), int(targets[j])], "cat": String(ladder[0]), "tier": tier, "stat": String(ladder[1]), "target": int(targets[j]), "name": String(names[j]), "desc": desc, "hint": "", "secret": false})
 	for row in SINGLES:
 		var s: Array = row
@@ -163,19 +163,32 @@ static func by_category(cat: String) -> Array:
 	return list
 
 
+## Nombre, descripcion y pista en el idioma actual.
+static func title(entry: Dictionary) -> String:
+	return Loc.s(String(entry.get("name", "")))
+
+
+static func text(entry: Dictionary) -> String:
+	return Loc.s(String(entry.get("desc", ""))).replace("%d", str(int(entry.get("target", 0))))
+
+
+static func hint(entry: Dictionary) -> String:
+	return Loc.s(String(entry.get("hint", "")))
+
+
 ## Texto corto de la recompensa.
 static func reward_text(entry: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	parts.append("+%d MONEDAS" % int(entry["coins"]))
-	parts.append("+%d DIAMANTES" % int(entry["gems"]))
+	parts.append(Loc.s("+%d MONEDAS") % int(entry["coins"]))
+	parts.append(Loc.s("+%d DIAMANTES") % int(entry["gems"]))
 	if entry.has("title"):
-		parts.append("TÍTULO")
+		parts.append(Loc.s("TÍTULO") + " \"" + Loc.s(String(entry["title"])) + "\"")
 	if entry.has("cosmetic"):
-		parts.append("COSMÉTICO")
+		parts.append(Loc.s("COSMÉTICO"))
 	if bool(entry.get("badge", false)):
-		parts.append("INSIGNIA")
-	parts.append("%d PRESTIGIO" % int(entry["prestige"]))
-	return " ".join(parts)
+		parts.append(Loc.s("INSIGNIA"))
+	parts.append(Loc.s("%d PRESTIGIO") % int(entry["prestige"]))
+	return "  ".join(parts)
 
 
 ## Iconos de 7x7 por categoria (para medallas del panel y del aviso).

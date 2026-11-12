@@ -104,6 +104,8 @@ var sfx_volume: float = 0.8
 var music_volume: float = 0.7
 var screen_shake: bool = true
 var fullscreen: bool = false
+## Idioma elegido (ajuste, no progreso). Ingles si nunca se ha elegido.
+var language: String = "en"
 
 var high_score: int:
 	get:
@@ -186,6 +188,7 @@ func load_data() -> void:
 	music_volume = clampf(float(cfg.get_value("settings", "music_volume", 0.7)), 0.0, 1.0)
 	screen_shake = bool(cfg.get_value("settings", "screen_shake", true))
 	fullscreen = bool(cfg.get_value("settings", "fullscreen", false))
+	language = String(cfg.get_value("settings", "language", "en"))
 
 
 func save_data() -> void:
@@ -225,6 +228,7 @@ func save_data() -> void:
 	cfg.set_value("settings", "music_volume", music_volume)
 	cfg.set_value("settings", "screen_shake", screen_shake)
 	cfg.set_value("settings", "fullscreen", fullscreen)
+	cfg.set_value("settings", "language", language)
 	var err: int = cfg.save(SAVE_PATH)
 	if err != OK:
 		push_warning("No se pudo guardar la partida (error %d)" % err)
@@ -331,7 +335,7 @@ func add_gem_shards(count: int) -> int:
 	shards -= made * need
 	if made > 0:
 		diamonds += made
-		notice.emit("FRAGMENTOS: +%d DIAMANTE" % made)
+		notice.emit(Loc.s("FRAGMENTOS: +%d DIAMANTE") % made)
 	return made
 
 
@@ -351,7 +355,7 @@ func _refund_old_items(old_upgrades: Variant, old_stock: Variant) -> void:
 			refund += int(OLD_CONSUMABLE_PRICES.get(String(key), 100)) * int(items[key])
 	if refund > 0:
 		wallet += refund
-		call_deferred("emit_signal", "notice", "MEJORAS ANTIGUAS REEMBOLSADAS: +%d" % refund)
+		call_deferred("emit_signal", "notice", Loc.s("MEJORAS ANTIGUAS REEMBOLSADAS: +%d") % refund)
 		call_deferred("save_data")
 
 
@@ -446,13 +450,13 @@ func node_condition(id: String) -> Array:
 		var names: PackedStringArray = PackedStringArray()
 		for cat in cond["cats"]:
 			sum += branch_levels(String(cat))
-			names.append(String(Catalog.branch(String(cat)).get("name", "")))
+			names.append(Loc.s(String(Catalog.branch(String(cat)).get("name", ""))))
 		var need: int = int(cond["min"])
-		return [sum >= need, "%d NIVELES EN %s" % [need, " Y ".join(names)], sum, need]
+		return [sum >= need, Loc.s("%d NIVELES EN %s") % [need, Loc.s(" Y ").join(names)], sum, need]
 	if cond.has("levels"):
 		var have: int = tree_total_levels()
 		var target: int = int(cond["levels"])
-		return [have >= target, "%d NIVELES DE MEJORA EN TOTAL" % target, have, target]
+		return [have >= target, Loc.s("%d NIVELES DE MEJORA EN TOTAL") % target, have, target]
 	if cond.has("all_cats"):
 		var each: int = int(cond["all_cats"])
 		var done: int = 0
@@ -481,18 +485,18 @@ func node_block_reason(id: String) -> String:
 		return "NIVEL MÁXIMO"
 	var excluded: String = String(node.get("ex", ""))
 	if excluded != "" and node_level(excluded) > 0:
-		return "INCOMPATIBLE CON " + String(Catalog.tree_node(excluded).get("name", ""))
+		return Loc.s("INCOMPATIBLE CON ") + Loc.s(String(Catalog.tree_node(excluded).get("name", "")))
 	if admin_free_tree:
 		return ""
 	var world: int = int(node.get("w", 0))
 	if not is_world_unlocked(world):
-		return "REQUIERE LLEGAR AL MUNDO %d" % (world + 1)
+		return Loc.s("REQUIERE LLEGAR AL MUNDO %d") % (world + 1)
 	for req in node.get("req", []):
 		if node_level(String(req)) <= 0:
-			return "REQUIERE " + String(Catalog.tree_node(String(req)).get("name", ""))
+			return Loc.s("REQUIERE ") + Loc.s(String(Catalog.tree_node(String(req)).get("name", "")))
 	var cond: Array = node_condition(id)
 	if not bool(cond[0]):
-		return "REQUIERE %s (%d/%d)" % [String(cond[1]), int(cond[2]), int(cond[3])]
+		return Loc.s("REQUIERE %s (%d/%d)") % [Loc.s(String(cond[1])), int(cond[2]), int(cond[3])]
 	return ""
 
 
@@ -648,7 +652,7 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 		campaign[mastery_key] = true
 		coins += int(1500.0 * reward)
 		gems += 3
-		call_deferred("emit_signal", "notice", "¡MUNDO DOMINADO! +%d Y 3 DIAMANTES" % int(1500.0 * reward))
+		call_deferred("emit_signal", "notice", Loc.s("¡MUNDO DOMINADO! +%d Y 3 DIAMANTES") % int(1500.0 * reward))
 		unlocked_items.append_array(grant_reward_key("m_%d" % world))
 	diamonds += gems
 	add_coins(coins)
@@ -713,7 +717,7 @@ func grant_reward_key(key: String) -> Array:
 			if String(entry.get("reward", "")) == key and not is_owned(String(entry["id"])):
 				owned[String(entry["id"])] = true
 				_track_cosmetic(entry)
-				names.append(String(entry["name"]))
+				names.append(Loc.s(String(entry["name"])))
 	return names
 
 
@@ -788,7 +792,7 @@ func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
 	if gems > 0 and world_challenges_done(world):
 		var names: Array = grant_reward_key("c_%d" % world)
 		if not names.is_empty():
-			call_deferred("emit_signal", "notice", "EXCLUSIVO DESBLOQUEADO: " + ", ".join(PackedStringArray(names)))
+			call_deferred("emit_signal", "notice", Loc.s("EXCLUSIVO DESBLOQUEADO: ") + ", ".join(PackedStringArray(names)))
 	diamonds += gems
 	add_coins(coins)
 	save_data()
@@ -1085,10 +1089,10 @@ func _announce_mission(mission: Dictionary) -> void:
 	if is_mission_claimed(mission):
 		return
 	mission_fresh[String(mission["id"])] = true
-	var title: String = String(mission["name"])
+	var title: String = Missions.title(mission)
 	if String(mission["cat"]) == "secreta":
-		title = "SECRETA: " + title
-	notice.emit("MISIÓN COMPLETADA: %s" % title)
+		title = Loc.s("SECRETA: ") + title
+	notice.emit(Loc.s("MISIÓN COMPLETADA: %s") % title)
 
 
 ## Indices stat -> misiones permanentes / logros, para comprobar solo lo

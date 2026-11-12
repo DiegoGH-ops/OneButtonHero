@@ -201,7 +201,7 @@ static var _by_id: Dictionary = {}
 
 
 static func world_name(world: int) -> String:
-	return String(Campaign.theme(world).get("name", "MUNDO %d" % (world + 1)))
+	return String(Campaign.theme(world).get("name", "MUNDO"))
 
 
 static func boss_name(world: int) -> String:
@@ -213,8 +213,33 @@ static func _mission(id: String, cat: String, stat: String, target: int, name: S
 	return {"id": id, "cat": cat, "stat": stat, "target": target, "name": name, "desc": desc, "diff": diff, "coins": coins, "gems": gems, "mode": mode}
 
 
-static func _text(desc: String, target: int) -> String:
-	return desc % target if desc.contains("%d") else desc
+## Los textos se guardan como plantillas en espanol (con %d = objetivo y
+## %s = mundo o enemigo) y se traducen al mostrarlos.
+static func _text(desc: String, _target: int) -> String:
+	return desc
+
+
+## Nombre de una mision en el idioma actual.
+static func title(m: Dictionary) -> String:
+	var n: String = Loc.s(String(m.get("name", "")))
+	var arg: String = String(m.get("name_arg", ""))
+	if arg != "":
+		n = n.replace("%s", Loc.s(arg))
+	return n
+
+
+## Descripcion de una mision en el idioma actual.
+static func text(m: Dictionary) -> String:
+	var d: String = Loc.s(String(m.get("desc", "")))
+	d = d.replace("%d", str(int(m.get("target", 0))))
+	var arg: String = String(m.get("desc_arg", ""))
+	if arg != "":
+		d = d.replace("%s", Loc.s(arg))
+	return d
+
+
+static func hint(m: Dictionary) -> String:
+	return Loc.s(String(m.get("hint", "")))
 
 
 ## Todas las misiones (se construyen una vez).
@@ -236,9 +261,9 @@ static func all() -> Array:
 			if stat.begins_with("kill_c"):
 				var index: int = int(stat.substr(6, 1))
 				label = String(Bestiary.entry(world, index)[0])
-			var name: String = String(t[2]) % label
-			var desc: String = String(t[3]).replace("%s", world_name(world))
-			var entry: Dictionary = _mission("w%d_%d" % [world, i], "mundo", stat, int(t[1]), name, desc, int(t[4]), int(float(t[5]) * factor), int(t[6]))
+			var entry: Dictionary = _mission("w%d_%d" % [world, i], "mundo", stat, int(t[1]), String(t[2]), String(t[3]), int(t[4]), int(float(t[5]) * factor), int(t[6]))
+			entry["name_arg"] = label
+			entry["desc_arg"] = world_name(world)
 			entry["world"] = world
 			_add(entry)
 	for row in MASTERY:
@@ -250,7 +275,8 @@ static func all() -> Array:
 		var factor: float = Campaign.world_reward(world)
 		for i in BOSS_TEMPLATES.size():
 			var b: Array = BOSS_TEMPLATES[i]
-			var entry: Dictionary = _mission("b%d_%d" % [world, i], "jefe", String(b[0]).replace("@w", "@w%d" % world), int(b[1]), String(b[2]) % boss_name(world), String(b[3]), int(b[4]), int(float(b[5]) * factor), int(b[6]))
+			var entry: Dictionary = _mission("b%d_%d" % [world, i], "jefe", String(b[0]).replace("@w", "@w%d" % world), int(b[1]), String(b[2]), String(b[3]), int(b[4]), int(float(b[5]) * factor), int(b[6]))
+			entry["name_arg"] = boss_name(world)
 			entry["world"] = world
 			_add(entry)
 	for i in BOSS_GLOBAL.size():

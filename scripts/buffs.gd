@@ -165,13 +165,14 @@ static func describe(buff: Dictionary, mult: float = 1.0) -> String:
 		var info: Array = STATS.get(String(key), [String(key), "+"])
 		var value: float = float(buff[key]) * mult
 		var unit: String = info[1]
+		var label: String = Loc.s(String(info[0]))
 		if unit == "":
-			parts.append(String(info[0]))
+			parts.append(label)
 			continue
 		var prefix: String = "+" if value >= 0.0 else ""
 		var number: String = str(snappedf(value, 0.1)).trim_suffix(".0")
 		if unit == "+":
-			parts.append("%s %s%s" % [String(info[0]), prefix, number])
+			parts.append("%s %s%s" % [label, prefix, number])
 		else:
-			parts.append("%s %s%s%s" % [String(info[0]), prefix, number, unit])
+			parts.append("%s %s%s%s" % [label, prefix, number, unit])
 	return ", ".join(parts)

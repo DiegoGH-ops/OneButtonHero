@@ -245,10 +245,10 @@ func _draw() -> void:
 		var ratio: float = clampf(time_left / window, 0.0, 1.0)
 		draw_rect(Rect2(-50.0, -HEIGHT - 26.0, 132.0, 8.0), Pal.INK)
 		draw_rect(Rect2(-48.0, -HEIGHT - 24.0, 128.0 * ratio, 4.0), Pal.LIME.lerp(Pal.RED, 1.0 - ratio))
-		var msg: String = "¡SALTA LA ONDA!" if state == State.WAVE else "¡PULSA x%d!" % (taps_needed - taps)
+		var msg: String = "¡SALTA LA ONDA!" if state == State.WAVE else Loc.s("¡PULSA x%d!") % (taps_needed - taps)
 		PixelFont.draw_text_shadowed(self, msg, Vector2(-60.0 - PixelFont.text_width(msg, 3.0), -150.0), 3.0, Pal.YELLOW if int(_time * 10.0) % 2 == 0 else Pal.WHITE, Pal.INK, true)
 	elif state == State.IDLE:
-		var need_text: String = "%d PULSACIONES" % taps_needed
+		var need_text: String = Loc.s("%d PULSACIONES") % taps_needed
 		PixelFont.draw_text_shadowed(self, need_text, Vector2(16.0 - PixelFont.text_width(need_text, 2.0) * 0.5, -HEIGHT - 100.0), 2.0, Pal.WHITE, Pal.INK, true)
 	# Onda de la variante SUPERVIVENCIA.
 	if state == State.WAVE:

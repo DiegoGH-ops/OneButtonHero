@@ -22,7 +22,7 @@ static var _cache: Dictionary = {}
 ## Tamano en pantalla de un texto dibujado a `px` pixeles por pixel de fuente
 ## (incluye la sombra y el margen superior de las tildes).
 static func size_of(text: String, px: float) -> Vector2:
-	return Vector2(float(maxi(text.length() * PixelFont.ADVANCE, 1)) * px, float(PixelFont.GLYPH_H + TOP + 1) * px)
+	return Vector2(maxf(PixelFont.text_width(text, px), px), float(PixelFont.GLYPH_H + TOP + 1) * px)
 
 
 ## Desplazamiento vertical que hay que restar para que el texto quede en la
@@ -31,7 +31,9 @@ static func top_offset(px: float) -> float:
 	return float(TOP) * px
 
 
-static func get_texture(text: String, color: Color, shadow: Color = Pal.INK) -> ImageTexture:
+static func get_texture(source: String, color: Color, shadow: Color = Pal.INK) -> ImageTexture:
+	# Texto ya traducido y en la forma de la fuente pixel.
+	var text: String = PixelFont.pixel_form(PixelFont.resolve(source))
 	var key: String = "%s|%s|%s" % [text, color.to_html(), shadow.to_html()]
 	if _cache.has(key):
 		return _cache[key]
@@ -67,6 +69,10 @@ static func get_texture(text: String, color: Color, shadow: Color = Pal.INK) -> 
 ## PixelFont.draw_text). Respeta la transformacion activa del CanvasItem.
 static func draw(ci: CanvasItem, text: String, pos: Vector2, px: float, color: Color, shadow: Color = Pal.INK) -> void:
 	if text.is_empty():
+		return
+	# Idiomas con otras escrituras: se dibuja directamente con su fuente.
+	if PixelFont.needs_vector(PixelFont.resolve(text)):
+		PixelFont.draw_text_shadowed(ci, text, pos, px, color, shadow, false, 1.0 * px)
 		return
 	var tex: ImageTexture = get_texture(text, color, shadow)
 	var size: Vector2 = Vector2(float(tex.get_width()), float(tex.get_height())) * px

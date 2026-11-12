@@ -455,14 +455,14 @@ static func reward_text(key: String) -> String:
 	if key == "abyss":
 		return "DERROTA AL ÚLTIMO JEFE"
 	if key.begins_with("a_"):
-		return "LOGRO: " + String(Achievements.find(key.substr(2)).get("name", "ESPECIAL"))
+		return Loc.s("LOGRO: ") + Loc.s(String(Achievements.find(key.substr(2)).get("name", "ESPECIAL")))
 	var parts: PackedStringArray = key.split("_")
 	if parts.size() == 2 and parts[0] == "m":
-		return "60 ESTRELLAS EN EL MUNDO %d" % (int(parts[1]) + 1)
+		return Loc.s("60 ESTRELLAS EN EL MUNDO %d") % (int(parts[1]) + 1)
 	if parts.size() == 2 and parts[0] == "c":
-		return "TODOS LOS RETOS DEL MUNDO %d" % (int(parts[1]) + 1)
+		return Loc.s("TODOS LOS RETOS DEL MUNDO %d") % (int(parts[1]) + 1)
 	if parts.size() == 2:
-		return "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1]
+		return Loc.s("NIVEL %d-%d") % [int(parts[0]) + 1, int(parts[1]) + 1]
 	return "RECOMPENSA ESPECIAL"
 
 
