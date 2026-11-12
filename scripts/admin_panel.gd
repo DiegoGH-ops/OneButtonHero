@@ -58,6 +58,10 @@ var _test_patterns: Array = [
 	[LevelGenerator.Pattern.ENCOUNTER, "ENCUENTRO MÚLTIPLE", "ENEMIGO"],
 	[LevelGenerator.Pattern.BOUNCE, "TRAMPOLÍN", "MECÁNICA"],
 	[LevelGenerator.Pattern.ROUTE, "RUTA ALTA", "MECÁNICA"],
+	[LevelGenerator.Pattern.WORLD_STEP, "OBSTÁCULOS DEL MUNDO", "OBSTÁCULO"],
+	[LevelGenerator.Pattern.GAUNTLET, "SECUENCIA DISEÑADA", "MECÁNICA"],
+	[LevelGenerator.Pattern.BRAMBLES, "ZARZAS", "OBSTÁCULO"],
+	[LevelGenerator.Pattern.AFTER_CREATURE, "ENEMIGO Y OBSTÁCULO", "ENEMIGO"],
 	[LevelGenerator.Pattern.SLIME, "SLIME", "ENEMIGO"],
 	[LevelGenerator.Pattern.GOBLIN, "GOBLIN", "ENEMIGO"],
 	[LevelGenerator.Pattern.BAT, "MURCIÉLAGO", "ENEMIGO"],
@@ -668,7 +672,7 @@ func _build_tests() -> void:
 			fill = Pal.TEAL
 		elif kind == "ENEMIGO":
 			fill = Pal.PURPLE
-		var b: PixelButton = _button(String(entry[1]), Rect2(56.0 + float(column) * 196.0, 414.0 + float(row) * 48.0, 188.0, 42.0), _pick_pattern.bind(i), fill)
+		var b: PixelButton = _button(String(entry[1]), Rect2(56.0 + float(column) * 196.0, 412.0 + float(row) * 40.0, 188.0, 36.0), _pick_pattern.bind(i), fill)
 		b.selected = i == _test_pattern
 	_button("PROBAR PATRÓN", Rect2(56.0, 614.0, 300.0, 46.0), _test_pattern_run, Pal.GREEN.darkened(0.2))
 	_button("NIVEL DE PRUEBA LIBRE", Rect2(366.0, 614.0, 320.0, 46.0), _test_free_run, Pal.BLUE)

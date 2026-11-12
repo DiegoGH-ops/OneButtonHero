@@ -1011,6 +1011,15 @@ func _announce_new_content() -> void:
 			hud.toast("TAMBIÉN: %s. %s" % [String(data[0]), String(data[6])], Pal.ORANGE)
 	elif level == 4:
 		hud.show_banner("TODOS A LA VEZ", "LOS CINCO ENEMIGOS DEL MUNDO SE COMBINAN")
+	# Obstaculos nuevos del mundo que se estrenan en este nivel.
+	for item in generator.new_obstacles:
+		var info: Array = LevelGenerator.OBSTACLE_INFO.get(String(item), [])
+		if info.is_empty():
+			continue
+		if newcomers.is_empty() and level != 4:
+			hud.show_banner("NUEVO OBSTÁCULO: " + String(info[0]), String(info[1]))
+		else:
+			hud.toast("NUEVO OBSTÁCULO: %s. %s" % [String(info[0]), String(info[1])], Pal.CYAN)
 	if world_index == 0:
 		for item in LevelGenerator.MECHANICS:
 			var mechanic: Array = item

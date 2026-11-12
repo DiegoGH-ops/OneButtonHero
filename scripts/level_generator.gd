@@ -38,6 +38,7 @@ enum Pattern {
 	KNIGHT, GHOST, BOULDER, COINS_RICH, ROUTE, TRAP,
 	CHAIN, CEILING, RAPID_SIX, BOUNCE, CREATURE,
 	JUMP_DRILL, ENCOUNTER,
+	WORLD_STEP, GAUNTLET, AFTER_CREATURE, BRAMBLES,
 }
 
 ## [patron, peso, nivel minimo]
@@ -67,7 +68,46 @@ const TABLE := [
 	[Pattern.ENCOUNTER, 2, 5],
 	[Pattern.BOUNCE, 2, 4],
 	[Pattern.CREATURE, 4, 0],
+	[Pattern.WORLD_STEP, 3, 1],
+	[Pattern.GAUNTLET, 2, 3],
+	[Pattern.AFTER_CREATURE, 2, 4],
+	[Pattern.BRAMBLES, 2, 1],
 ]
+
+## OBSTACULOS PROPIOS DE CADA MUNDO: [paso, nivel (indice 0-19) en que se
+## estrena]. Cada mundo trae los suyos y reutiliza los anteriores en
+## combinaciones mas exigentes.
+const WORLD_OBSTACLES := [
+	[["bramble", 1], ["island", 3], ["spire", 6]],
+	[["geyser", 1], ["cannon", 3], ["saw", 6]],
+	[["blink", 1], ["shift", 3], ["saw", 6]],
+	[["icicle", 1], ["saw_high", 3], ["shift", 6]],
+	[["piston", 1], ["cannon", 3], ["geyser", 6]],
+]
+## Nombre y consejo de cada obstaculo (se muestran al estrenarlo).
+const OBSTACLE_INFO := {
+	"bramble": ["ZARZAS", "SON MUY BAJAS: UN TOQUE CORTO BASTA"],
+	"island": ["ISLOTES", "ATERRIZA EN EL ISLOTE Y VUELVE A SALTAR: NO MANTENGAS DE MÁS"],
+	"spire": ["TORRE ANTIGUA", "MANTÉN EL BOTÓN HASTA EL TOPE"],
+	"geyser": ["GÉISER DE LAVA", "MIRA SUS MARCAS: TE DICEN LA ALTURA QUE ALCANZARÁ"],
+	"cannon": ["CAÑÓN", "SALTA LA BALA Y LUEGO EL CAÑÓN"],
+	"saw": ["SIERRA", "SI LLEGA ABAJO, SALTA; SI LLEGA ARRIBA, PASA POR DEBAJO"],
+	"saw_high": ["CUCHILLA ALTA", "PASA POR DEBAJO: SI SALTAS, TE CORTA"],
+	"blink": ["PINCHOS FANTASMA", "APARECEN AL ACERCARTE: EL CONTORNO TE AVISA"],
+	"shift": ["CRISTAL MÓVIL", "SE DESLIZA HASTA SU SILUETA: SALTA LA SILUETA"],
+	"icicle": ["CARÁMBANO", "CAE DONDE ESTÁ SU SOMBRA: SALTA AL VERLO CLAVADO"],
+	"piston": ["PISTÓN DE ARENA", "SALE DEL SUELO: SUS MARCAS DICEN SU ALTURA"],
+}
+## Secuencias disenadas por dificultad. Fichas: tiny (salto minimo), low,
+## mid, high, move (obstaculo movil del mundo), double (dos saltos seguidos),
+## rapid (RAPID SIX), land (aterrizaje preciso), W (obstaculo del mundo).
+const GAUNTLETS := [
+	[["tiny", "low", "W"], ["W", "mid"], ["tiny", "W"], ["W", "tiny", "low"]],
+	[["tiny", "high", "W"], ["W", "double", "land"], ["move", "tiny", "high"], ["W", "W", "low"]],
+	[["tiny", "high", "move", "double"], ["W", "rapid", "land"], ["move", "W", "move", "tiny"], ["high", "tiny", "W", "land"]],
+	[["tiny", "high", "move", "double", "rapid", "land"], ["W", "W", "high", "tiny", "land"], ["move", "rapid", "W", "land", "high"], ["double", "move", "tiny", "high", "W"]],
+]
+const MOVING_STEPS := ["saw", "saw_high", "shift", "geyser", "piston", "icicle", "blink", "cannon"]
 
 ## Patrones de menor a mayor dureza: los niveles de campana los desbloquean
 ## en este orden (ver campaign.gd).
@@ -85,6 +125,13 @@ const MECHANICS := [
 	[Pattern.RAPID_SIX, 6, "RAPID SIX", "TE DETIENES: SEIS PULSACIONES ANTES DE QUE SE ACABE EL TIEMPO"],
 	[Pattern.BOUNCE, 10, "TRAMPOLÍN", "NO SALTES: PÍSALO. PULSA AL PISARLO PARA SUPER REBOTE"],
 ]
+
+## Nivel (0-19) de la campana que se esta generando.
+var _level_index: int = 0
+## Pasos de obstaculos de mundo desbloqueados en este nivel (con pesos).
+var _world_steps: Array = []
+## Obstaculos que se estrenan en este nivel (para el aviso).
+var new_obstacles: Array = []
 
 ## Pista libre que se deja antes de la meta.
 const GOAL_RUNWAY := 1500.0
@@ -166,6 +213,10 @@ func configure_test(world: int, creature: int, pattern: int) -> void:
 			_allowed.append(entry[0])
 	if bool(Daylight.theme.get("traps", false)):
 		_allowed.append(Pattern.TRAP)
+	# Pruebas: todos los obstaculos de este mundo y los anteriores.
+	var saved: Array = _allowed.duplicate()
+	_configure_world_obstacles(world, 19, 3)
+	_allowed = saved
 
 
 ## Configura un nivel de campana (llamar despues de setup). La semilla fija
@@ -192,6 +243,7 @@ func configure(def: Dictionary) -> void:
 	# Mecanicas de un boton desbloqueadas (introduccion progresiva).
 	var world: int = int(def["world"])
 	var level: int = int(def["level"])
+	_level_index = level
 	for item in MECHANICS:
 		var mechanic: Array = item
 		if world > 0 or level >= int(mechanic[1]):
@@ -212,6 +264,42 @@ func configure(def: Dictionary) -> void:
 	if bool(Daylight.theme.get("traps", false)):
 		for n in 4:
 			_allowed.append(Pattern.TRAP)
+	_configure_world_obstacles(world, level, int(def.get("band", 0)))
+
+
+## Obstaculos de mundo: los del mundo actual se estrenan nivel a nivel; los de
+## mundos anteriores ya estan todos y se combinan en secuencias.
+func _configure_world_obstacles(world: int, level: int, band: int) -> void:
+	_world_steps = []
+	new_obstacles = []
+	for w in mini(world + 1, WORLD_OBSTACLES.size()):
+		for item in WORLD_OBSTACLES[w]:
+			var entry: Array = item
+			var step: String = entry[0]
+			var intro: int = int(entry[1])
+			if w == world and level < intro:
+				continue
+			var weight: int = 3 if w == world else 1
+			if w == world and level == intro:
+				weight = 8
+				new_obstacles.append(step)
+			for n in weight:
+				_world_steps.append(step)
+	if _world_steps.is_empty():
+		return
+	for n in 3 + band:
+		_allowed.append(Pattern.WORLD_STEP)
+	if not new_obstacles.is_empty():
+		for n in 4:
+			_allowed.append(Pattern.WORLD_STEP)
+	if level >= 4 or world > 0:
+		for n in 1 + band:
+			_allowed.append(Pattern.GAUNTLET)
+	if level >= 5:
+		for n in 2:
+			_allowed.append(Pattern.AFTER_CREATURE)
+	if world == 0 and level >= 1:
+		_allowed.append(Pattern.BRAMBLES)
 
 
 ## Tramo final: suelo despejado y la bandera de meta.
@@ -354,6 +442,14 @@ func _spawn_pattern() -> void:
 			_pattern_bounce()
 		Pattern.CREATURE:
 			_pattern_creature()
+		Pattern.WORLD_STEP:
+			_pattern_world_step()
+		Pattern.GAUNTLET:
+			_pattern_gauntlet()
+		Pattern.AFTER_CREATURE:
+			_pattern_after_creature()
+		Pattern.BRAMBLES:
+			_pattern_brambles()
 		_:
 			_pattern_hole(true)
 
@@ -660,7 +756,9 @@ func _add_rapid(x: float, variant: int, window: float) -> void:
 ##   long     hueco ancho: hay que mantener casi al maximo.
 ##   landing  pinchos justo donde se aterriza: saltar al tocar el suelo.
 ## Tiempos de vuelo aproximados (s) segun la pulsacion necesaria.
-const STEP_AIR := {"tap": 0.34, "low": 0.40, "mid": 0.55, "high": 0.66, "max": 0.80, "ceiling": 0.48, "long": 0.80, "landing": 0.40}
+const STEP_AIR := {"tap": 0.34, "low": 0.40, "mid": 0.55, "high": 0.66, "max": 0.80, "ceiling": 0.48, "long": 0.80, "landing": 0.40,
+	"bramble": 0.34, "spire": 0.80, "saw": 0.45, "saw_high": 0.0, "shift": 0.50, "blink": 0.40, "geyser": 0.55,
+	"icicle": 0.45, "cannon": 0.45, "piston": 0.55, "island": 0.40, "double": 0.40}
 
 ## Secuencias por dificultad. Mezclan saltos pequenos y grandes para que
 ## mantener el boton todo el rato no sirva.
@@ -731,8 +829,161 @@ func _jump_step(step: String) -> void:
 			_add_hole(x, short_hole)
 			_add_obstacle(Obstacle.Kind.SPIKES, x + short_hole + _speed * 0.20, 1)
 			width = short_hole + _speed * 0.20 + TILE
+		_:
+			width = _world_step(step, x)
+			if width < 0.0:
+				return
 	# El heroe aterriza mas o menos a medio vuelo pasado el obstaculo.
 	_gen_x = x + width + _speed * air * 0.5
+
+
+# ------------------------------------------------ obstaculos de mundo --
+
+## Vuelo aproximado segun la altura (en marcas) de geiseres y pistones.
+const HEIGHT_AIR := [0.45, 0.55, 0.66, 0.75]
+
+
+## Coloca un obstaculo de mundo en x. Devuelve su ancho (el paso termina
+## como cualquier otro) o -1 si ya ha fijado _gen_x por su cuenta.
+func _world_step(step: String, x: float) -> float:
+	match step:
+		"bramble":
+			var n: int = 1 if _rng.randf() < 0.6 else 2
+			_add_obstacle(Obstacle.Kind.BRAMBLE, x, n)
+			_add_coin(Vector2(x + float(n) * 16.0, GROUND_Y - 64.0), false)
+			return float(n) * TILE
+		"spire":
+			_add_obstacle(Obstacle.Kind.SPIRE, x, 1)
+			_add_coin(Vector2(x + Obstacle.SPIRE_WIDTH * 0.5, GROUND_Y - 250.0), true)
+			return Obstacle.SPIRE_WIDTH
+		"saw", "saw_high":
+			var arrive: String = "high" if step == "saw_high" or _rng.randf() < 0.4 else "low"
+			_add_obstacle(Obstacle.Kind.SAW, x + Obstacle.SAW_RADIUS, 1, {"arrive": arrive})
+			if arrive == "high":
+				# Se pasa por debajo sin saltar: monedas a ras de suelo.
+				_add_coin(Vector2(x + Obstacle.SAW_RADIUS, GROUND_Y - 30.0), false)
+				_gen_x = x + Obstacle.SAW_RADIUS * 2.0 + _speed * 0.35
+				return -1.0
+			return Obstacle.SAW_RADIUS * 2.0
+		"shift":
+			_add_obstacle(Obstacle.Kind.SHIFTER, x, 1, {"shift": 140.0 + _speed * 0.15})
+			return Obstacle.SHIFTER_SIZE.x
+		"blink":
+			var count: int = 1 if _rng.randf() < 0.5 else 2
+			_add_obstacle(Obstacle.Kind.BLINK, x, count)
+			_coin_arc(x + float(count) * 16.0, 3, false)
+			return float(count) * TILE
+		"geyser", "piston":
+			var top: int = 3 if step == "geyser" else 4
+			var height: int = _rng.randi_range(1, top)
+			var kind: int = Obstacle.Kind.GEYSER if step == "geyser" else Obstacle.Kind.PISTON
+			_add_obstacle(kind, x, 1, {"height": height})
+			_add_coin(Vector2(x + 16.0, GROUND_Y - (30.0 + 35.0 * float(height)) - 50.0), height >= 3)
+			_gen_x = x + 32.0 + _speed * float(HEIGHT_AIR[height - 1]) * 0.5
+			return -1.0
+		"icicle":
+			_add_obstacle(Obstacle.Kind.ICICLE, x + 12.0, 1)
+			return 24.0
+		"cannon":
+			# La bala necesita pista libre delante del canon.
+			var cx: float = snappedf(x + _speed * 1.1, TILE)
+			_add_obstacle(Obstacle.Kind.CANNON, cx, 1, {})
+			_coin_arc(cx + Obstacle.CANNON_SIZE.x * 0.5, 3, false)
+			_gen_x = cx + Obstacle.CANNON_SIZE.x + _speed * 0.25
+			return -1.0
+		"island":
+			# Hueco, islote estrecho y otro hueco: hay que medir los dos saltos.
+			var hole: float = clampf(snappedf(_speed * 0.3, TILE), TILE * 3.0, TILE * 10.0)
+			var island: float = maxf(snappedf(_speed * 0.5, TILE), TILE * 5.0)
+			_add_hole(x, hole)
+			_coin_arc(x + hole + island * 0.5, 3, false)
+			_add_hole(x + hole + island, hole)
+			_gen_x = x + hole * 2.0 + island + _speed * 0.2
+			return -1.0
+		"double":
+			_add_obstacle(Obstacle.Kind.SPIKES, x, 1)
+			var second: float = snappedf(x + _speed * 0.75, TILE)
+			_add_obstacle(Obstacle.Kind.SPIKES, second, 1)
+			_gen_x = second + TILE + _speed * 0.2
+			return -1.0
+		"rapid":
+			var gate_x: float = x + _attack_reach()
+			var window: float = lerpf(2.5, 1.4, clampf((_difficulty - 0.2) / 0.75, 0.0, 1.0))
+			_add_rapid(gate_x, RapidSix.Variant.NORMAL, window)
+			_gen_x = gate_x + 240.0 + _speed * 0.4
+			return -1.0
+	return TILE
+
+
+## Un obstaculo del mundo suelto (los recien estrenados salen mucho mas).
+func _pattern_world_step() -> void:
+	if _world_steps.is_empty():
+		_pattern_spikes()
+		return
+	_gen_x += _gap()
+	var step: String = _world_steps[_rng.randi() % _world_steps.size()]
+	if not new_obstacles.is_empty() and _rng.randf() < 0.5:
+		step = String(new_obstacles[_rng.randi() % new_obstacles.size()])
+	_jump_step(step)
+
+
+func _has_step(step: String) -> bool:
+	return _world_steps.has(step)
+
+
+## Traduce una ficha de secuencia al paso concreto segun lo desbloqueado.
+func _gauntlet_step(token: String) -> String:
+	match token:
+		"tiny":
+			return "bramble" if _has_step("bramble") else "tap"
+		"high":
+			return "spire" if _has_step("spire") and _rng.randf() < 0.5 else "high"
+		"move":
+			var moving: Array = []
+			for item in _world_steps:
+				if MOVING_STEPS.has(item):
+					moving.append(item)
+			return String(moving[_rng.randi() % moving.size()]) if not moving.is_empty() else "mid"
+		"land":
+			return "island" if _has_step("island") or _rng.randf() < 0.5 else "landing"
+		"rapid":
+			return "rapid" if _creature_world > 0 or _level_index >= 6 else "low"
+		"W":
+			return String(_world_steps[_rng.randi() % _world_steps.size()]) if not _world_steps.is_empty() else "mid"
+	return token
+
+
+## Secuencia disenada: mezcla saltos minimos, maximos, obstaculos moviles,
+## RAPID SIX y aterrizajes precisos con tiempo de reaccion justo entre ellos.
+func _pattern_gauntlet() -> void:
+	var tier: int = clampi(int(_difficulty * 4.0), 0, GAUNTLETS.size() - 1)
+	var options: Array = GAUNTLETS[tier]
+	var sequence: Array = options[_rng.randi() % options.size()]
+	_gen_x += _gap()
+	for i in sequence.size():
+		_jump_step(_gauntlet_step(String(sequence[i])))
+		if i < sequence.size() - 1:
+			_gen_x += _speed * _reaction()
+
+
+## Un enemigo especial y, nada mas pasarlo, un obstaculo del mundo.
+func _pattern_after_creature() -> void:
+	if _creatures.is_empty():
+		_creatures = [0]
+	_place_creature(int(_creatures[_rng.randi() % _creatures.size()]), 1.0)
+	_gen_x += _speed * _reaction()
+	_jump_step(_gauntlet_step("W"))
+
+
+## Fila de zarzas: varios saltos minimos seguidos (mantener no sirve).
+func _pattern_brambles() -> void:
+	_gen_x += _gap()
+	var n: int = _rng.randi_range(2, 3 + int(_difficulty * 2.0))
+	for i in n:
+		var x: float = snappedf(_gen_x, TILE)
+		_add_obstacle(Obstacle.Kind.BRAMBLE, x, 1)
+		_add_coin(Vector2(x + 16.0, GROUND_Y - 60.0), false)
+		_gen_x = x + TILE + _speed * (0.17 + _reaction() * 0.9)
 
 
 # ------------------------------------------------- director de encuentros --
@@ -920,9 +1171,13 @@ func _bonus_pickup() -> void:
 	_gen_x += 110.0
 
 
-func _add_obstacle(kind: int, x: float, count: int) -> void:
+func _add_obstacle(kind: int, x: float, count: int, extra: Dictionary = {}) -> void:
 	var obstacle: Obstacle = ObstacleScene.instantiate()
 	obstacle.position = Vector2(x, GROUND_Y)
+	if not extra.is_empty():
+		var info: Dictionary = extra.duplicate()
+		info["speed"] = _speed
+		obstacle.data = info
 	_objects_root.add_child(obstacle)
 	obstacle.setup(kind, count)
 
