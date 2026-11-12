@@ -1,17 +1,14 @@
 extends CanvasLayer
-## Interfaz de la partida: marcadores, poderes, pausa, Game Over (con acceso
+## Interfaz de la partida: marcadores, pausa, Game Over (con acceso
 ## a la tienda), avisos de nivel, notificaciones y destello de dano.
 ## Funciona tambien con el arbol en pausa (process_mode = ALWAYS).
 
 signal restart_requested
 signal menu_requested
-signal power_pressed(index: int)
 signal next_requested
 
 const UI = preload("res://scripts/ui.gd")
-const Catalog = preload("res://scripts/catalog.gd")
 const HudBar = preload("res://scripts/hud_bar.gd")
-const PowerButton = preload("res://scripts/power_button.gd")
 const Shop = preload("res://scripts/shop.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
@@ -26,7 +23,6 @@ var can_pause: bool = false
 
 var _bar: HudBar
 var _pause_button: PixelButton
-var _power_buttons: Array = []
 var _pause_layer: Control
 var _continue_button: PixelButton
 var _music_button: PixelButton
@@ -131,29 +127,13 @@ func _build_bar() -> void:
 	# Sin foco de teclado: asi la barra espaciadora nunca pulsa la pausa.
 	_pause_button.focus_mode = Control.FOCUS_NONE
 	_pause_button.pressed.connect(_pause)
-	# Botones de poderes (abajo a la izquierda; tambien teclas 1-2-3 / Q-W-E).
-	for i in Catalog.POWERS.size():
-		var power: Dictionary = Catalog.POWERS[i]
-		var button: PowerButton = PowerButton.new()
-		button.icon_sprite = String(power["icon"])
-		button.key_label = String(power["key"])
-		button.power_name = String(power["name"])
-		add_child(button)
-		button.position = Vector2(24.0 + float(i) * 96.0, 600.0)
-		button.size = Vector2(80.0, 84.0)
-		button.pressed.connect(_on_power_button.bind(i))
-		_power_buttons.append(button)
-
-
-func _on_power_button(index: int) -> void:
-	power_pressed.emit(index)
 
 
 func _build_hint() -> void:
 	_hint_layer = UI.layer(self, "Hint")
-	UI.label(_hint_layer, "ESPACIO / CLIC / TOQUE: SALTAR", Vector2(700.0, 612.0), 3.0, Pal.WHITE)
-	UI.label(_hint_layer, "MANTÉN: SALTO ALTO - ENEMIGO CERCA (!): ATACAR", Vector2(700.0, 648.0), 2.0, Pal.YELLOW)
-	UI.label(_hint_layer, "APURA CADA SALTO Y ATAQUE: GOOD - PERFECT - LEGENDARY", Vector2(700.0, 674.0), 2.0, Pal.CYAN)
+	UI.label(_hint_layer, "ESPACIO / CLIC / TOQUE: SALTAR", Vector2(640.0, 612.0), 3.0, Pal.WHITE)
+	UI.label(_hint_layer, "MANTÉN: SALTO ALTO - SUELTA PRONTO: SALTO CORTO - ENEMIGO (!): ATACAR", Vector2(640.0, 648.0), 2.0, Pal.YELLOW)
+	UI.label(_hint_layer, "UN SOLO GOLPE Y CAES. APURA CADA SALTO: GOOD - PERFECT - LEGENDARY", Vector2(640.0, 674.0), 2.0, Pal.CYAN)
 	var tween: Tween = create_tween()
 	tween.tween_interval(8.0)
 	tween.tween_property(_hint_layer, "modulate:a", 0.0, 1.0)
@@ -294,9 +274,6 @@ func show_victory(data: Dictionary) -> void:
 	_win_data = data
 	_pause_button.visible = false
 	_hint_layer.visible = false
-	for item in _power_buttons:
-		var power_button: PowerButton = item
-		power_button.visible = false
 	_next_button.caption = "SIGUIENTE NIVEL" if bool(data["has_next"]) else "CAMPAÑA COMPLETADA"
 	_win_canvas.queue_redraw()
 	_win_layer.visible = true
@@ -365,21 +342,11 @@ func set_stats(score: int, coins: int, lives: int, level: int, speed_pips: int, 
 
 
 ## Hora del dia, multiplicador, escudo y efectos activos.
-func set_status(phase_name: String, night: bool, multiplier_text: String, shield: bool, effects_text: String) -> void:
+func set_status(phase_name: String, night: bool, multiplier_text: String, effects_text: String) -> void:
 	_bar.phase_name = phase_name
 	_bar.night = night
 	_bar.multiplier_text = multiplier_text
-	_bar.shield = shield
 	_bar.effects_text = effects_text
-
-
-## Estado de un poder: recarga pendiente (0..1) y si esta en marcha.
-func set_power(index: int, cooldown: float, running: bool) -> void:
-	if index < 0 or index >= _power_buttons.size():
-		return
-	var button: PowerButton = _power_buttons[index]
-	button.cooldown = cooldown
-	button.running = running
 
 
 func set_high_score(value: int) -> void:
@@ -422,9 +389,6 @@ func show_game_over(score: int, high_score: int, is_record: bool, coins: int, ki
 	can_pause = false
 	_pause_button.visible = false
 	_hint_layer.visible = false
-	for item in _power_buttons:
-		var power_button: PowerButton = item
-		power_button.visible = false
 	_over_score.text = str(score)
 	_over_record.text = "RÉCORD %d" % high_score
 	_over_new_record.visible = is_record

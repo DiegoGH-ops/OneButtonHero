@@ -18,6 +18,8 @@ const GroundSpan = preload("res://scripts/ground_span.gd")
 const Platform = preload("res://scripts/platform.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Goal = preload("res://scripts/goal.gd")
+const Creature = preload("res://scripts/creature.gd")
+const Bestiary = preload("res://scripts/bestiary.gd")
 const ObstacleScene: PackedScene = preload("res://scenes/obstacle.tscn")
 const EnemyScene: PackedScene = preload("res://scenes/enemy.tscn")
 const CoinScene: PackedScene = preload("res://scenes/coin.tscn")
@@ -33,6 +35,7 @@ enum Pattern {
 	COINS, SPIKES, ROCK, SLIME, HOLE, GOBLIN, TOTEM, PLATFORM,
 	BAT, DOUBLE_SPIKES, DOUBLE_ENEMY, SPIKES_HOLE, WIDE_HOLE,
 	KNIGHT, GHOST, BOULDER, COINS_RICH, ROUTE, TRAP,
+	CHAIN, CEILING, BARRICADE, BOUNCE, CREATURE,
 }
 
 ## [patron, peso, nivel minimo]
@@ -55,6 +58,11 @@ const TABLE := [
 	[Pattern.BOULDER, 2, 3],
 	[Pattern.ROUTE, 2, 2],
 	[Pattern.TRAP, 2, 4],
+	[Pattern.CHAIN, 2, 1],
+	[Pattern.CEILING, 2, 2],
+	[Pattern.BARRICADE, 2, 3],
+	[Pattern.BOUNCE, 2, 4],
+	[Pattern.CREATURE, 4, 0],
 ]
 
 ## Patrones de menor a mayor dureza: los niveles de campana los desbloquean
@@ -65,6 +73,15 @@ const HARDNESS := [
 	Pattern.DOUBLE_SPIKES, Pattern.TRAP, Pattern.KNIGHT, Pattern.BOULDER,
 	Pattern.DOUBLE_ENEMY, Pattern.SPIKES_HOLE, Pattern.WIDE_HOLE, Pattern.GHOST, Pattern.ROUTE,
 ]
+## Mecanicas de un boton y el nivel (del mundo 1) en que se estrenan. En los
+## mundos siguientes ya estan todas disponibles desde el primer nivel.
+const MECHANICS := [
+	[Pattern.CHAIN, 1, "SALTOS ENCADENADOS", "TRES SALTOS PERFECTOS SEGUIDOS DAN PREMIO"],
+	[Pattern.CEILING, 3, "TECHO BAJO", "TOCA Y SUELTA RÁPIDO: SALTO CORTO"],
+	[Pattern.BARRICADE, 6, "BARRICADA", "PULSA MUY RÁPIDO PARA ROMPERLA"],
+	[Pattern.BOUNCE, 10, "TRAMPOLÍN", "NO SALTES: PÍSALO. PULSA AL PISARLO PARA SUPER REBOTE"],
+]
+
 ## Pista libre que se deja antes de la meta.
 const GOAL_RUNWAY := 1500.0
 
@@ -92,7 +109,10 @@ var _cleanup_timer: float = 0.0
 ## Patrones obligatorios pendientes (eventos como la lluvia de monedas).
 var _forced: Array = []
 ## game.gd lo activa cuando al heroe le falta alguna vida.
-var heart_wanted: bool = false
+## Mundo cuyas criaturas aparecen y cuales estan desbloqueadas.
+var _creature_world: int = 0
+var _creatures: Array = []
+var _newest_creature: int = -1
 ## Mejora "Fortuna": probabilidad extra de que una moneda sea un rubi.
 var gem_bonus: float = 0.0
 ## Contadores para el rango: enemigos y recompensas generados.
@@ -100,6 +120,8 @@ var enemies_spawned: int = 0
 var pickups_spawned: int = 0
 ## Diamante oculto de la ruta arriesgada (solo campana, una vez por nivel).
 var diamond_available: bool = false
+## Probabilidad de que la ruta alta lleve el diamante (mejora Ojo de joyero: 1).
+var diamond_chance: float = 0.6
 var _diamond_placed: bool = false
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -138,6 +160,21 @@ func configure(def: Dictionary) -> void:
 			weight = 6
 		for n in weight:
 			_allowed.append(HARDNESS[i])
+	# Mecanicas de un boton desbloqueadas (introduccion progresiva).
+	var world: int = int(def["world"])
+	var level: int = int(def["level"])
+	for item in MECHANICS:
+		var mechanic: Array = item
+		if world > 0 or level >= int(mechanic[1]):
+			var weight_m: int = 6 if (world == 0 and level == int(mechanic[1])) else 2
+			for n in weight_m:
+				_allowed.append(mechanic[0])
+	# Criaturas del mundo: cada una se estrena en su nivel y despues se mezclan.
+	_creature_world = world
+	_creatures = Bestiary.unlocked(world, level)
+	_newest_creature = Bestiary.introduced(level)
+	for n in 2 + _creatures.size() * 2:
+		_allowed.append(Pattern.CREATURE)
 	# Solaris: las trampas antiguas son su seña de identidad.
 	if bool(Daylight.theme.get("traps", false)):
 		for n in 4:
@@ -264,14 +301,25 @@ func _spawn_pattern() -> void:
 			_pattern_route()
 		Pattern.TRAP:
 			_pattern_trap()
+		Pattern.CHAIN:
+			_pattern_chain()
+		Pattern.CEILING:
+			_pattern_ceiling()
+		Pattern.BARRICADE:
+			_pattern_barricade()
+		Pattern.BOUNCE:
+			_pattern_bounce()
+		Pattern.CREATURE:
+			_pattern_creature()
 		_:
 			_pattern_hole(true)
 
 
 ## Suelo libre antes del siguiente peligro (se acorta con la dificultad).
 func _gap() -> float:
-	var lo: float = lerpf(1.15, 0.85, _difficulty)
-	var hi: float = lerpf(1.80, 1.25, _difficulty)
+	# Mas obstaculos por nivel, pero siempre con tiempo de reaccion.
+	var lo: float = lerpf(1.0, 0.78, _difficulty)
+	var hi: float = lerpf(1.5, 1.08, _difficulty)
 	return _speed * _rng.randf_range(lo, hi)
 
 
@@ -449,7 +497,7 @@ func _pattern_route() -> void:
 		_add_enemy_at(Enemy.Kind.SLIME, hazard_x, top)
 	else:
 		_add_obstacle_at(Obstacle.Kind.SPIKES, hazard_x - 16.0, top, 1)
-	if diamond_available and not _diamond_placed and _rng.randf() < 0.6:
+	if diamond_available and not _diamond_placed and _rng.randf() < diamond_chance:
 		_diamond_placed = true
 		_add_pickup(Vector2(start + width - 40.0, top - 70.0), Coin.Kind.DIAMOND)
 	# Ruta segura: un unico salto, sin recompensas.
@@ -479,6 +527,93 @@ func _add_obstacle_at(kind: int, x: float, y: float, count: int) -> void:
 	obstacle.position = Vector2(x, y)
 	_objects_root.add_child(obstacle)
 	obstacle.setup(kind, count)
+
+
+# ------------------------------------------------ mecanicas de un boton --
+
+## Cadena: tres grupos de pinchos a ritmo fijo (premio si los tres son
+## saltos perfectos).
+func _pattern_chain() -> void:
+	_gen_x += _gap()
+	var step: float = _speed * 0.72
+	for i in 3:
+		_add_obstacle(Obstacle.Kind.SPIKES, _gen_x, 1)
+		_coin_arc(_gen_x + 16.0, 3, false)
+		_gen_x += step
+	_gen_x += 32.0
+
+
+## Techo bajo sobre pinchos: solo pasa un salto corto (soltar a tiempo).
+func _pattern_ceiling() -> void:
+	_gen_x += _gap()
+	var x: float = snappedf(_gen_x, TILE)
+	_add_obstacle(Obstacle.Kind.SPIKES, x + TILE, 2)
+	_add_obstacle(Obstacle.Kind.CEILING, x - TILE, 6)
+	_coin_arc(x + TILE * 2.0, 3, false)
+	_gen_x = x + TILE * 6.0
+
+
+## Barricada: muro que no se puede saltar; hay que romperlo pulsando rapido.
+func _pattern_barricade() -> void:
+	_gen_x += maxf(_gap(), _attack_reach() + 200.0)
+	_add_creature(-1, _gen_x)
+	_gen_x += _speed * 2.6 + 260.0
+
+
+## Trampolin y muro: hay que pisar el trampolin (y no saltar antes).
+func _pattern_bounce() -> void:
+	_gen_x += _gap()
+	_add_obstacle(Obstacle.Kind.BOUNCE, _gen_x, 1)
+	_add_obstacle(Obstacle.Kind.WALL, _gen_x + 150.0, 1)
+	_add_pickup(Vector2(_gen_x + 170.0, GROUND_Y - 280.0), Coin.Kind.GEM)
+	_gen_x += 150.0 + _speed * 0.9
+
+
+## Una criatura del mundo, con el espacio que necesita su comportamiento.
+func _pattern_creature() -> void:
+	if _creatures.is_empty():
+		_creatures = [0]
+	var index: int = _creatures[_rng.randi() % _creatures.size()]
+	# La recien estrenada sale mas a menudo en su nivel de presentacion.
+	if _newest_creature >= 0 and _rng.randf() < 0.5:
+		index = _newest_creature
+	var data: Array = Bestiary.entry(_creature_world, index)
+	var archetype: int = data[1]
+	if archetype == Bestiary.Archetype.CHASER:
+		_gen_x += _gap()
+		_add_creature(index, _gen_x)
+		_gen_x += _speed * 3.6
+	elif archetype == Bestiary.Archetype.BRUTE:
+		_gen_x += maxf(_gap(), _attack_reach() + 200.0)
+		_add_creature(index, _gen_x)
+		_gen_x += _speed * 2.6 + 260.0
+	elif archetype == Bestiary.Archetype.SHOOTER:
+		_gen_x += _speed * 2.0 + 300.0
+		_add_creature(index, _gen_x)
+		_gen_x += 80.0
+	elif archetype == Bestiary.Archetype.SPLITTER:
+		_gen_x += maxf(_gap(), _attack_reach() + 90.0)
+		_add_creature(index, _gen_x)
+		_gen_x += 420.0
+	else:
+		_gen_x += maxf(_gap(), _attack_reach() + 120.0)
+		_add_creature(index, _gen_x)
+		_gen_x += 80.0
+
+
+func _add_creature(index: int, x: float) -> void:
+	var creature: Creature = Creature.new()
+	creature.position = Vector2(x, GROUND_Y)
+	_objects_root.add_child(creature)
+	creature.setup(_creature_world, index)
+	enemies_spawned += 1
+
+
+## En el modo infinito las criaturas del bosque se van sumando por nivel.
+func set_endless_creatures(level: int) -> void:
+	_creatures = []
+	for i in mini(level + 1, Bestiary.INTRO_LEVELS.size()):
+		_creatures.append(i)
 
 
 ## Encola un evento: "coins" (lluvia de monedas) u "horde" (horda).
@@ -537,18 +672,11 @@ func _add_pickup(pos: Vector2, kind: int) -> void:
 	_objects_root.add_child(coin)
 
 
-## Recompensas especiales ocasionales: corazon, estrella o cofre.
+## Recompensa especial ocasional: un cofre.
 func _bonus_pickup() -> void:
-	var roll: float = _rng.randf()
-	var x: float = _gen_x + 70.0
-	if heart_wanted and roll < 0.22:
-		_add_pickup(Vector2(x, GROUND_Y - 96.0), Coin.Kind.HEART)
-	elif roll < 0.30:
-		_add_pickup(Vector2(x, GROUND_Y), Coin.Kind.CHEST)
-	elif roll < 0.38:
-		_add_pickup(Vector2(x, GROUND_Y - 96.0), Coin.Kind.STAR)
-	else:
+	if _rng.randf() >= 0.25:
 		return
+	_add_pickup(Vector2(_gen_x + 70.0, GROUND_Y), Coin.Kind.CHEST)
 	_gen_x += 110.0
 
 

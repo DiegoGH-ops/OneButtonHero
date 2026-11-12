@@ -6,6 +6,8 @@ const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 
+## HEART y STAR ya no se generan (no hay vidas ni power-ups en el camino);
+## se conservan en el enum para no alterar los valores de los demas.
 enum Kind { COIN, GEM, RUBY, HEART, STAR, CHEST, DIAMOND }
 
 const VALUES := [10, 50, 25, 0, 0, 0, 100]

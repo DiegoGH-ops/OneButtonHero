@@ -17,7 +17,7 @@ const STATS := [
 	["games_played", "PARTIDAS JUGADAS"], ["total_distance", "DISTANCIA TOTAL (M)"],
 	["total_coins", "MONEDAS RECOGIDAS"], ["total_gems", "GEMAS RECOGIDAS"],
 	["total_kills", "ENEMIGOS DERROTADOS"], ["nights_survived", "NOCHES SUPERADAS"],
-	["powers_used", "PODERES USADOS"], ["levels_cleared", "NIVELES SUPERADOS"],
+	["levels_cleared", "NIVELES SUPERADOS"],
 	["best_combo", "MEJOR COMBO PERFECTO"],
 ]
 

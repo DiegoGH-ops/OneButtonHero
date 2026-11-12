@@ -1,7 +1,11 @@
 extends Node2D
 ## Escena principal de la partida. Coordina al heroe, el generador de nivel,
-## la camara, el ciclo de dia y noche, la dificultad, los poderes, las
-## mejoras de la tienda, los eventos aleatorios, la puntuacion y la interfaz.
+## la camara, el ciclo de dia y noche, la dificultad, la puntuacion, los
+## buffs (cosmeticos, power-ups de tienda y arbol de mejoras) y la interfaz.
+##
+## Reglas: UN SOLO GOLPE MATA. No hay vidas ni poderes activables; todo se
+## juega con un unico boton (saltar, salto corto/largo, atacar, pulsacion
+## rapida, pisoton y trampolin).
 
 const Player = preload("res://scripts/player.gd")
 const Hud = preload("res://scripts/hud.gd")
@@ -10,12 +14,13 @@ const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const LevelGenerator = preload("res://scripts/level_generator.gd")
 const Lights = preload("res://scripts/lights.gd")
 const Coin = preload("res://scripts/coin.gd")
-const Catalog = preload("res://scripts/catalog.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Precision = preload("res://scripts/precision.gd")
 const Timing = preload("res://scripts/timing.gd")
 const Boss = preload("res://scripts/boss.gd")
 const Enemy = preload("res://scripts/enemy.gd")
+const Bestiary = preload("res://scripts/bestiary.gd")
+const Buffs = preload("res://scripts/buffs.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
 const Pal = preload("res://scripts/palette.gd")
@@ -28,7 +33,6 @@ const BASE_SPEED := 340.0
 const LEVEL_SECONDS := 20.0
 const SPEED_STEP := 38.0
 const MAX_SPEED := 800.0
-const MAX_LIVES := 3
 const CAMERA_LEAD := 320.0
 const PIXELS_PER_METER := 48.0
 ## Segundos que dura un ciclo completo de dia y noche.
@@ -36,18 +40,16 @@ const DAY_LENGTH := 110.0
 ## Cada cuantos metros hay una pequena recompensa.
 const MILESTONE_METERS := 250
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const MAGNET_RADII := [0.0, 100.0, 140.0, 180.0, 220.0, 260.0]
-const SHIELD_REGEN := [0.0, 0.0, 60.0, 45.0, 32.0, 22.0]
 ## Musica de cada mundo de la campana.
 const WORLD_TRACKS := ["forest", "inferno", "crystal", "frost", "desert"]
 ## Premio por alcanzar estos combos perfectos en una partida.
 const COMBO_REWARDS := [10, 20, 30, 50]
 
 const NEW_HAZARDS := {
-	1: "NUEVO: HUECOS, LLAMAS Y DIABLILLOS",
-	2: "NUEVO: TÓTEMS, PLATAFORMAS Y ESPECTROS",
-	3: "NUEVO: ESCUDEROS Y ROCAS RODANTES",
-	4: "NUEVO: COMBINACIONES",
+	1: "NUEVO: HUECOS, LLAMAS Y SALTOS ENCADENADOS",
+	2: "NUEVO: TECHOS BAJOS Y PLATAFORMAS",
+	3: "NUEVO: BARRICADAS Y ESCUDEROS",
+	4: "NUEVO: TRAMPOLINES Y TRAMPAS",
 	5: "NUEVO: ABISMOS ANCHOS",
 }
 
@@ -62,58 +64,41 @@ var _points: float = 0.0
 var _coins_f: float = 0.0
 var _kills: int = 0
 var _gems: int = 0
-var _lives: int = MAX_LIVES
+var _shake: float = 0.0
+var _zoom_punch: float = 0.0
+var _next_milestone: int = MILESTONE_METERS
+var _banked: bool = false
+var _enemy_colors: Array = [Pal.GREEN, Pal.RED, Pal.PURPLE, Pal.STEEL, Pal.WHITE]
+## Veces que algo te habria matado (solo posible con la Pluma de Fenix).
 var _damage_taken: int = 0
+var _phoenix_used: bool = false
 ## Modo campana: nivel con meta, velocidad propia y recorrido fijo.
 var _level_mode: bool = false
 var _def: Dictionary = {}
 var _goal_x: float = INF
-## Soul Reaper activado: el proximo ataque perfecto sera letal.
-var _soul_ready: bool = false
 var precision: Precision
 ## Jefe final (solo en el nivel 20 de cada mundo).
 var _boss: Boss
 ## Herramientas de depuracion del timing (tecla F3).
 var _debug: bool = false
-var _shake: float = 0.0
-var _zoom_punch: float = 0.0
-var _next_milestone: int = MILESTONE_METERS
-var _banked: bool = false
-var _revive_used: bool = false
-var _enemy_colors: Array = [Pal.GREEN, Pal.RED, Pal.PURPLE, Pal.STEEL, Pal.WHITE]
-
-# Mejoras y objetos de la tienda.
-var _magnet_base: float = 0.0
-var _coin_mult: float = 1.0
-var _score_mult: float = 1.0
-var _bounty: int = 0
-var _shield_regen: float = 0.0
-var _shield_timer: float = 0.0
-var _cooldown_factor: float = 1.0
-var _perfect_mult: float = 1.0
-var _combo_coins: int = 0
-var _recovery: float = 0.0
-var _jump_mult: float = 1.0
-var _dodge_mult: float = 1.0
-var _max_lives: int = MAX_LIVES
-## Modo de dominio elegido en el mapa ("normal", "no_damage"...).
+## Modo de dominio elegido en el mapa ("normal", "precision"...).
 var _challenge: String = "normal"
 var _run_time: float = 0.0
 var _picked: int = 0
 var _diamond_found: bool = false
 var _combo_reward_index: int = 0
+var _jump_chain: int = 0
 var _step_timer: float = 0.0
 var _storm_timer: float = 20.0
 var _storm: float = 0.0
-var _double_coins: bool = false
-var _magnet_boost: float = 0.0
+var _death_time: float = 0.0
+var _endless_creatures: int = 0
 
-# Dia y noche, eventos y poderes.
+# Dia y noche y eventos.
 var _phase: int = -1
 var _was_night: bool = false
 var _event_timer: float = 30.0
 var _gold_rush: float = 0.0
-var _power_cooldowns: Array = [0.0, 0.0, 0.0]
 
 @onready var player: Player = $Player
 @onready var camera: Camera2D = $Camera2D
@@ -136,10 +121,22 @@ func _ready() -> void:
 	Daylight.magnet_radius = 0.0
 	Daylight.theme = Campaign.theme(0)
 	Daylight.ice = []
+	Daylight.dodges = 0
+	Buffs.invalidate()
+	Daylight.warn_factor = Buffs.factor("warn")
+	Daylight.mash_factor = Buffs.factor("mash")
+	Daylight.counter_factor = Buffs.factor("counter")
+	Daylight.magnet_radius = Buffs.stat("magnet")
 	generator.setup(spans_root, objects_root)
 	precision = Precision.new()
 	add_child(precision)
 	precision.rated.connect(_on_rated)
+	precision.bonus = Vector3(Buffs.factor("legend"), Buffs.factor("perfect"), Buffs.factor("good"))
+	precision.land_bonus = Buffs.factor("land")
+	precision.methodical = Buffs.has("methodical")
+	generator.gem_bonus = Buffs.stat("gems") / 100.0
+	if Buffs.has("diamond_sense"):
+		generator.diamond_chance = 1.0
 	if String(GameData.run.get("mode", "endless")) == "level":
 		_level_mode = true
 		_def = Campaign.level_def(int(GameData.run.get("world", 0)), int(GameData.run.get("level", 0)))
@@ -152,6 +149,10 @@ func _ready() -> void:
 		precision.window_scale = float(_def["window_scale"])
 		generator.configure(_def)
 		_challenge = String(GameData.run.get("challenge", "normal"))
+		# Modo Velocidad: el nivel entero un 15% mas rapido.
+		if _challenge == "speed" and not bool(_def["final"]):
+			_speed *= 1.15
+			_target_speed *= 1.15
 		generator.diamond_available = not GameData.hidden_diamond_taken(int(_def["world"]), int(_def["level"]))
 		if bool(_def["final"]):
 			# Nivel de jefe: no hay meta; se gana derrotandolo.
@@ -173,26 +174,25 @@ func _ready() -> void:
 	player.pickup_collected.connect(_on_pickup_collected)
 	player.enemy_killed.connect(_on_enemy_killed)
 	player.enemy_hit.connect(_on_enemy_hit)
-	player.hazard_smashed.connect(_on_hazard_smashed)
-	player.shield_broken.connect(_on_shield_broken)
-	player.soul_strike.connect(_on_soul_strike)
+	player.stomped.connect(_on_stomped)
+	player.bounced.connect(_on_bounced)
 	player.damaged.connect(_on_player_damaged)
 	player.fell.connect(_on_player_fell)
 	_last_player_x = player.position.x
 
 	hud.restart_requested.connect(_restart)
 	hud.menu_requested.connect(_go_to_menu)
-	hud.power_pressed.connect(_use_power)
 	hud.next_requested.connect(_next_level)
 	if _level_mode and _boss == null:
 		hud.set_level_name("NIVEL " + String(_def["name"]))
-	hud.set_max_lives(MAX_LIVES)
+	hud.set_max_lives(0)
 	if _challenge != "normal":
 		hud.toast("MODO: " + _challenge_name(), Pal.ORANGE)
 	hud.set_high_score(GameData.high_score)
 
-	_apply_shop_items()
-	hud.set_max_lives(_max_lives)
+	_announce_new_content()
+	if Buffs.has("phoenix"):
+		hud.toast("PLUMA DE FÉNIX ACTIVA", Pal.ORANGE)
 	camera.make_current()
 	_update_camera()
 	_update_daylight(true)
@@ -208,64 +208,22 @@ func _exit_tree() -> void:
 	Sfx.set_intensity(0)
 
 
-## Aplica mejoras permanentes, consumibles y cosmeticos comprados.
-func _apply_shop_items() -> void:
-	_magnet_base = MAGNET_RADII[clampi(GameData.upgrade_level("magnet"), 0, 5)]
-	_coin_mult = 1.0 + 0.20 * float(GameData.upgrade_level("coin_mult"))
-	_score_mult = 1.0 + 0.08 * float(GameData.upgrade_level("score"))
-	_jump_mult = 1.0 + 0.25 * float(GameData.upgrade_level("jump_bonus"))
-	_dodge_mult = 1.0 + 0.30 * float(GameData.upgrade_level("dodge_bonus"))
-	_max_lives = MAX_LIVES + GameData.upgrade_level("armor")
-	_lives = _max_lives
-	_bounty = GameData.upgrade_level("bounty")
-	_cooldown_factor = 1.0 - 0.10 * float(GameData.upgrade_level("energy"))
-	_perfect_mult = 1.0 + 0.2 * float(GameData.upgrade_level("perfect"))
-	_combo_coins = GameData.upgrade_level("combo_coins")
-	_recovery = 0.4 * float(GameData.upgrade_level("recovery"))
-	player.reach_bonus = 1.0 + 0.08 * float(GameData.upgrade_level("reach"))
-	generator.gem_bonus = 0.04 * float(GameData.upgrade_level("lucky"))
-	var shield_level: int = clampi(GameData.upgrade_level("shield"), 0, 5)
-	player.shield_active = shield_level > 0
-	_shield_regen = SHIELD_REGEN[shield_level]
-
-	var used: PackedStringArray = PackedStringArray()
-	if GameData.use_consumable("guard"):
-		player.start_rage(15.0)
-		used.append("PROTECCIÓN")
-	if GameData.use_consumable("double"):
-		_double_coins = true
-		used.append("DOBLE BOTÍN")
-	if GameData.use_consumable("magnet_boost"):
-		_magnet_boost = 45.0
-		used.append("SUPERIMÁN")
-	if not used.is_empty():
-		hud.toast("ACTIVO: " + ", ".join(used), Pal.CYAN)
-
-	var aura: Dictionary = GameData.equipped_item("aura")
-	var aura_hex: String = aura["color"]
-	if aura_hex != "":
-		lights.aura_color = Color(aura_hex)
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	var key: InputEventKey = event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_F3:
 		_debug = not _debug
 		hud.set_debug("")
 		return
-	if _state != State.PLAYING:
-		return
 	if event.is_action_pressed(GameData.ACTION):
-		player.press()
-		return
-	for i in GameData.POWER_ACTIONS.size():
-		if event.is_action_pressed(String(GameData.POWER_ACTIONS[i])):
-			_use_power(i)
+		if _state == State.PLAYING:
+			player.press()
+		elif Buffs.has("quick_retry") and _state != State.PLAYING and _death_time > 0.35 and not _level_mode_won():
+			# Mejora "Reintento rapido": pulsar tras morir reinicia al instante.
+			_restart()
 
 
 func _process(delta: float) -> void:
-	# Tiempo real: no le afecta el poder "Tiempo lento".
-	var real_delta: float = delta / maxf(Engine.time_scale, 0.05)
+	var real_delta: float = delta
 	if _state == State.PLAYING:
 		if _level_mode:
 			# En campana la velocidad sube poco a poco hasta la meta.
@@ -285,11 +243,16 @@ func _process(delta: float) -> void:
 			_points += moved / PIXELS_PER_METER * _point_multiplier()
 		_last_player_x = player.position.x
 
-		_update_timers(delta, real_delta)
+		_update_timers(delta)
 		_check_milestones()
-		generator.heart_wanted = _lives < _max_lives
+		if not _level_mode:
+			generator.set_endless_creatures(_endless_creatures)
 		_run_time += delta
 		_update_feel(delta)
+		_check_dodges()
+		player.hawk_x = precision.perfect_jump_x(player.position, player.get_speed()) if Buffs.has("hawk") else INF
+	elif _state != State.PLAYING:
+		_death_time += delta
 		generator.update(player.position.x, _speed, _level, delta)
 		_update_camera()
 		Daylight.time = fposmod(Daylight.time + delta / DAY_LENGTH, 1.0)
@@ -319,25 +282,9 @@ func _update_camera() -> void:
 	camera.position = Vector2(player.position.x + CAMERA_LEAD, 360.0)
 
 
-## Temporizadores de efectos, escudo, poderes y eventos.
-func _update_timers(delta: float, real_delta: float) -> void:
-	_magnet_boost = maxf(_magnet_boost - delta, 0.0)
+## Temporizadores de efectos, tormentas y eventos.
+func _update_timers(delta: float) -> void:
 	_gold_rush = maxf(_gold_rush - delta, 0.0)
-	var radius: float = _magnet_base
-	if _magnet_boost > 0.0:
-		radius = maxf(radius, 280.0)
-	Daylight.magnet_radius = radius
-
-	if _shield_regen > 0.0 and not player.shield_active:
-		_shield_timer += delta
-		if _shield_timer >= _shield_regen:
-			_shield_timer = 0.0
-			player.shield_active = true
-			Sfx.play("heart")
-			hud.toast("ESCUDO RECARGADO", Pal.CYAN)
-
-	for i in _power_cooldowns.size():
-		_power_cooldowns[i] = maxf(float(_power_cooldowns[i]) - real_delta, 0.0)
 	# Ventisca / tormenta de arena: reduce la visibilidad un rato.
 	var storm_hex: String = String(Daylight.theme.get("storm", ""))
 	if storm_hex != "":
@@ -444,11 +391,13 @@ func _challenge_met() -> bool:
 	if _challenge == "precision":
 		return precision.precision_percent() >= Campaign.mode_target(_challenge, world, level)
 	if _challenge == "no_damage":
-		return _damage_taken == 0
+		return _damage_taken == 0 and int(precision.counts[1]) == 0
 	if _challenge == "perfect_combo":
 		return precision.best_combo >= Campaign.mode_target(_challenge, world, level)
 	if _challenge == "speed":
-		return _run_time <= float(Campaign.mode_target(_challenge, world, level))
+		if bool(_def["final"]):
+			return _run_time <= float(Campaign.mode_target(_challenge, world, level))
+		return true
 	if _challenge == "legendary_only":
 		return precision.non_legendary_kills == 0 and int(precision.counts[4]) >= 3
 	return false
@@ -456,12 +405,15 @@ func _challenge_met() -> bool:
 
 # -------------------------------------------------- puntos, monedas, hud --
 
+## Multiplicador de valentia (acciones perfectas seguidas), ampliado por el
+## buff "puntos de combo".
 func _combo_multiplier() -> float:
-	return precision.multiplier()
+	var base: float = precision.multiplier()
+	return 1.0 + (base - 1.0) * Buffs.factor("combo_points")
 
 
 func _point_multiplier() -> float:
-	return _score_mult * Daylight.score_multiplier() * _combo_multiplier()
+	return Buffs.factor("points") * Daylight.score_multiplier() * _combo_multiplier()
 
 
 func _add_points(base: float) -> int:
@@ -474,9 +426,7 @@ func _add_points(base: float) -> int:
 func _add_coins(amount: float, boosted: bool = true) -> void:
 	var total: float = amount
 	if boosted:
-		total *= _coin_mult
-		if _double_coins:
-			total *= 2.0
+		total *= Buffs.factor("coins")
 		if _gold_rush > 0.0:
 			total *= 2.0
 	_coins_f += total
@@ -493,41 +443,26 @@ func _meters() -> int:
 func _update_hud() -> void:
 	var ratio: float = clampf((_speed - BASE_SPEED) / (MAX_SPEED - BASE_SPEED), 0.0, 1.0)
 	var pips: int = 1 + int(roundf(ratio * 9.0))
-	hud.set_stats(_score(), int(_coins_f), _lives, _level + 1, pips, int(roundf(player.get_speed() / PIXELS_PER_METER)))
+	hud.set_stats(_score(), int(_coins_f), 0, _level + 1, pips, int(roundf(player.get_speed() / PIXELS_PER_METER)))
 
 	var mult: float = _point_multiplier()
 	var mult_text: String = ""
 	if mult > 1.04:
 		mult_text = "PUNTOS X%.1f" % mult
 	var effects: PackedStringArray = PackedStringArray()
-	if player.is_turbo():
-		effects.append("TURBO")
-	elif player.is_raging():
-		effects.append("INVENCIBLE")
-	if _soul_ready:
-		effects.append("SOUL REAPER LISTO")
+	if Buffs.has("phoenix"):
+		effects.append("FÉNIX USADO" if _phoenix_used else "FÉNIX LISTO")
 	if _gold_rush > 0.0:
 		effects.append("FIEBRE DEL ORO %d" % int(ceilf(_gold_rush)))
-	if _double_coins:
-		effects.append("MONEDAS X2")
-	if _magnet_boost > 0.0:
-		effects.append("SUPERIMÁN %d" % int(ceilf(_magnet_boost)))
-	hud.set_status(Daylight.phase_name(), Daylight.darkness() > 0.5, mult_text, player.shield_active, "\n".join(effects))
-
-	for i in Catalog.POWERS.size():
-		var power: Dictionary = Catalog.POWERS[i]
-		if i == 2:
-			# Soul Reaper se carga con acciones perfectas, no con el tiempo.
-			hud.set_power(i, 1.0 - precision.soul, _soul_ready)
-			continue
-		var total: float = float(power["cooldown"]) * _cooldown_factor
-		hud.set_power(i, float(_power_cooldowns[i]) / total, i == 0 and player.is_turbo())
+	if _jump_chain > 0:
+		effects.append("CADENA %d/3" % (_jump_chain % 3))
+	hud.set_status(Daylight.phase_name(), Daylight.darkness() > 0.5, mult_text, "\n".join(effects))
 	hud.set_combo(precision.perfects, precision.multiplier())
 	if _debug:
 		var danger: Vector2 = precision.next_danger(player.position, player.get_speed())
 		var lines: PackedStringArray = PackedStringArray()
 		lines.append("ULTIMA ACCION: %s  MARGEN %d MS" % [String(Timing.NAMES[precision.last_rating]) if precision.last_rating >= 2 else "NORMAL", int(precision.last_slack * 1000.0)])
-		lines.append("VENTANAS MS: L %d  P %d  G %d" % [int(Timing.LEGENDARY_WINDOW * precision.window_scale * 1000.0), int(Timing.PERFECT_WINDOW * precision.window_scale * 1000.0), int(Timing.GOOD_WINDOW * precision.window_scale * 1000.0)])
+		lines.append("VENTANAS MS: L %d  P %d  G %d" % [int(Timing.LEGENDARY_WINDOW * precision.window_scale * precision.bonus.x * 1000.0), int(Timing.PERFECT_WINDOW * precision.window_scale * precision.bonus.y * 1000.0), int(Timing.GOOD_WINDOW * precision.window_scale * precision.bonus.z * 1000.0)])
 		if danger.x == INF:
 			lines.append("PELIGRO: NINGUNO")
 		else:
@@ -560,6 +495,11 @@ func _level_up() -> void:
 	var subtitle: String = "¡MÁS RÁPIDO!"
 	if NEW_HAZARDS.has(_level):
 		subtitle = NEW_HAZARDS[_level]
+	# Modo infinito: cada nivel suma una criatura del bosque.
+	if _endless_creatures < Bestiary.INTRO_LEVELS.size() - 1:
+		_endless_creatures += 1
+		var data: Array = Bestiary.entry(0, _endless_creatures)
+		subtitle = "NUEVO ENEMIGO: " + String(data[0])
 	hud.show_banner("NIVEL %d" % (_level + 1), subtitle)
 	_zoom_punch = 1.0
 	Sfx.play("level")
@@ -582,62 +522,6 @@ func _start_random_event() -> void:
 
 # ----------------------------------------------------------------- poderes --
 
-func _use_power(index: int) -> void:
-	if _state != State.PLAYING or index < 0 or index >= Catalog.POWERS.size():
-		return
-	if index == 2:
-		_arm_soul_reaper()
-		return
-	if float(_power_cooldowns[index]) > 0.0:
-		Sfx.play("error")
-		return
-	var power: Dictionary = Catalog.POWERS[index]
-	_power_cooldowns[index] = float(power["cooldown"]) * _cooldown_factor
-	GameData.add_stat("powers_used", 1)
-	GameData.add_mission_progress("powers", 1)
-	if index == 0:
-		# Turbo: corre mas, cruza huecos y arrolla lo que encuentra.
-		player.start_turbo(float(power["duration"]))
-		Sfx.play("power_turbo")
-		hud.flash(Pal.YELLOW, 0.25)
-		_zoom_punch = 1.0
-	elif index == 1:
-		_shockwave()
-
-
-## Soul Reaper: se activa cuando esta cargado (acciones perfectas) y hace
-## letal el siguiente ataque PERFECT o LEGENDARY.
-func _arm_soul_reaper() -> void:
-	if _soul_ready:
-		return
-	if precision.soul < 1.0:
-		Sfx.play("error")
-		hud.toast("SOUL REAPER SE CARGA CON ACCIONES PERFECTAS", Pal.PURPLE)
-		return
-	precision.soul = 0.0
-	_soul_ready = true
-	GameData.add_stat("powers_used", 1)
-	GameData.add_mission_progress("powers", 1)
-	Sfx.play("soul")
-	hud.flash(Pal.PURPLE, 0.35)
-	hud.show_banner("SOUL REAPER", "TU PRÓXIMO ATAQUE PERFECTO SERÁ LETAL")
-
-
-func _on_soul_strike(pos: Vector2) -> void:
-	_soul_ready = false
-	if _boss != null and is_instance_valid(_boss):
-		_boss.damage(4)
-	Sfx.play("soul")
-	_shake = maxf(_shake, 0.9)
-	_zoom_punch = 1.0
-	hud.flash(Pal.PURPLE, 0.4)
-	var gained: int = _add_points(150.0)
-	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.PURPLE, 34, 520.0, 0.7, 10.0, 300.0, 180.0, Vector2.UP)
-	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.RED, 18, 380.0, 0.5, 7.0, 0.0, 180.0, Vector2.UP)
-	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.WHITE, 12, 640.0, 0.3, 5.0, 0.0, 180.0, Vector2.UP)
-	Fx.popup(fx_root, pos + Vector2(0.0, -100.0), "SOUL REAPER +%d" % gained, Pal.PURPLE, 4.0)
-
-
 ## Golpe al punto debil del jefe: el dano depende del timing.
 func _on_boss_struck() -> void:
 	var rating: int = precision.consume_attack()
@@ -658,18 +542,31 @@ func _on_boss_struck() -> void:
 
 
 ## Respuesta a una accion evaluada: puntos, texto, sonido y efectos propios
-## de cada categoria.
+## de cada categoria. Aplica buffs y especializaciones.
 func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
+	var kind: String = precision.last_kind
 	var bonus: float = float(Timing.BONUS[rating])
+	var is_jump: bool = kind == "jump" or kind == "dodge" or kind == "land"
 	if rating >= Timing.Rating.PERFECT:
-		if precision.last_kind == "attack":
-			bonus *= _perfect_mult
-		elif precision.last_kind == "dodge" or label == "LAST SECOND":
-			bonus *= _dodge_mult
+		if kind == "attack":
+			bonus *= Buffs.factor("attack_points")
 		else:
-			bonus *= _jump_mult
-		if _combo_coins > 0:
-			_add_coins(float(_combo_coins))
+			bonus *= Buffs.factor("jump_points")
+		if Buffs.stat("combo_coins") > 0.0:
+			_add_coins(Buffs.stat("combo_coins"))
+	# Especializaciones del arbol (excluyentes entre si).
+	if Buffs.has("daredevil"):
+		if rating == Timing.Rating.LEGENDARY:
+			bonus *= 2.0
+		elif rating == Timing.Rating.GOOD:
+			bonus = 0.0
+	if Buffs.has("methodical") and rating == Timing.Rating.LEGENDARY:
+		bonus *= 0.5
+	if is_jump and rating >= Timing.Rating.PERFECT:
+		if Buffs.has("zen"):
+			bonus *= 2.0
+		if Buffs.has("fury"):
+			bonus *= 0.5
 	var gained: int = _add_points(bonus)
 	var where: Vector2 = player.position + Vector2(0.0, -34.0)
 	var color: Color = Pal.LIME
@@ -692,54 +589,28 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 		Fx.burst(fx_root, where, Pal.YELLOW, 14, 320.0, 0.45, 7.0, 300.0, 180.0, Vector2.UP)
 	else:
 		Sfx.play("good")
-	if precision.last_kind == "dodge":
-		Sfx.play("dodge")
 		Fx.burst(fx_root, where, Pal.LIME, 6, 200.0, 0.3, 5.0, 300.0, 180.0, Vector2.UP)
+	if kind == "dodge":
+		Sfx.play("dodge")
 	Fx.popup(fx_root, player.position + Vector2(40.0, -120.0), "%s +%d" % [label, gained], color, size)
-
-
-## Onda expansiva: elimina enemigos y obstaculos cercanos.
-func _shockwave() -> void:
-	Sfx.play("power_wave")
-	hud.flash(Pal.CYAN, 0.35)
-	_shake = maxf(_shake, 0.8)
-	player.flourish()
-	var origin: Vector2 = player.position + Vector2(0.0, -30.0)
-	Fx.burst(fx_root, origin, Pal.CYAN, 40, 900.0, 0.5, 9.0, 0.0, 180.0, Vector2.RIGHT)
-	Fx.burst(fx_root, origin, Pal.WHITE, 20, 600.0, 0.4, 6.0, 0.0, 180.0, Vector2.RIGHT)
-	for node in get_tree().get_nodes_in_group("enemies"):
-		var enemy: Node2D = node as Node2D
-		if enemy == null or not _in_wave_range(enemy.global_position.x):
-			continue
-		var kind: int = int(enemy.get("kind"))
-		var pos: Vector2 = enemy.global_position
-		var result: int = -1
-		var guard: int = 0
-		while result < 0 and guard < 4:
-			result = int(enemy.call("hit"))
-			guard += 1
-		if result > 0:
-			_on_enemy_killed(result, pos, kind)
-	for node in get_tree().get_nodes_in_group("hazards"):
-		var hazard: Node2D = node as Node2D
-		if hazard == null or not _in_wave_range(hazard.global_position.x):
-			continue
-		var center: Vector2 = hazard.call("get_center")
-		if bool(hazard.call("destroy")):
-			_on_hazard_smashed(center)
-
-
-func _in_wave_range(x: float) -> bool:
-	var dx: float = x - player.position.x
-	return dx > -200.0 and dx < 820.0
+	# Saltos encadenados: tres saltos perfectos seguidos dan premio.
+	if is_jump:
+		if rating >= Timing.Rating.PERFECT:
+			_jump_chain += 1
+			if _jump_chain % 3 == 0:
+				var chain_points: int = _add_points(120.0 * Buffs.factor("chain"))
+				Sfx.play("combo")
+				Fx.ring(fx_root, where, Pal.CYAN, 90.0)
+				hud.toast("¡CADENA PERFECTA! +%d" % chain_points, Pal.CYAN)
+		else:
+			_jump_chain = 0
 
 
 # ----------------------------------------------------------------- senales --
 
 func _on_player_jumped(pos: Vector2) -> void:
 	Sfx.play("jump", randf_range(0.95, 1.05))
-	if not player.is_raging():
-		precision.on_jump(pos, player.get_speed())
+	precision.on_jump(pos, player.get_speed())
 	Fx.burst(fx_root, pos, Color(Pal.WHITE, 0.8), 6, 130.0, 0.3, 5.0, 300.0, 70.0, Vector2.UP)
 
 
@@ -754,8 +625,6 @@ func _on_player_landed(pos: Vector2) -> void:
 func _on_player_attacked(pos: Vector2) -> void:
 	Sfx.play("attack", randf_range(0.92, 1.08))
 	var rating: int = precision.on_attack(pos, player.get_speed())
-	if _soul_ready and rating >= Timing.Rating.PERFECT:
-		player.soul_armed = true
 	# El tajo crece con la precision del ataque.
 	player.slash_power = clampi(rating - 1, 0, 3)
 	if rating >= Timing.Rating.PERFECT:
@@ -764,8 +633,7 @@ func _on_player_attacked(pos: Vector2) -> void:
 
 
 func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
-	if kind != Coin.Kind.HEART and kind != Coin.Kind.STAR:
-		_picked += 1
+	_picked += 1
 	if kind == Coin.Kind.DIAMOND:
 		_diamond_found = true
 		Sfx.play("diamond")
@@ -792,21 +660,6 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		var color: Color = Pal.CYAN if is_gem else Pal.RED
 		Fx.burst(fx_root, pos, color, 16, 280.0, 0.5, 7.0, 500.0, 180.0, Vector2.UP)
 		Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % gained, color, 4.0)
-	elif kind == Coin.Kind.HEART:
-		Sfx.play("heart")
-		if _lives < _max_lives:
-			_lives += 1
-			Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+1 VIDA", Pal.RED, 4.0)
-		else:
-			Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % _add_points(50.0), Pal.RED, 4.0)
-		Fx.burst(fx_root, pos, Pal.RED, 16, 260.0, 0.5, 7.0, 300.0, 180.0, Vector2.UP)
-	elif kind == Coin.Kind.STAR:
-		Sfx.play("power_turbo")
-		player.start_rage(8.0)
-		_magnet_boost = maxf(_magnet_boost, 8.0)
-		hud.show_banner("¡ESTRELLA!", "INVENCIBLE DURANTE 8 SEGUNDOS")
-		hud.flash(Pal.YELLOW, 0.3)
-		Fx.burst(fx_root, pos, Pal.YELLOW, 24, 380.0, 0.6, 8.0, 300.0, 180.0, Vector2.UP)
 	else:
 		# Cofre del tesoro.
 		_add_coins(25.0)
@@ -837,9 +690,14 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	if kind == Enemy.Kind.ORB and _boss != null and is_instance_valid(_boss) and rating >= Timing.Rating.PERFECT:
 		_boss.reflect()
 		Fx.popup(fx_root, _boss.position + Vector2(0.0, -150.0), "¡CONTRAATAQUE! -1", Pal.LIME, 4.0)
-	var gained: int = _add_points(float(points))
-	if _bounty > 0:
-		_add_coins(float(_bounty))
+	var kill_points: float = float(points)
+	if Buffs.has("fury"):
+		kill_points *= 2.0
+	if Buffs.has("zen"):
+		kill_points *= 0.5
+	var gained: int = _add_points(kill_points)
+	if Buffs.stat("bounty") > 0.0:
+		_add_coins(Buffs.stat("bounty"))
 	GameData.add_mission_progress("kills", 1)
 	_shake = maxf(_shake, 0.35)
 	Sfx.play("kill")
@@ -849,28 +707,60 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "+%d" % gained, Pal.WHITE, 4.0)
 
 
-## Golpe que no mata (escudo del escudero roto).
+## Golpe que no mata (acorazados: pulsacion rapida, escudero).
 func _on_enemy_hit(pos: Vector2) -> void:
-	Sfx.play("hit")
-	_shake = maxf(_shake, 0.25)
-	Fx.burst(fx_root, pos + Vector2(-10.0, -30.0), Pal.SKY, 12, 320.0, 0.4, 6.0, 600.0, 180.0, Vector2.UP)
-	Fx.popup(fx_root, pos + Vector2(0.0, -70.0), "¡ESCUDO ROTO!", Pal.SKY, 2.0)
+	Sfx.play("hit", randf_range(0.9, 1.2))
+	_shake = maxf(_shake, 0.2)
+	_add_points(5.0)
+	Fx.burst(fx_root, pos + Vector2(-10.0, -40.0), Pal.YELLOW, 8, 300.0, 0.3, 6.0, 600.0, 120.0, Vector2.UP)
 
 
-func _on_hazard_smashed(pos: Vector2) -> void:
-	_add_points(15.0)
-	Sfx.play("hit")
-	_shake = maxf(_shake, 0.3)
-	Fx.burst(fx_root, pos, Pal.SILVER, 14, 360.0, 0.5, 8.0, 800.0, 180.0, Vector2.UP)
+## Pisoton: aplasta lo que hay debajo.
+func _on_stomped(pos: Vector2, kills: int) -> void:
+	Sfx.play("boss_hit", 1.4)
+	_shake = maxf(_shake, 0.4)
+	Fx.ring(fx_root, pos, Pal.WHITE, 70.0 + Buffs.stat("stomp"))
+	Fx.burst(fx_root, pos, Pal.SILVER, 12, 300.0, 0.35, 6.0, 600.0, 70.0, Vector2.UP)
+	if kills > 0:
+		precision.register(Timing.Rating.PERFECT, "PISOTÓN", pos, "attack")
 
 
-func _on_shield_broken() -> void:
-	Sfx.play("shield")
-	_shield_timer = 0.0
-	_shake = maxf(_shake, 0.5)
-	hud.flash(Pal.CYAN, 0.3)
-	hud.toast("EL ESCUDO TE HA SALVADO", Pal.CYAN)
-	Fx.burst(fx_root, player.position + Vector2(0.0, -30.0), Pal.CYAN, 20, 340.0, 0.5, 7.0, 400.0, 180.0, Vector2.UP)
+## Trampolin: rebote normal o super rebote si se pulso justo al pisarlo.
+func _on_bounced(pos: Vector2, perfect: bool) -> void:
+	Sfx.play("jump", 1.4 if perfect else 1.2)
+	Fx.burst(fx_root, pos, Pal.YELLOW, 10, 260.0, 0.35, 6.0, 300.0, 60.0, Vector2.UP)
+	if perfect:
+		precision.register(Timing.Rating.PERFECT, "SUPER REBOTE", pos, "jump")
+
+
+## Perseguidores que te han adelantado sin tocarte: esquiva premiada.
+func _check_dodges() -> void:
+	while Daylight.dodges > 0:
+		Daylight.dodges -= 1
+		_add_points(60.0)
+		precision.register(Timing.Rating.PERFECT, "¡ESQUIVADO!", player.position, "dodge")
+
+
+## Presenta lo nuevo de este nivel: enemigo del mundo o mecanica nueva.
+func _announce_new_content() -> void:
+	if not _level_mode or bool(_def.get("final", false)):
+		if not _level_mode:
+			var first: Array = Bestiary.entry(0, 0)
+			hud.toast("UN GOLPE Y CAES. ENEMIGO: " + String(first[0]), Pal.ORANGE)
+		return
+	var world: int = int(_def["world"])
+	var level: int = int(_def["level"])
+	var creature: int = Bestiary.introduced(level)
+	if creature >= 0:
+		var data: Array = Bestiary.entry(world, creature)
+		hud.show_banner("NUEVO: " + String(data[0]), String(Bestiary.TIPS[int(data[1])]))
+	if world == 0:
+		for item in LevelGenerator.MECHANICS:
+			var mechanic: Array = item
+			if int(mechanic[1]) == level:
+				hud.toast("MECÁNICA NUEVA: %s. %s" % [String(mechanic[2]), String(mechanic[3])], Pal.CYAN)
+		if level == 2:
+			hud.toast("PISOTÓN: PULSA CAYENDO DESDE LO ALTO", Pal.CYAN)
 
 
 func _on_player_damaged() -> void:
@@ -881,41 +771,29 @@ func _on_player_fell() -> void:
 	_lose_life(true)
 
 
+## Un solo golpe mata. La Pluma de Fenix (tienda) salva una vez por intento.
 func _lose_life(fell_in_hole: bool) -> void:
 	if _state != State.PLAYING:
 		return
-	_lives -= 1
 	_damage_taken += 1
 	precision.on_damage()
-	# Modo "Sin dano": el primer golpe termina el intento.
-	if _challenge == "no_damage":
-		_lives = 0
-		hud.show_banner("RETO FALLADO", "MODO SIN DAÑO")
+	_jump_chain = 0
 	_shake = 1.0
 	Sfx.play("hurt")
 	hud.flash(Pal.RED, 0.45)
-	player.play_hurt()
 	if not fell_in_hole:
 		Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 14, 300.0, 0.5, 7.0, 700.0, 180.0, Vector2.UP)
-	if _lives <= 0:
-		# Objeto "Revivir": se gasta solo, una vez por partida.
-		if _challenge != "no_damage" and not _revive_used and GameData.use_consumable("revive"):
-			_revive_used = true
-			_lives = 2
-			if fell_in_hole:
-				_respawn_player()
-			player.start_rage(3.0)
-			Sfx.play("revive")
-			hud.show_banner("¡HAS REVIVIDO!", "OBJETO REVIVIR GASTADO")
-			hud.flash(Pal.WHITE, 0.6)
-			return
-		_game_over()
+	if Buffs.has("phoenix") and not _phoenix_used:
+		_phoenix_used = true
+		player.play_hurt()
+		if fell_in_hole:
+			_respawn_player()
+		player.start_invulnerability(1.5)
+		Sfx.play("revive")
+		hud.show_banner("¡PLUMA DE FÉNIX!", "TE HA SALVADO. EL RANGO MÁXIMO BAJA A A")
+		Fx.burst(fx_root, player.position + Vector2(0.0, -30.0), Pal.ORANGE, 26, 380.0, 0.6, 8.0, 300.0, 180.0, Vector2.UP)
 		return
-	if fell_in_hole:
-		_respawn_player()
-		player.start_invulnerability(2.2 + _recovery)
-	else:
-		player.start_invulnerability(1.6 + _recovery)
+	_game_over()
 
 
 ## Reaparece al otro lado del hueco.
@@ -942,14 +820,15 @@ func _bank_run() -> bool:
 
 func _game_over() -> void:
 	_state = State.DYING
-	_lives = 0
+	_death_time = 0.0
 	hud.can_pause = false
 	player.die()
 	Sfx.set_intensity(0)
 	Sfx.play("gameover")
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
 	_update_hud()
-	await get_tree().create_timer(1.3, true, false, true).timeout
+	var wait: float = 0.5 if Buffs.has("quick_retry") else 1.3
+	await get_tree().create_timer(wait, true, false, true).timeout
 	if not is_inside_tree():
 		return
 	Engine.time_scale = 1.0
@@ -973,6 +852,9 @@ func _level_complete() -> void:
 	}
 	var grade: float = precision.grade(info)
 	var rank: int = Timing.rank_for(grade)
+	# La Pluma de Fenix limita el rango maximo a A.
+	if _phoenix_used:
+		rank = mini(rank, 3)
 	# Estrellas: 1 por llegar, 2 con rango B o mejor, 3 con rango A o mejor
 	# y como mucho un golpe recibido.
 	var stars: int = 1
@@ -1047,3 +929,9 @@ func _restart() -> void:
 func _go_to_menu() -> void:
 	_bank_run()
 	Transition.change_scene(MENU_SCENE)
+
+
+
+## Victoria de nivel: el reintento rapido no debe saltarse esa pantalla.
+func _level_mode_won() -> bool:
+	return _state == State.GAME_OVER and player.alive

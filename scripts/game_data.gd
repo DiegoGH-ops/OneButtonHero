@@ -10,11 +10,15 @@ signal notice(text: String)
 
 const Catalog = preload("res://scripts/catalog.gd")
 const Campaign = preload("res://scripts/campaign.gd")
+const Buffs = preload("res://scripts/buffs.gd")
 
 const SAVE_PATH := "user://one_button_hero.cfg"
 ## Accion principal: ESPACIO, clic izquierdo o toque en pantalla.
 const ACTION := "hero_action"
-const POWER_ACTIONS := ["power_1", "power_2", "power_3"]
+## Precios de las mejoras y objetos de versiones anteriores: al cargar una
+## partida antigua se devuelve lo gastado para invertirlo en el arbol nuevo.
+const OLD_UPGRADE_PRICES := [150, 400, 900, 1800, 3200]
+const OLD_CONSUMABLE_PRICES := {"revive": 300, "guard": 120, "double": 200, "magnet_boost": 120}
 
 var wallet: int = 0
 ## Moneda especial: solo se consigue jugando (hitos, tres estrellas...).
@@ -23,8 +27,10 @@ var diamonds: int = 0
 var campaign: Dictionary = {}
 ## Partida que se va a jugar (no se guarda): modo "endless" o "level".
 var run: Dictionary = {"mode": "endless"}
-var upgrades: Dictionary = {}
-var stock: Dictionary = {}
+## Arbol de mejoras: id del nodo -> nivel comprado.
+var tree: Dictionary = {}
+## Power-ups de tienda comprados -> activado (true) o desactivado.
+var powerups: Dictionary = {}
 var owned: Dictionary = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
 var equipped: Dictionary = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
 
@@ -84,17 +90,6 @@ func _register_input() -> void:
 		var click: InputEventMouseButton = InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_LEFT
 		InputMap.action_add_event(ACTION, click)
-	var keys: Array = [[KEY_1, KEY_Q], [KEY_2, KEY_W], [KEY_3, KEY_E]]
-	for i in POWER_ACTIONS.size():
-		var action: String = POWER_ACTIONS[i]
-		if InputMap.has_action(action):
-			continue
-		InputMap.add_action(action)
-		var pair: Array = keys[i]
-		for code in pair:
-			var ev: InputEventKey = InputEventKey.new()
-			ev.physical_keycode = code
-			InputMap.action_add_event(action, ev)
 
 
 # ---------------------------------------------------------------- guardado --
@@ -113,8 +108,9 @@ func load_data() -> void:
 	wallet = int(cfg.get_value("profile", "wallet", 0))
 	diamonds = int(cfg.get_value("profile", "diamonds", 0))
 	_merge(campaign, cfg.get_value("profile", "campaign", {}))
-	_merge(upgrades, cfg.get_value("profile", "upgrades", {}))
-	_merge(stock, cfg.get_value("profile", "stock", {}))
+	_merge(tree, cfg.get_value("profile", "tree", {}))
+	_merge(powerups, cfg.get_value("profile", "powerups", {}))
+	_refund_old_items(cfg.get_value("profile", "upgrades", {}), cfg.get_value("profile", "stock", {}))
 	_merge(owned, cfg.get_value("profile", "owned", {}))
 	_merge(equipped, cfg.get_value("profile", "equipped", {}))
 	_merge(stats, cfg.get_value("profile", "stats", {}))
@@ -144,8 +140,8 @@ func save_data() -> void:
 	cfg.set_value("profile", "wallet", wallet)
 	cfg.set_value("profile", "diamonds", diamonds)
 	cfg.set_value("profile", "campaign", campaign)
-	cfg.set_value("profile", "upgrades", upgrades)
-	cfg.set_value("profile", "stock", stock)
+	cfg.set_value("profile", "tree", tree)
+	cfg.set_value("profile", "powerups", powerups)
 	cfg.set_value("profile", "owned", owned)
 	cfg.set_value("profile", "equipped", equipped)
 	cfg.set_value("profile", "stats", stats)
@@ -178,14 +174,6 @@ func add_coins(amount: int) -> void:
 	wallet_changed.emit()
 
 
-func upgrade_level(id: String) -> int:
-	return int(upgrades.get(id, 0))
-
-
-func stock_of(id: String) -> int:
-	return int(stock.get(id, 0))
-
-
 func is_owned(id: String) -> bool:
 	return bool(owned.get(id, false))
 
@@ -203,58 +191,11 @@ func equipped_item(slot: String) -> Dictionary:
 	return entry
 
 
-## Precio del siguiente nivel de una mejora (-1 si ya esta al maximo).
-func upgrade_price(id: String) -> int:
-	var entry: Dictionary = Catalog.find(Catalog.UPGRADES, id)
-	if entry.is_empty():
-		return -1
-	var prices: Array = entry["prices"]
-	var level: int = upgrade_level(id)
-	if level >= prices.size():
-		return -1
-	return int(prices[level])
-
-
 func _spend(price: int) -> bool:
 	if price < 0 or wallet < price:
 		return false
 	wallet -= price
 	wallet_changed.emit()
-	return true
-
-
-## Nombre de la mejora que falta para desbloquear `id` ("" si esta libre).
-func upgrade_requirement(id: String) -> String:
-	var entry: Dictionary = Catalog.find(Catalog.UPGRADES, id)
-	var needed: String = String(entry.get("requires", ""))
-	if needed == "" or upgrade_level(needed) > 0:
-		return ""
-	return String(Catalog.find(Catalog.UPGRADES, needed).get("name", needed))
-
-
-func buy_upgrade(id: String) -> bool:
-	if upgrade_requirement(id) != "" or not _spend(upgrade_price(id)):
-		return false
-	upgrades[id] = upgrade_level(id) + 1
-	save_data()
-	return true
-
-
-func buy_consumable(id: String) -> bool:
-	var entry: Dictionary = Catalog.find(Catalog.CONSUMABLES, id)
-	if entry.is_empty() or not _spend(int(entry["price"])):
-		return false
-	stock[id] = stock_of(id) + 1
-	save_data()
-	return true
-
-
-## Gasta una unidad de un consumible. Devuelve false si no quedaba ninguna.
-func use_consumable(id: String) -> bool:
-	if stock_of(id) <= 0:
-		return false
-	stock[id] = stock_of(id) - 1
-	save_data()
 	return true
 
 
@@ -273,6 +214,7 @@ func buy_cosmetic(slot: String, id: String) -> bool:
 		return false
 	owned[id] = true
 	equipped[slot] = id
+	Buffs.invalidate()
 	save_data()
 	return true
 
@@ -280,7 +222,93 @@ func buy_cosmetic(slot: String, id: String) -> bool:
 func equip(slot: String, id: String) -> void:
 	if is_owned(id):
 		equipped[slot] = id
+		Buffs.invalidate()
 		save_data()
+
+
+# --------------------------------------------- power-ups y arbol de mejoras --
+
+## Devuelve el dinero de las mejoras y objetos del sistema anterior.
+func _refund_old_items(old_upgrades: Variant, old_stock: Variant) -> void:
+	var refund: int = 0
+	if old_upgrades is Dictionary:
+		var levels: Dictionary = old_upgrades
+		for key in levels:
+			for i in mini(int(levels[key]), OLD_UPGRADE_PRICES.size()):
+				refund += int(OLD_UPGRADE_PRICES[i])
+	if old_stock is Dictionary:
+		var items: Dictionary = old_stock
+		for key in items:
+			refund += int(OLD_CONSUMABLE_PRICES.get(String(key), 100)) * int(items[key])
+	if refund > 0:
+		wallet += refund
+		call_deferred("emit_signal", "notice", "MEJORAS ANTIGUAS REEMBOLSADAS: +%d" % refund)
+		call_deferred("save_data")
+
+
+func is_powerup_owned(id: String) -> bool:
+	return powerups.has(id)
+
+
+func is_powerup_active(id: String) -> bool:
+	return bool(powerups.get(id, false))
+
+
+func buy_powerup(id: String) -> bool:
+	var entry: Dictionary = Catalog.find(Catalog.POWERUPS, id)
+	if entry.is_empty() or is_powerup_owned(id) or not _spend(int(entry["price"])):
+		return false
+	powerups[id] = true
+	Buffs.invalidate()
+	save_data()
+	return true
+
+
+## Activa o desactiva un power-up ya comprado.
+func toggle_powerup(id: String) -> void:
+	if is_powerup_owned(id):
+		powerups[id] = not is_powerup_active(id)
+		Buffs.invalidate()
+		save_data()
+
+
+func node_level(id: String) -> int:
+	return int(tree.get(id, 0))
+
+
+## Precio del siguiente nivel de un nodo (-1 si esta al maximo).
+func node_price(id: String) -> int:
+	var node: Dictionary = Catalog.find(Catalog.TREE, id)
+	if node.is_empty():
+		return -1
+	var prices: Array = node["prices"]
+	var level: int = node_level(id)
+	return int(prices[level]) if level < prices.size() else -1
+
+
+## Motivo por el que un nodo no se puede comprar ("" si se puede).
+func node_block_reason(id: String) -> String:
+	var node: Dictionary = Catalog.find(Catalog.TREE, id)
+	if node.is_empty():
+		return "NO EXISTE"
+	var excluded: String = String(node.get("excludes", ""))
+	if excluded != "" and node_level(excluded) > 0:
+		return "INCOMPATIBLE CON " + String(Catalog.find(Catalog.TREE, excluded).get("name", ""))
+	for req in node.get("requires", []):
+		if node_level(String(req)) <= 0:
+			return "REQUIERE " + String(Catalog.find(Catalog.TREE, String(req)).get("name", ""))
+	if node_price(id) < 0:
+		return "NIVEL MÁXIMO"
+	return ""
+
+
+func buy_node(id: String) -> bool:
+	if node_block_reason(id) != "" or not _spend(node_price(id)):
+		return false
+	tree[id] = node_level(id) + 1
+	Buffs.invalidate()
+	save_data()
+	return true
 
 
 # ----------------------------------------------------------------- campana --
@@ -579,8 +607,8 @@ func reset_progress() -> void:
 	campaign = {}
 	weekly_progress = {}
 	weekly_done = {}
-	upgrades = {}
-	stock = {}
+	tree = {}
+	powerups = {}
 	owned = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
 	equipped = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
 	for key in stats:
@@ -588,6 +616,7 @@ func reset_progress() -> void:
 	achievements = {}
 	mission_progress = {}
 	mission_done = {}
+	Buffs.invalidate()
 	save_data()
 	wallet_changed.emit()
 

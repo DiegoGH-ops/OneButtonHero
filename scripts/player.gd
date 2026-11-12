@@ -1,8 +1,12 @@
 extends CharacterBody2D
-## El heroe. Corre solo hacia la derecha; el boton principal llama a press():
-## si hay un enemigo al alcance ataca y, si no, salta. Mantenerlo pulsado
-## alarga el salto. Tambien gestiona escudo, turbo, estrella de poder y la
-## apariencia comprada en la tienda (aspecto, espada, estela).
+## El heroe. Corre solo hacia la derecha y TODO se controla con un boton:
+##   - Pulsar en el suelo: salto. Mantener: salto mas alto; soltar pronto:
+##     salto corto (techos bajos).
+##   - Pulsar con un enemigo delante: ataque. Contra enemigos acorazados
+##     (barricadas, brutos) cada pulsacion es un golpe: pulsacion rapida.
+##   - Pulsar cayendo desde lo alto: pisoton (caida rapida que aplasta).
+##   - Pisar un trampolin: rebote; pulsar justo al pisarlo: super rebote.
+## Un solo golpe mata. Los buffs (cosmeticos, mejoras) se leen de buffs.gd.
 ##
 ## El origen del nodo esta en los pies del personaje.
 
@@ -12,15 +16,15 @@ signal attacked(pos: Vector2)
 signal pickup_collected(kind: int, value: int, pos: Vector2)
 signal enemy_killed(points: int, pos: Vector2, kind: int)
 signal enemy_hit(pos: Vector2)
-signal hazard_smashed(pos: Vector2)
-signal soul_strike(pos: Vector2)
-signal shield_broken
+signal stomped(pos: Vector2, kills: int)
+signal bounced(pos: Vector2, perfect: bool)
 signal damaged
 signal fell
 
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
+const Buffs = preload("res://scripts/buffs.gd")
 
 const GRAVITY := 2500.0
 const JUMP_VELOCITY := -930.0
@@ -32,7 +36,15 @@ const MAX_FALL_SPEED := 1500.0
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER_TIME := 0.14
 const ATTACK_TIME := 0.30
-const TURBO_MULT := 1.6
+## Pulsacion rapida: tiempo minimo entre golpes contra enemigos acorazados.
+const MASH_INTERVAL := 0.06
+## Pisoton: altura minima sobre el suelo y velocidad de caida.
+const STOMP_MIN_HEIGHT := 70.0
+const STOMP_SPEED := 1700.0
+const STOMP_RADIUS := 70.0
+## Trampolin: rebote normal y super rebote (pulsando justo al pisarlo).
+const BOUNCE_VELOCITY := -1150.0
+const SUPER_BOUNCE_VELOCITY := -1320.0
 const GROUND_Y := 560.0
 const FALL_LIMIT_Y := 820.0
 const RUN_LEGS := ["hero_legs_0", "hero_legs_1", "hero_legs_2", "hero_legs_3"]
@@ -42,40 +54,47 @@ const RUN_CAPES := ["hero_cape_0", "hero_cape_1", "hero_cape_2", "hero_cape_1"]
 var run_speed: float = 340.0
 var active: bool = false
 var alive: bool = true
-## Modo decorativo (menu y tienda): solo anima la carrera.
+## Modo decorativo (menu): solo anima la carrera.
 var demo_mode: bool = false
-## Escudo comprado en la tienda: absorbe un golpe.
-var shield_active: bool = false
-## Soul Reaper: el proximo golpe elimina al enemigo al instante.
-var soul_armed: bool = false
-## Mejora "Alcance": multiplica la distancia de ataque.
-var reach_bonus: float = 1.0
 ## Potencia del tajo en curso (0 normal, 1 good, 2 perfect, 3 legendary).
 var slash_power: int = 0
 ## Nivel de combo (0-3): particulas de energia alrededor del heroe.
 var combo_level: int = 0
+## Ojo de halcon: X del mundo donde saltar para lograr PERFECT (INF = nada).
+var hawk_x: float = INF
 
 var _coyote: float = 0.0
 var _buffer: float = 0.0
 var _jump_time: float = 0.0
 var _jumping: bool = false
 var _attack_time: float = 0.0
+var _last_mash: float = 0.0
+var _swing_hits: Array = []
 var _invulnerable: float = 0.0
-var _turbo_time: float = 0.0
-var _rage_time: float = 0.0
 var _hurt_time: float = 0.0
+var _stomping: bool = false
 var _anim: float = 0.0
 var _squash: Vector2 = Vector2.ONE
 var _tilt: float = 0.0
 var _was_on_floor: bool = true
+var _fell_reported: bool = false
+var _dust: CPUParticles2D
 ## Hielo (Frostfall): 0..1, acelera al heroe mientras corre sobre el.
 var _ice: float = 0.0
 ## Estela de carrera: posiciones recientes en coordenadas del mundo.
 var _trail: Array = []
 var _trail_colors: Array = []
 var _aura_color: Color = Color(0.0, 0.0, 0.0, 0.0)
-var _fell_reported: bool = false
-var _dust: CPUParticles2D
+
+# Valores con buffs aplicados (refresh_stats).
+var _reach_mult: float = 1.0
+var _jump_velocity: float = JUMP_VELOCITY
+var _cut_velocity: float = JUMP_CUT_VELOCITY
+var _coyote_time: float = COYOTE_TIME
+var _buffer_time: float = JUMP_BUFFER_TIME
+var _ice_grip: float = 0.0
+var _stomp_radius: float = STOMP_RADIUS
+var _ledge: float = 14.0
 
 var _skin: Dictionary = {}
 var _skin_key: String = ""
@@ -103,6 +122,27 @@ func _ready() -> void:
 	_dust.show_behind_parent = true
 	add_child(_dust)
 	refresh_cosmetics()
+
+
+## Aplica los buffs de cosmeticos equipados y del arbol de mejoras.
+## Pequenos a proposito: ayudan, pero no sustituyen a la habilidad.
+func refresh_stats() -> void:
+	Buffs.invalidate()
+	_reach_mult = Buffs.factor("reach")
+	# La altura crece con el cuadrado de la velocidad: se aplica la raiz.
+	_jump_velocity = JUMP_VELOCITY * sqrt(Buffs.factor("jump_height"))
+	_cut_velocity = JUMP_CUT_VELOCITY * clampf(1.0 - Buffs.stat("jump_cut") / 100.0, 0.6, 1.0)
+	_coyote_time = COYOTE_TIME + Buffs.stat("coyote") / 1000.0
+	_buffer_time = JUMP_BUFFER_TIME + Buffs.stat("buffer") / 1000.0
+	_ice_grip = clampf(Buffs.stat("ice_grip") / 100.0, 0.0, 0.8)
+	_stomp_radius = STOMP_RADIUS + Buffs.stat("stomp")
+	_ledge = 14.0 + Buffs.stat("ledge")
+	# Silueta agil: cuerpo hasta 3 px mas estrecho para roces justos.
+	var shrink: float = clampf(Buffs.stat("hitbox"), 0.0, 3.0)
+	var hurt_shape: CollisionShape2D = hurt_box.get_node("CollisionShape2D")
+	var rect: RectangleShape2D = RectangleShape2D.new()
+	rect.size = Vector2(20.0 - shrink * 2.0, 42.0 - shrink)
+	hurt_shape.shape = rect
 
 
 ## Lee de GameData el aspecto, la espada y la estela equipados.
@@ -142,25 +182,40 @@ func refresh_cosmetics() -> void:
 		_dust.color_initial_ramp = ramp
 	else:
 		_dust.color_initial_ramp = null
+	refresh_stats()
 	queue_redraw()
 
 
 # ------------------------------------------------------------------ boton --
 
-## Pulsacion del boton principal.
+## Pulsacion del unico boton.
 func press() -> void:
 	if not active or not alive:
 		return
-	if _any_enemy_in_reach():
-		if _attack_time <= 0.1:
+	var target: Node2D = _nearest_enemy_in_reach()
+	if target != null:
+		# Contra enemigos acorazados cada pulsacion cuenta (pulsacion rapida).
+		if target.get("mash") == true:
+			var now: float = float(Time.get_ticks_msec()) / 1000.0
+			if now - _last_mash >= MASH_INTERVAL:
+				_last_mash = now
+				_start_attack()
+		elif _attack_time <= 0.1:
 			_start_attack()
-	else:
-		_buffer = JUMP_BUFFER_TIME
+		return
+	# En el aire, cayendo y con altura: pisoton.
+	if not is_on_floor() and velocity.y > -150.0 and GROUND_Y - position.y > STOMP_MIN_HEIGHT and not _stomping:
+		_stomping = true
+		_jumping = false
+		velocity.y = STOMP_SPEED
+		_squash = Vector2(0.7, 1.35)
+		return
+	_buffer = _buffer_time
 
 
 ## Distancia a la que un enemigo convierte el boton en ataque.
 func get_attack_range() -> float:
-	return (105.0 + run_speed * 0.20) * reach_bonus
+	return (105.0 + run_speed * 0.20) * _reach_mult
 
 
 func is_enemy_in_reach(enemy: Node2D) -> bool:
@@ -171,26 +226,27 @@ func is_enemy_in_reach(enemy: Node2D) -> bool:
 	return dx > -30.0 and dx < get_attack_range() and dy < 120.0
 
 
-func _any_enemy_in_reach() -> bool:
+func _nearest_enemy_in_reach() -> Node2D:
+	var best: Node2D = null
+	var best_dx: float = INF
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy: Node2D = node as Node2D
 		if enemy != null and is_enemy_in_reach(enemy):
-			return true
-	return false
+			var dx: float = enemy.global_position.x - global_position.x
+			if dx < best_dx:
+				best_dx = dx
+				best = enemy
+	return best
 
 
 func _start_attack() -> void:
 	_attack_time = ATTACK_TIME
+	_swing_hits.clear()
 	attacked.emit(global_position)
 
 
-## Animacion de ataque sin comprobar enemigos (poder Onda).
-func flourish() -> void:
-	_attack_time = ATTACK_TIME
-
-
-func _do_jump() -> void:
-	velocity.y = JUMP_VELOCITY
+func _do_jump(velocity_y: float) -> void:
+	velocity.y = velocity_y
 	_jumping = true
 	_jump_time = 0.0
 	_buffer = 0.0
@@ -202,58 +258,31 @@ func _do_jump() -> void:
 # ----------------------------------------------------------------- estado --
 
 func is_invulnerable() -> bool:
-	return _invulnerable > 0.0 or _rage_time > 0.0
+	return _invulnerable > 0.0
 
 
 func start_invulnerability(seconds: float) -> void:
 	_invulnerable = maxf(_invulnerable, seconds)
 
 
-## Turbo: corre mas rapido, cruza los huecos y arrolla lo que toca.
-func start_turbo(seconds: float) -> void:
-	_turbo_time = seconds
-	_rage_time = maxf(_rage_time, seconds + 0.6)
-
-
-## Estrella de poder: invencible y arrolla enemigos y obstaculos.
-func start_rage(seconds: float) -> void:
-	_rage_time = maxf(_rage_time, seconds)
-
-
-func is_turbo() -> bool:
-	return _turbo_time > 0.0
-
-
-func is_raging() -> bool:
-	return _rage_time > 0.0
-
-
 func get_speed() -> float:
-	return run_speed * (TURBO_MULT if _turbo_time > 0.0 else 1.0) * (1.0 + 0.3 * _ice)
+	return run_speed * (1.0 + 0.3 * _ice * (1.0 - _ice_grip))
 
 
-## Animacion de dano (retroceso y destello).
+## Animacion de golpe (solo la usa la Pluma de Fenix al salvarte).
 func play_hurt() -> void:
 	_hurt_time = 0.4
 
 
-## Recoloca al heroe tras caer por un hueco o al revivir.
+## Recoloca al heroe (Pluma de Fenix tras caer por un hueco).
 func respawn(pos: Vector2) -> void:
 	global_position = pos
 	velocity = Vector2.ZERO
 	_buffer = 0.0
 	_jumping = false
+	_stomping = false
 	_fell_reported = false
 	_was_on_floor = false
-
-
-## Vuelve a la vida (objeto Revivir).
-func revive(pos: Vector2) -> void:
-	alive = true
-	active = true
-	collision_mask = 1
-	_tilt = 0.0
-	respawn(pos)
 
 
 ## Animacion de derrota: sale despedido girando y cae fuera de la pantalla.
@@ -264,9 +293,8 @@ func die() -> void:
 	active = false
 	collision_mask = 0
 	velocity = Vector2(-150.0, -760.0)
-	_turbo_time = 0.0
-	_rage_time = 0.0
 	_dust.emitting = false
+	_trail.clear()
 
 
 # ----------------------------------------------------------------- fisica --
@@ -281,31 +309,28 @@ func _physics_process(delta: float) -> void:
 		return
 	if not active:
 		return
-
-	if _turbo_time > 0.0:
-		_turbo_time -= delta
-		# El turbo nunca se acaba justo encima de un hueco.
-		if _turbo_time <= 0.0 and not Daylight.is_ground(global_position.x + 24.0):
-			_turbo_time = 0.1
-	_rage_time = maxf(_rage_time - delta, 0.0)
 	_hurt_time = maxf(_hurt_time - delta, 0.0)
 
 	var on_floor: bool = is_on_floor()
-	# Con turbo corre por encima de los huecos.
-	var air_run: bool = _turbo_time > 0.0 and not on_floor and velocity.y >= 0.0 and position.y >= GROUND_Y - 2.0 and position.y < GROUND_Y + 30.0
-	if air_run:
-		position.y = GROUND_Y - 1.0
-		velocity.y = 0.0
-	elif not on_floor:
-		velocity.y = minf(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
+	if not on_floor:
+		velocity.y = minf(velocity.y + GRAVITY * delta, STOMP_SPEED if _stomping else MAX_FALL_SPEED)
 
-	if on_floor or air_run:
-		_coyote = COYOTE_TIME
+	if on_floor:
+		_coyote = _coyote_time
 	else:
 		_coyote -= delta
 	_buffer -= delta
+
+	# Trampolin: al pisarlo rebota; pulsando justo antes, super rebote.
+	if on_floor:
+		var pad: Node2D = _pad_under()
+		if pad != null:
+			var perfect: bool = _buffer > 0.0
+			_do_jump(SUPER_BOUNCE_VELOCITY if perfect else BOUNCE_VELOCITY)
+			_jumping = false
+			bounced.emit(global_position, perfect)
 	if _buffer > 0.0 and _coyote > 0.0:
-		_do_jump()
+		_do_jump(_jump_velocity)
 
 	# Salto de altura variable: al soltar el boton se recorta la subida.
 	if _jumping:
@@ -313,12 +338,12 @@ func _physics_process(delta: float) -> void:
 		if velocity.y >= 0.0:
 			_jumping = false
 		elif _jump_time >= MIN_JUMP_TIME and not Input.is_action_pressed(GameData.ACTION):
-			if velocity.y < JUMP_CUT_VELOCITY:
-				velocity.y = JUMP_CUT_VELOCITY
+			if velocity.y < _cut_velocity:
+				velocity.y = _cut_velocity
 			_jumping = false
 
 	# Hielo: sobre el se acelera poco a poco; en el aire se conserva el impulso.
-	if is_on_floor():
+	if on_floor:
 		var target_ice: float = 1.0 if Daylight.is_ice(global_position.x) else 0.0
 		_ice = move_toward(_ice, target_ice, delta * (0.9 if target_ice > _ice else 2.5))
 	velocity.x = get_speed()
@@ -326,13 +351,16 @@ func _physics_process(delta: float) -> void:
 
 	# Ayuda en cornisas: si roza el borde de un hueco por muy poco, sube.
 	if is_on_wall() and not is_on_floor() and velocity.y >= 0.0:
-		if position.y > GROUND_Y and position.y < GROUND_Y + 14.0:
+		if position.y > GROUND_Y and position.y < GROUND_Y + _ledge:
 			position.y = GROUND_Y - 1.0
 			velocity.y = 0.0
 
 	var now_on_floor: bool = is_on_floor()
 	if now_on_floor and not _was_on_floor:
 		_squash = Vector2(1.25, 0.75)
+		if _stomping:
+			_stomping = false
+			_stomp_impact()
 		landed.emit(global_position)
 	_was_on_floor = now_on_floor
 
@@ -350,9 +378,33 @@ func _physics_process(delta: float) -> void:
 		fell.emit()
 
 
+func _pad_under() -> Node2D:
+	for node in get_tree().get_nodes_in_group("pads"):
+		var pad: Node2D = node as Node2D
+		if pad != null and global_position.x > pad.global_position.x - 4.0 and global_position.x < pad.global_position.x + 40.0:
+			return pad
+	return null
+
+
+## El pisoton aplasta a los enemigos de suelo cercanos al caer.
+func _stomp_impact() -> void:
+	var kills: int = 0
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy: Area2D = node as Area2D
+		if enemy == null or enemy.get("mash") == true:
+			continue
+		if absf(enemy.global_position.x - global_position.x) < _stomp_radius and absf(enemy.global_position.y - global_position.y) < 60.0:
+			var before: int = int(enemy.get("hp")) if enemy.get("hp") != null else 1
+			_strike(enemy)
+			if before > 0:
+				kills += 1
+	stomped.emit(global_position, kills)
+
+
 func _check_attack_hits() -> void:
 	for area in attack_area.get_overlapping_areas():
-		if area.is_in_group("enemies") and area.has_method("hit"):
+		if area.is_in_group("enemies") and area.has_method("hit") and not _swing_hits.has(area):
+			_swing_hits.append(area)
 			_strike(area)
 
 
@@ -361,44 +413,28 @@ func _strike(area: Area2D) -> void:
 	var kind: int = int(area.get("kind"))
 	var hit_pos: Vector2 = area.global_position
 	var result: int = int(area.call("hit"))
-	if soul_armed:
-		# Golpe de Soul Reaper: remata aunque el enemigo tenga escudo.
-		soul_armed = false
-		var guard: int = 0
-		while result < 0 and guard < 4:
-			result = int(area.call("hit"))
-			guard += 1
-		soul_strike.emit(hit_pos)
 	if result > 0:
 		enemy_killed.emit(result, hit_pos, kind)
 	elif result < 0:
 		enemy_hit.emit(hit_pos)
 
 
-## Contacto con peligros y enemigos: arrolla (turbo / estrella), gasta el
-## escudo o recibe dano.
+## Contacto con peligros o enemigos: un solo golpe mata. Si cae en picado
+## sobre un enemigo (pisoton), lo aplasta en vez de morir.
 func _check_contacts() -> void:
+	if _invulnerable > 0.0:
+		return
 	for area in hurt_box.get_overlapping_areas():
 		var is_enemy: bool = area.is_in_group("enemies")
-		var is_hazard: bool = area.is_in_group("hazards")
-		if not is_enemy and not is_hazard:
+		if not is_enemy and not area.is_in_group("hazards"):
 			continue
-		if _rage_time > 0.0:
-			if is_enemy and area.has_method("hit"):
-				_strike(area)
-			elif is_hazard and area.has_method("destroy"):
-				var center: Vector2 = area.call("get_center")
-				if bool(area.call("destroy")):
-					hazard_smashed.emit(center)
+		if is_enemy and _stomping and not area.get("mash") == true and area.global_position.y > global_position.y - 10.0:
+			_strike(area)
+			velocity.y = JUMP_VELOCITY * 0.6
+			_stomping = false
+			stomped.emit(global_position, 1)
 			continue
-		if _invulnerable > 0.0:
-			continue
-		if shield_active:
-			shield_active = false
-			_invulnerable = 1.2
-			shield_broken.emit()
-		else:
-			damaged.emit()
+		damaged.emit()
 		return
 
 
@@ -427,7 +463,7 @@ func _process(delta: float) -> void:
 	elif not _trail.is_empty():
 		_trail.pop_back()
 	_squash = _squash.lerp(Vector2.ONE, minf(1.0, delta * 12.0))
-	var running: bool = alive and (demo_mode or (active and is_on_floor()) or _turbo_time > 0.0)
+	var running: bool = alive and (demo_mode or (active and is_on_floor()))
 	if _dust.emitting != running:
 		_dust.emitting = running
 	queue_redraw()
@@ -435,16 +471,19 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var alpha: float = 1.0
-	if alive and _invulnerable > 0.0 and _rage_time <= 0.0 and int(_invulnerable * 14.0) % 2 == 0:
+	if alive and _invulnerable > 0.0 and int(_invulnerable * 14.0) % 2 == 0:
 		alpha = 0.3
 	var tint: Color = Color(1.0, 1.0, 1.0, alpha)
 	if _hurt_time > 0.0:
 		tint = Color(1.0, 0.45, 0.45, alpha)
-	elif _rage_time > 0.0:
-		# Destello dorado mientras es invencible.
-		var glow: float = 0.75 + 0.25 * sin(_anim * 30.0)
-		tint = Color(1.0, 0.95 * glow + 0.05, 0.55 * glow, alpha)
-	var on_floor: bool = demo_mode or is_on_floor() or _turbo_time > 0.0
+	var on_floor: bool = demo_mode or is_on_floor()
+
+	# Ojo de halcon: marca en el suelo el punto de salto PERFECT.
+	if alive and hawk_x != INF:
+		var mark: Vector2 = to_local(Vector2(hawk_x, GROUND_Y))
+		var pulse: float = roundf(absf(sin(_anim * 8.0)) * 6.0)
+		PixelArt.draw(self, "arrow_down", mark + Vector2(-12.0, -40.0 - pulse), 4.0, Color(1.0, 1.0, 1.0, 0.85))
+		draw_rect(Rect2(mark + Vector2(-2.0, -12.0), Vector2(4.0, 12.0)), Color(Pal.YELLOW, 0.8))
 
 	# Fotograma: piernas y capa cambian con la carrera, el salto y la caida.
 	var legs: String = "hero_legs_fall"
@@ -482,8 +521,8 @@ func _draw() -> void:
 	if alive:
 		if _hurt_time > 0.0:
 			lean = -0.35 * (_hurt_time / 0.4)
-		elif _turbo_time > 0.0:
-			lean = 0.22
+		elif _stomping:
+			lean = 0.0
 		elif _attack_time > 0.0:
 			lean = 0.10
 	var body_xf: Transform2D = Transform2D(lean, _squash, 0.0, pivot)
@@ -503,23 +542,18 @@ func _draw() -> void:
 		swing = 1.0 - (1.0 - swing) * (1.0 - swing)
 		sword_angle = lerpf(-1.0, 2.3, swing)
 		_draw_slash(hand, sword_angle, progress, alpha)
-	elif _turbo_time > 0.0:
-		sword_angle = 1.45
+	elif _stomping:
+		sword_angle = 3.1
 	elif not on_floor:
 		sword_angle = 0.2 if velocity.y < 0.0 else 0.95
 	draw_set_transform_matrix(body_xf * Transform2D(sword_angle, hand))
 	PixelArt.draw_skin(self, "sword", Vector2(-10.0, -40.0), 4.0, tint, _sword, _sword_key)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
-	# Burbuja del escudo.
-	if alive and shield_active:
-		_draw_ring(Vector2(0.0, -32.0), 46.0, Pal.CYAN, 0.8)
-	# Lineas de velocidad del turbo.
-	if _turbo_time > 0.0:
-		for i in 5:
-			var ly: float = -8.0 - float(i) * 13.0
-			var lx: float = -40.0 - fposmod(_anim * 400.0 + float(i) * 37.0, 90.0)
-			draw_rect(Rect2(lx, ly, 34.0, 4.0), Color(Pal.WHITE, 0.6))
+	# Lineas de caida del pisoton.
+	if _stomping:
+		for i in 4:
+			draw_rect(Rect2(-20.0 + float(i) * 12.0, -110.0 - fposmod(_anim * 300.0 + float(i) * 23.0, 50.0), 4.0, 30.0), Color(Pal.WHITE, 0.6))
 
 
 ## Estela de carrera: cuadraditos que siguen el recorrido del heroe y se
@@ -554,23 +588,11 @@ func _draw_combo_energy() -> void:
 		draw_rect(Rect2(snappedf(p.x, 2.0) - 3.0, snappedf(p.y, 2.0) - 3.0, 6.0, 6.0), Color(c, 0.85))
 
 
-## Anillo de cuadraditos (escudo).
-func _draw_ring(center: Vector2, radius: float, color: Color, alpha: float) -> void:
-	var steps: int = 20
-	for i in steps:
-		var angle: float = float(i) / float(steps) * TAU + _anim * 1.5
-		var p: Vector2 = center + Vector2(cos(angle), sin(angle) * 1.05) * radius
-		var a: float = alpha * (0.5 + 0.5 * sin(angle * 2.0 + _anim * 6.0))
-		draw_rect(Rect2(snappedf(p.x, 4.0) - 2.0, snappedf(p.y, 4.0) - 2.0, 4.0, 4.0), Color(color, a))
-
-
 ## Tajo de la espada: arco de energia con los colores de la espada equipada.
 ## Crece con la precision: PERFECT anade lineas de movimiento y un destello
 ## en la punta; LEGENDARY, un segundo arco exterior y chispas.
 func _draw_slash(hand: Vector2, current_angle: float, progress: float, alpha: float) -> void:
 	var power: int = slash_power
-	if soul_armed:
-		power = maxi(power, 2)
 	var fade: float = clampf(1.0 - progress, 0.0, 1.0) * alpha
 	var rings: int = 3 + power
 	var block: float = 8.0 + float(power) * 2.0
@@ -582,8 +604,6 @@ func _draw_slash(hand: Vector2, current_angle: float, progress: float, alpha: fl
 			var radius: float = 40.0 + float(ring) * 10.0
 			var p: Vector2 = hand + dir * radius
 			var color: Color = _slash_b if ring % 2 == 1 else _slash_a
-			if soul_armed:
-				color = Pal.PURPLE if ring % 2 == 0 else Pal.RED
 			draw_rect(Rect2(snappedf(p.x, 2.0) - block * 0.5, snappedf(p.y, 2.0) - block * 0.5, block, block), Color(color, fade * closeness))
 		angle += 0.13
 	var tip: Vector2 = hand + Vector2(sin(current_angle), -cos(current_angle)) * (44.0 + float(rings) * 10.0)

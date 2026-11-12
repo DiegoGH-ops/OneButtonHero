@@ -1,32 +1,38 @@
 extends Control
 ## Tienda. Se abre como pantalla superpuesta desde el menu principal y desde
-## el Game Over. Pestanas: mejoras permanentes, objetos consumibles, heroes,
-## espadas, estelas y auras. Las compras se guardan al instante (GameData).
+## el Game Over. Pestanas: heroes, espadas, estelas, auras y los dos
+## power-ups. Cada articulo muestra ANTES de comprarlo su buff exacto y lo
+## compara con el equipado. Las compras se guardan al instante (GameData).
+## Las mejoras tienen su propia pantalla: el arbol (skill_tree.gd).
 
 signal closed
 
 const UI = preload("res://scripts/ui.gd")
 const Catalog = preload("res://scripts/catalog.gd")
+const Buffs = preload("res://scripts/buffs.gd")
 const ShopCard = preload("res://scripts/shop_card.gd")
 const HeroPreview = preload("res://scripts/hero_preview.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const Fx = preload("res://scripts/fx.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
 const PixelButton = preload("res://scripts/pixel_button.gd")
-const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 
-const TABS := ["MEJORAS", "OBJETOS", "HÉROES", "ESPADAS", "ESTELAS", "AURAS"]
-const CATEGORIES := ["upgrade", "consumable", "skin", "sword", "trail", "aura"]
+const TABS := ["HÉROES", "ESPADAS", "ESTELAS", "AURAS", "PODERES"]
+const CATEGORIES := ["skin", "sword", "trail", "aura", "powerup"]
+const SLOT_NAMES := {"skin": "HÉROE", "sword": "ESPADA", "trail": "ESTELA", "aura": "AURA"}
 const CARD_SIZE := Vector2(190.0, 196.0)
 const GRID_ORIGIN := Vector2(64.0, 196.0)
+const INFO_LINES := 10
 
 var _tab: int = 0
 var _tab_buttons: Array = []
 var _cards: Array = []
 var _grid: Control
 var _wallet: PixelLabel
+var _gems: PixelLabel
 var _info_name: PixelLabel
+var _info_price: PixelLabel
 var _info_lines: Array = []
 var _toaster: Toaster
 var _close_button: PixelButton
@@ -34,7 +40,6 @@ var _page: int = 0
 var _page_label: PixelLabel
 var _prev_button: PixelButton
 var _next_button: PixelButton
-var _gems: PixelLabel
 
 
 func _ready() -> void:
@@ -46,24 +51,14 @@ func _ready() -> void:
 	UI.panel(self, Rect2(32.0, 24.0, 1216.0, 672.0))
 	UI.label(self, "TIENDA", Vector2(64.0, 52.0), 7.0, Pal.YELLOW, 0)
 
-	# Monedero.
+	# Monedero y diamantes.
 	var purse: Control = UI.panel(self, Rect2(860.0, 44.0, 250.0, 64.0))
 	purse.set("fill", Pal.INK)
 	_wallet = UI.label(self, "0", Vector2(1090.0, 62.0), 4.0, Pal.YELLOW, 2)
-	var coin: PixelButton = UI.button(self, "", Rect2(868.0, 50.0, 56.0, 52.0), 4.0)
-	coin.icon_sprite = "coin_0"
-	coin.disabled = true
-	coin.focus_mode = Control.FOCUS_NONE
-	coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# Diamantes.
+	_purse_icon("coin_0", Rect2(868.0, 50.0, 56.0, 52.0), 4.0)
 	var gem_purse: Control = UI.panel(self, Rect2(690.0, 44.0, 160.0, 64.0))
 	gem_purse.set("fill", Pal.INK)
-	var gem: PixelButton = UI.button(self, "", Rect2(698.0, 50.0, 56.0, 52.0), 3.0)
-	gem.icon_sprite = "gem"
-	gem.disabled = true
-	gem.focus_mode = Control.FOCUS_NONE
-	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_purse_icon("gem", Rect2(698.0, 50.0, 56.0, 52.0), 3.0)
 	_gems = UI.label(self, "0", Vector2(836.0, 62.0), 4.0, Pal.CYAN, 2)
 
 	_close_button = UI.button(self, "X", Rect2(1140.0, 46.0, 76.0, 60.0), 4.0)
@@ -72,28 +67,28 @@ func _ready() -> void:
 	_close_button.pressed.connect(close)
 
 	for i in TABS.size():
-		var tab: PixelButton = UI.button(self, TABS[i], Rect2(64.0 + float(i) * 136.0, 128.0, 128.0, 48.0), 2.0)
+		var tab: PixelButton = UI.button(self, TABS[i], Rect2(64.0 + float(i) * 162.0, 128.0, 154.0, 48.0), 2.0)
 		tab.pressed.connect(_select_tab.bind(i))
 		_tab_buttons.append(tab)
 
 	_grid = UI.layer(self, "Grid")
-	# Paginas (ocho articulos por pagina).
 	_prev_button = UI.button(self, "<", Rect2(64.0, 630.0, 56.0, 44.0), 3.0)
 	_prev_button.pressed.connect(_change_page.bind(-1))
 	_next_button = UI.button(self, ">", Rect2(128.0, 630.0, 56.0, 44.0), 3.0)
 	_next_button.pressed.connect(_change_page.bind(1))
 	_page_label = UI.label(self, "", Vector2(200.0, 644.0), 2.0, Pal.SILVER, 0)
 
-	# Panel lateral: vista previa del heroe y descripcion del articulo.
+	# Ficha del articulo: vista previa, nombre, precio, buff y comparacion.
 	var side: Control = UI.panel(self, Rect2(884.0, 128.0, 332.0, 540.0))
 	side.set("fill", Pal.INK.lerp(Pal.NAVY, 0.6))
 	var preview: HeroPreview = HeroPreview.new()
-	preview.px = 10.0
+	preview.px = 7.0
 	add_child(preview)
-	preview.position = Vector2(1066.0, 400.0)
-	_info_name = UI.label(self, "", Vector2(1050.0, 452.0), 3.0, Pal.YELLOW)
-	for i in 7:
-		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 492.0 + float(i) * 24.0), 2.0, Pal.WHITE)
+	preview.position = Vector2(1060.0, 296.0)
+	_info_name = UI.label(self, "", Vector2(1050.0, 320.0), 3.0, Pal.YELLOW)
+	_info_price = UI.label(self, "", Vector2(1050.0, 352.0), 2.0, Pal.CYAN)
+	for i in INFO_LINES:
+		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 384.0 + float(i) * 26.0), 2.0, Pal.WHITE)
 		_info_lines.append(line)
 
 	_toaster = Toaster.new()
@@ -102,13 +97,21 @@ func _ready() -> void:
 	_refresh_wallet()
 
 
+func _purse_icon(sprite: String, rect: Rect2, px: float) -> void:
+	var icon: PixelButton = UI.button(self, "", rect, px)
+	icon.icon_sprite = sprite
+	icon.disabled = true
+	icon.focus_mode = Control.FOCUS_NONE
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("ui_cancel"):
 		close()
 		get_viewport().set_input_as_handled()
 
 
-## Abre la tienda en la pestana indicada (0 mejoras ... 2 heroes ...).
+## Abre la tienda en la pestana indicada (0 heroes ... 4 poderes).
 func open(tab: int = 0) -> void:
 	visible = true
 	modulate.a = 0.0
@@ -131,10 +134,8 @@ func _refresh_wallet() -> void:
 
 
 func _items(category: String) -> Array:
-	if category == "upgrade":
-		return Catalog.UPGRADES
-	if category == "consumable":
-		return Catalog.CONSUMABLES
+	if category == "powerup":
+		return Catalog.POWERUPS
 	return Catalog.cosmetics(category)
 
 
@@ -152,7 +153,7 @@ func _change_page(direction: int) -> void:
 	_build_cards()
 
 
-## Crea las tarjetas de la pagina actual.
+## Crea las tarjetas de la pagina actual (ocho por pagina).
 func _build_cards() -> void:
 	for old in _cards:
 		var old_card: ShopCard = old
@@ -190,42 +191,32 @@ func _refresh_card(card: ShopCard) -> void:
 	var entry: Dictionary = card.item
 	var id: String = entry["id"]
 	var title: String = entry["name"]
-	if card.category == "upgrade":
-		var prices: Array = entry["prices"]
-		var branch: Dictionary = Catalog.BRANCHES.get(String(entry.get("branch", "")), {})
-		card.band_color = Color(String(branch.get("color", "f4f4f4")))
-		if GameData.upgrade_requirement(id) != "":
-			card.configure(title, "BLOQUEADA", "BLOQUEADA", Pal.SILVER, false, -1, 0, false)
-			return
-		var level: int = GameData.upgrade_level(id)
-		var price: int = GameData.upgrade_price(id)
-		if price < 0:
-			card.configure(title, "", "MÁXIMO", Pal.LIME, false, level, prices.size(), true)
-		else:
-			card.configure(title, "", str(price), _afford_color(price), true, level, prices.size(), level > 0)
-	elif card.category == "consumable":
-		var owned: int = GameData.stock_of(id)
+	if card.category == "powerup":
 		var cost: int = int(entry["price"])
-		card.configure(title, "TIENES: %d" % owned, str(cost), _afford_color(cost), true, -1, 0, owned > 0)
-	else:
-		var gems: int = int(entry.get("gems", 0))
-		var rarity: String = String(entry.get("rarity", ""))
-		if entry.has("reward") and not GameData.is_owned(id):
-			# Recompensa de campana: no se vende.
-			var parts: PackedStringArray = String(entry["reward"]).split("_")
-			card.configure(title, rarity, "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1], Pal.SILVER, false, -1, 0, false)
-			return
-		card.currency_sprite = "gem" if gems > 0 else "coin_0"
-		var cost_c: int = gems if gems > 0 else int(entry["price"])
-		var cost_color: Color = _afford_color(cost_c)
-		if gems > 0:
-			cost_color = Pal.CYAN if GameData.diamonds >= gems else Pal.RED
-		if GameData.equipped_id(card.category) == id:
-			card.configure(title, "EQUIPADO", "EN USO", Pal.LIME, false, -1, 0, true)
-		elif GameData.is_owned(id):
-			card.configure(title, "COMPRADO", "EQUIPAR", Pal.WHITE, false, -1, 0, false)
+		if GameData.is_powerup_owned(id):
+			var on: bool = GameData.is_powerup_active(id)
+			card.configure(title, "ACTIVO" if on else "INACTIVO", "DESACTIVAR" if on else "ACTIVAR", Pal.WHITE, false, -1, 0, on)
 		else:
-			card.configure(title, rarity, str(cost_c), cost_color, true, -1, 0, false)
+			card.configure(title, "POWER-UP", str(cost), _afford_color(cost), true, -1, 0, false)
+		return
+	var gems: int = int(entry.get("gems", 0))
+	var rarity: String = String(entry.get("rarity", ""))
+	if entry.has("reward") and not GameData.is_owned(id):
+		# Recompensa de campana: no se vende.
+		var parts: PackedStringArray = String(entry["reward"]).split("_")
+		card.configure(title, rarity, "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1], Pal.SILVER, false, -1, 0, false)
+		return
+	card.currency_sprite = "gem" if gems > 0 else "coin_0"
+	var price: int = gems if gems > 0 else int(entry["price"])
+	var price_color: Color = _afford_color(price)
+	if gems > 0:
+		price_color = Pal.CYAN if GameData.diamonds >= gems else Pal.RED
+	if GameData.equipped_id(card.category) == id:
+		card.configure(title, "EQUIPADO", "EN USO", Pal.LIME, false, -1, 0, true)
+	elif GameData.is_owned(id):
+		card.configure(title, "COMPRADO", "EQUIPAR", Pal.WHITE, false, -1, 0, false)
+	else:
+		card.configure(title, rarity, str(price), price_color, true, -1, 0, false)
 
 
 func _afford_color(price: int) -> Color:
@@ -242,40 +233,47 @@ func _on_card_hovered(card: Button) -> void:
 	_show_info(card as ShopCard)
 
 
-## Muestra nombre y descripcion del articulo en el panel lateral.
+## Ficha del articulo: precio, buff exacto, descripcion y comparacion con el
+## cosmetico equipado en esa ranura.
 func _show_info(card: ShopCard) -> void:
 	if card == null:
 		return
 	var entry: Dictionary = card.item
+	var id: String = entry["id"]
 	_info_name.text = String(entry["name"])
-	var text: String = ""
-	if entry.has("desc"):
-		text = String(entry["desc"])
-	elif card.category == "skin":
-		text = "NUEVO ASPECTO PARA TU HÉROE"
-	elif card.category == "sword":
-		text = "ESPADA CON ESTELA DE COLOR PROPIO"
-	elif card.category == "trail":
-		text = "ESTELA DE PARTÍCULAS AL CORRER"
+	var lines: Array = []
+	if card.category == "powerup":
+		_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
+		lines.append_array(_wrap(String(entry["desc"]), 24))
+		lines.append("")
+		lines.append("SE COMPRA UNA VEZ Y SE")
+		lines.append("ACTIVA O DESACTIVA AQUÍ")
 	else:
-		text = "AURA LUMINOSA ALREDEDOR DEL HÉROE"
-	if card.category == "consumable":
-		text += ". SE USA SOLO EN TU PRÓXIMA PARTIDA"
-	if card.category == "upgrade":
-		var branch: Dictionary = Catalog.BRANCHES.get(String(entry.get("branch", "")), {})
-		text = "RAMA %s. %s" % [String(branch.get("name", "")), text]
-		var needed: String = GameData.upgrade_requirement(String(entry["id"]))
-		if needed != "":
-			text += ". REQUIERE %s" % needed
-	if entry.has("reward"):
-		var parts: PackedStringArray = String(entry["reward"]).split("_")
-		text += ". RECOMPENSA DEL NIVEL %d-%d DE LA CAMPAÑA" % [int(parts[0]) + 1, int(parts[1]) + 1]
-	elif entry.has("rarity"):
-		text += ". RAREZA %s. SE PAGA CON DIAMANTES" % String(entry["rarity"])
-	var lines: Array = _wrap(text, 24)
+		var gems: int = int(entry.get("gems", 0))
+		if entry.has("reward"):
+			var parts: PackedStringArray = String(entry["reward"]).split("_")
+			_info_price.text = "RECOMPENSA DEL NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1]
+		elif gems > 0:
+			_info_price.text = "PRECIO: %d DIAMANTES" % gems
+		else:
+			_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
+		var buff: Dictionary = entry.get("buff", {})
+		lines.append("BUFF:")
+		lines.append_array(_wrap(Buffs.describe(buff), 24))
+		if entry.has("rarity"):
+			lines.append("RAREZA: " + String(entry["rarity"]))
+		lines.append("")
+		var current: Dictionary = GameData.equipped_item(card.category)
+		if String(current.get("id", "")) == id:
+			lines.append("YA LO TIENES EQUIPADO")
+		else:
+			lines.append("%s EQUIPADO:" % String(SLOT_NAMES.get(card.category, "")))
+			lines.append(String(current.get("name", "")))
+			lines.append_array(_wrap(Buffs.describe(current.get("buff", {})), 24))
 	for i in _info_lines.size():
 		var label: PixelLabel = _info_lines[i]
 		label.text = String(lines[i]) if i < lines.size() else ""
+		label.color = Pal.LIME if i == 1 and card.category != "powerup" else Pal.WHITE
 
 
 ## Parte un texto en lineas de como mucho `width` caracteres.
@@ -299,30 +297,23 @@ func _on_card_pressed(card: ShopCard) -> void:
 	var entry: Dictionary = card.item
 	var id: String = entry["id"]
 	var bought: bool = false
-	var message: String = "¡COMPRA REALIZADA!"
-	var sound: String = "buy"
-	if card.category == "upgrade":
-		var needed: String = GameData.upgrade_requirement(id)
-		if needed != "":
-			Sfx.play("error")
-			card.shake()
-			_toaster.show_toast("REQUIERE " + needed, Pal.SILVER)
+	if card.category == "powerup":
+		if GameData.is_powerup_owned(id):
+			GameData.toggle_powerup(id)
+			Sfx.play("click")
+			card.pulse()
+			_refresh_all()
+			_show_info(card)
 			return
-		if GameData.upgrade_price(id) < 0:
-			_toaster.show_toast("YA ESTÁ AL MÁXIMO", Pal.SILVER)
-			return
-		bought = GameData.buy_upgrade(id)
-		message = "¡MEJORA NIVEL %d!" % GameData.upgrade_level(id)
-		sound = "upgrade"
-	elif card.category == "consumable":
-		bought = GameData.buy_consumable(id)
+		bought = GameData.buy_powerup(id)
 	elif GameData.is_owned(id):
-		# Ya comprado: solo se equipa.
+		# Ya comprado: solo se equipa (y su buff sustituye al anterior).
 		if GameData.equipped_id(card.category) != id:
 			GameData.equip(card.category, id)
 			Sfx.play("click")
 			card.pulse()
 			_refresh_all()
+			_show_info(card)
 		return
 	elif entry.has("reward"):
 		Sfx.play("error")
@@ -333,9 +324,9 @@ func _on_card_pressed(card: ShopCard) -> void:
 		bought = GameData.buy_cosmetic(card.category, id)
 
 	if bought:
-		Sfx.play(sound)
+		Sfx.play("buy")
 		card.pulse()
-		_toaster.show_toast(message, Pal.LIME)
+		_toaster.show_toast("¡COMPRA REALIZADA!", Pal.LIME)
 		var center: Vector2 = card.position + card.size * 0.5
 		Fx.burst(_grid, center, Pal.YELLOW, 22, 420.0, 0.6, 9.0, 900.0, 180.0, Vector2.UP)
 		Fx.burst(_grid, center, Pal.WHITE, 10, 260.0, 0.4, 6.0, 500.0, 180.0, Vector2.UP)
@@ -346,3 +337,4 @@ func _on_card_pressed(card: ShopCard) -> void:
 		_toaster.show_toast(missing, Pal.RED)
 	_refresh_all()
 	_refresh_wallet()
+	_show_info(card)

@@ -9,7 +9,7 @@ const PixelFont = preload("res://scripts/pixel_font.gd")
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 
-## Categoria: "upgrade", "consumable", "skin", "sword", "trail" o "aura".
+## Categoria: "skin", "sword", "trail", "aura" o "powerup".
 var category: String = ""
 var item: Dictionary = {}
 ## Icono de la moneda con la que se paga ("coin_0" o "gem").

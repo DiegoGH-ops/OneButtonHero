@@ -26,6 +26,12 @@ static var run_speed: float = 340.0
 static var theme: Dictionary = {}
 ## Tramos de hielo (Frostfall) como Vector2(inicio, fin).
 static var ice: Array = []
+## Modificadores de las mejoras para las criaturas (ver creature.gd).
+static var warn_factor: float = 1.0
+static var mash_factor: float = 1.0
+static var counter_factor: float = 1.0
+## Perseguidores esquivados desde el ultimo fotograma (lo lee game.gd).
+static var dodges: int = 0
 
 
 static func phase() -> int:

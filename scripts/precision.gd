@@ -1,7 +1,7 @@
 extends Node
 ## Arbitro del timing durante la partida. Evalua saltos, ataques y esquivas
-## (timing.gd), mantiene el combo de precision ("courage multiplier"), la
-## carga de Soul Reaper y las estadisticas con las que se calcula el rango.
+## (timing.gd), mantiene el combo de precision ("courage multiplier") y las
+## estadisticas con las que se calcula el rango.
 
 signal rated(rating: int, label: String, pos: Vector2)
 
@@ -17,8 +17,11 @@ var window_scale: float = 1.0
 ## Acciones perfectas consecutivas.
 var perfects: int = 0
 var best_combo: int = 0
-## Carga de Soul Reaper (0..1).
-var soul: float = 0.0
+## Buffs de las ventanas: x legendary, y perfect, z good. Aterrizaje aparte.
+var bonus: Vector3 = Vector3.ONE
+var land_bonus: float = 1.0
+## Especializacion Metodico: las acciones GOOD tambien suman al combo.
+var methodical: bool = false
 ## Recuento para el rango: [ninguna, normal, good, perfect, legendary].
 var counts: Array = [0, 0, 0, 0, 0]
 ## Ultima accion evaluada (para las herramientas de depuracion).
@@ -73,7 +76,7 @@ func on_jump(pos: Vector2, speed: float) -> void:
 			rise = (JUMP_SPEED - sqrt(disc)) / GRAVITY
 		slack = (danger.x - (pos.x + 10.0)) / maxf(speed, 1.0) - rise
 	last_slack = slack
-	var rating: int = Timing.rate(slack, window_scale)
+	var rating: int = Timing.rate(slack, window_scale, bonus)
 	last_rating = rating
 	if rating == Timing.Rating.NONE:
 		return
@@ -95,7 +98,7 @@ func on_attack(pos: Vector2, speed: float) -> int:
 		_attack_rating = Timing.Rating.NONE
 		return _attack_rating
 	last_slack = maxf(gap, 0.0) / maxf(speed, 1.0)
-	_attack_rating = Timing.rate(last_slack * 0.65, window_scale)
+	_attack_rating = Timing.rate(last_slack * 0.65, window_scale, bonus)
 	last_rating = _attack_rating
 	_attack_timer = 0.4
 	return _attack_rating
@@ -148,7 +151,7 @@ func on_land(pos: Vector2, speed: float) -> void:
 		var hole: Vector2 = item
 		var past: float = pos.x - hole.y
 		if past >= 0.0 and past < 70.0:
-			var rating: int = Timing.rate(past / maxf(speed, 1.0) * 0.8, window_scale)
+			var rating: int = Timing.rate(past / maxf(speed, 1.0) * 0.8 / land_bonus, window_scale, bonus)
 			if rating >= Timing.Rating.PERFECT:
 				register(rating, "ATERRIZAJE " + String(Timing.NAMES[rating]), pos, "land")
 			return
@@ -158,10 +161,9 @@ func on_land(pos: Vector2, speed: float) -> void:
 func register(rating: int, label: String, pos: Vector2, kind: String = "attack") -> void:
 	last_kind = kind
 	counts[rating] = int(counts[rating]) + 1
-	if rating >= Timing.Rating.PERFECT:
+	if rating >= Timing.Rating.PERFECT or (methodical and rating == Timing.Rating.GOOD):
 		perfects += 2 if rating == Timing.Rating.LEGENDARY else 1
 		best_combo = maxi(best_combo, perfects)
-	soul = minf(soul + float(Timing.CHARGE[rating]), 1.0)
 	if rating >= Timing.Rating.GOOD:
 		rated.emit(rating, label, pos)
 
@@ -180,7 +182,7 @@ func challenge_done(entry: Dictionary, info: Dictionary) -> bool:
 	var target: int = int(entry["target"])
 	var precise: int = int(counts[3]) + int(counts[4])
 	if kind == "no_damage":
-		return int(info.get("damage", 1)) == 0
+		return int(info.get("damage", 1)) == 0 and int(counts[1]) == 0
 	if kind == "kills":
 		return int(info.get("enemies", 0)) > 0 and int(info.get("kills", 0)) >= int(info.get("enemies", 0))
 	if kind == "coins":
@@ -210,6 +212,37 @@ func next_danger(pos: Vector2, speed: float) -> Vector2:
 	if best == INF:
 		return Vector2(INF, INF)
 	return Vector2(best - pos.x, (best - pos.x) / maxf(speed, 1.0))
+
+
+## Ojo de halcon: punto X donde saltar para obtener PERFECT ante el
+## proximo peligro (INF si no hay ninguno delante).
+func perfect_jump_x(pos: Vector2, speed: float) -> float:
+	var best_left: float = INF
+	var height: float = -1.0
+	for node in get_tree().get_nodes_in_group("hazards"):
+		if not node.has_method("get_danger"):
+			continue
+		var d: Vector3 = node.call("get_danger")
+		if d.y > pos.x and d.x < best_left and d.z < 150.0:
+			best_left = d.x
+			height = d.z
+	for item in Daylight.holes:
+		var hole: Vector2 = item
+		if hole.y > pos.x and hole.x < best_left:
+			best_left = hole.x
+			height = -1.0
+	if best_left == INF:
+		return INF
+	var target: float = Timing.PERFECT_WINDOW * window_scale * bonus.y * 0.6
+	if height < 0.0:
+		return best_left - speed * target
+	var need: float = height + 6.0
+	var disc: float = JUMP_SPEED * JUMP_SPEED - 2.0 * GRAVITY * need
+	var rise: float = 0.2
+	if disc > 0.0:
+		rise = (JUMP_SPEED - sqrt(disc)) / GRAVITY
+	var x: float = best_left - 10.0 - speed * (rise + target)
+	return x if x > pos.x else INF
 
 
 ## Acciones evaluadas en total.

@@ -1,5 +1,5 @@
 extends Control
-## Marcadores de la partida: vidas, escudo, monedas, hora del dia, efectos
+## Marcadores de la partida: monedas, hora del dia, efectos
 ## activos, puntuacion, multiplicador, record y velocidad.
 ## Se redibuja solo cuando cambia algun valor.
 
@@ -33,7 +33,8 @@ var lives: int = 3:
 			lives = value
 			queue_redraw()
 
-var max_lives: int = 3
+## Sin vidas (un golpe mata): se deja en 0 y no se dibuja ningun corazon.
+var max_lives: int = 0
 
 var level: int = 1:
 	set(value):
@@ -51,12 +52,6 @@ var speed_value: int = 0:
 	set(value):
 		if speed_value != value:
 			speed_value = value
-			queue_redraw()
-
-var shield: bool = false:
-	set(value):
-		if shield != value:
-			shield = value
 			queue_redraw()
 
 ## Nombre de la fase del dia ("MAÑANA", "NOCHE"...).
@@ -148,12 +143,8 @@ func _disc(center: Vector2, radius: int, color: Color) -> void:
 
 
 func _draw() -> void:
-	# --- Vidas y escudo ---
-	for i in max_lives:
-		var sprite: String = "heart" if i < lives else "heart_empty"
-		PixelArt.draw(self, sprite, Vector2(24.0 + float(i) * 44.0, 20.0), 4.0)
-	if shield:
-		PixelArt.draw(self, "icon_shield", Vector2(28.0 + float(max_lives) * 44.0, 20.0), 3.0)
+	# --- Regla: un solo golpe ---
+	PixelFont.draw_text_shadowed(self, "UN GOLPE", Vector2(24.0, 30.0), 3.0, Pal.RED, Pal.INK, true)
 
 	# --- Monedas ---
 	PixelArt.draw(self, "coin_0", Vector2(24.0, 66.0), 3.0)

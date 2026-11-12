@@ -13,9 +13,8 @@ const PERFECT_WINDOW := 0.125
 const GOOD_WINDOW := 0.335
 ## Mas alla de este margen no habia peligro cerca: la accion no se evalua.
 const MAX_WINDOW := 1.0
-## Puntos extra y carga de Soul Reaper por categoria.
+## Puntos extra por categoria.
 const BONUS := [0, 0, 10, 40, 120]
-const CHARGE := [0.0, 0.0, 0.04, 0.2, 0.4]
 ## Acciones perfectas seguidas necesarias para cada multiplicador.
 const COMBO_STEPS := [[20, 5.0], [12, 4.0], [8, 3.0], [5, 2.0], [3, 1.5]]
 const RANK_NAMES := ["D", "C", "B", "A", "S", "SS", "SSS"]
@@ -25,14 +24,16 @@ const RANK_SCORES := [0.0, 26.0, 42.0, 56.0, 70.0, 82.0, 92.0]
 
 ## Categoria segun el margen `slack` (segundos). `scale` ensancha o estrecha
 ## las ventanas (cada mundo de la campana usa la suya).
-static func rate(slack: float, scale: float = 1.0) -> int:
+## `bonus` ensancha cada ventana por separado (x legendary, y perfect, z
+## good) segun los buffs del jugador.
+static func rate(slack: float, scale: float = 1.0, bonus: Vector3 = Vector3.ONE) -> int:
 	if slack < 0.0:
 		return Rating.NONE
-	if slack <= LEGENDARY_WINDOW * scale:
+	if slack <= LEGENDARY_WINDOW * scale * bonus.x:
 		return Rating.LEGENDARY
-	if slack <= PERFECT_WINDOW * scale:
+	if slack <= PERFECT_WINDOW * scale * bonus.y:
 		return Rating.PERFECT
-	if slack <= GOOD_WINDOW * scale:
+	if slack <= GOOD_WINDOW * scale * bonus.z:
 		return Rating.GOOD
 	if slack <= MAX_WINDOW:
 		return Rating.NORMAL

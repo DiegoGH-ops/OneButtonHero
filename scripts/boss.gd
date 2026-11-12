@@ -206,13 +206,13 @@ func damage(amount: int) -> void:
 		new_phase = 1
 	if new_phase > phase:
 		phase = new_phase
-		Sfx.play("power_wave")
+		Sfx.play("boss_hit", 0.7)
 	if hp <= 0:
 		_state = State.DEAD
 		_timer = 1.8
 		_label = ""
 		_set_core_active(false)
-		Sfx.play("power_wave")
+		Sfx.play("boss_hit", 0.5)
 
 
 func _process(delta: float) -> void:

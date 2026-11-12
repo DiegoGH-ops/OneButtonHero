@@ -7,8 +7,15 @@ extends Area2D
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
+const PixelFont = preload("res://scripts/pixel_font.gd")
 
-enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER, TRAP }
+enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER, TRAP, CEILING, WALL, BOUNCE }
+
+## Techo bajo: su borde inferior queda a esta altura sobre el suelo. Un
+## salto corto pasa por debajo; uno largo choca (hay que soltar a tiempo).
+const CEILING_GAP := 175.0
+## Muro: mas alto que cualquier salto normal; solo se supera con trampolin.
+const WALL_HEIGHT := 200.0
 
 ## Trampa ritmica: los pinchos suben y bajan con este periodo (segundos).
 const TRAP_PERIOD := 1.5
@@ -46,6 +53,18 @@ func setup(p_kind: int, p_count: int = 1) -> void:
 	if kind == Kind.SPIKES or kind == Kind.FLAMES or kind == Kind.TRAP:
 		shape.size = Vector2(float(count) * TILE - 12.0, 18.0)
 		_collider.position = Vector2(float(count) * TILE * 0.5, -9.0)
+	elif kind == Kind.CEILING:
+		shape.size = Vector2(float(count) * TILE, 300.0)
+		_collider.position = Vector2(float(count) * TILE * 0.5, -CEILING_GAP - 150.0)
+	elif kind == Kind.WALL:
+		shape.size = Vector2(40.0, WALL_HEIGHT)
+		_collider.position = Vector2(24.0, -WALL_HEIGHT * 0.5)
+	elif kind == Kind.BOUNCE:
+		# El trampolin no hace dano: lo detecta el heroe al pisarlo.
+		shape.size = Vector2(36.0, 8.0)
+		_collider.position = Vector2(18.0, -4.0)
+		remove_from_group("hazards")
+		add_to_group("pads")
 	elif kind == Kind.ROCK:
 		shape.size = Vector2(40.0, 34.0)
 		_collider.position = Vector2(28.0, -17.0)
@@ -59,7 +78,7 @@ func setup(p_kind: int, p_count: int = 1) -> void:
 	if kind == Kind.FLAMES:
 		add_to_group("glow")
 		glow_radius = 70.0 + float(count) * 16.0
-	set_process(kind == Kind.FLAMES or kind == Kind.BOULDER or kind == Kind.TRAP)
+	set_process(kind == Kind.FLAMES or kind == Kind.BOULDER or kind == Kind.TRAP or kind == Kind.BOUNCE)
 	queue_redraw()
 
 
@@ -78,6 +97,8 @@ func get_danger() -> Vector3:
 		return Vector3(x + 6.0, x + float(count) * TILE - 6.0, 18.0)
 	if kind == Kind.ROCK:
 		return Vector3(x + 8.0, x + 48.0, 34.0)
+	if kind == Kind.WALL:
+		return Vector3(x + 4.0, x + 44.0, WALL_HEIGHT)
 	if kind == Kind.TOTEM:
 		return Vector3(x + 9.0, x + 39.0, 98.0)
 	return Vector3(x - 18.0, x + 18.0, 40.0)
@@ -144,6 +165,28 @@ func _draw() -> void:
 		for i in count:
 			var frame: int = (int(_time * 9.0) + i) % 2
 			PixelArt.draw(self, "flame_b" if frame == 1 else "flame_a", Vector2(float(i) * TILE, -32.0), 4.0)
+	elif kind == Kind.CEILING:
+		# Barra colgante con pinchos hacia abajo y aviso de salto corto.
+		var w: float = float(count) * TILE
+		draw_rect(Rect2(0.0, -560.0, w, 560.0 - CEILING_GAP - 24.0), Pal.SLATE)
+		draw_rect(Rect2(0.0, -CEILING_GAP - 28.0, w, 8.0), Pal.INK)
+		for i in count:
+			draw_set_transform(Vector2(float(i) * TILE + TILE, -CEILING_GAP - 28.0), PI, Vector2.ONE)
+			PixelArt.draw_skin(self, "spike", Vector2(0.0, -28.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), spike_remap, spike_key)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		PixelFont.draw_text_shadowed(self, "SALTO CORTO", Vector2(w * 0.5 - 64.0, -CEILING_GAP - 70.0), 2.0, Pal.YELLOW, Pal.INK, true)
+	elif kind == Kind.WALL:
+		var rows: int = int(WALL_HEIGHT / 32.0)
+		for r in rows:
+			PixelArt.draw(self, "rock", Vector2(-4.0, -float(r + 1) * 32.0 - 12.0), 4.0, Color(0.8, 0.8, 0.9, 1.0))
+		PixelFont.draw_text_shadowed(self, "TRAMPOLÍN", Vector2(-50.0, -WALL_HEIGHT - 40.0), 2.0, Pal.YELLOW, Pal.INK, true)
+	elif kind == Kind.BOUNCE:
+		var squash: float = 1.0 + 0.1 * sin(_time * 10.0)
+		draw_set_transform(Vector2(0.0, 0.0), 0.0, Vector2(1.0, squash))
+		PixelArt.draw(self, "pad", Vector2(0.0, -20.0), 4.0)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		var bob: float = roundf(absf(sin(_time * 5.0)) * -8.0)
+		PixelArt.draw(self, "arrow_down", Vector2(6.0, -64.0 + bob), 4.0)
 	elif kind == Kind.ROCK:
 		PixelArt.draw_shadow(self, "rock", Vector2(28.0, 0.0), 4.0, skew, alpha)
 		PixelArt.draw(self, "rock", Vector2(0.0, -44.0), 4.0)

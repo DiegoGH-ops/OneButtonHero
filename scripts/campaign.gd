@@ -15,9 +15,9 @@ const WORLD_CURVE := [[0, 2], [2, 3], [3, 4], [4, 4], [4, 5]]
 const MODES := [
 	{"id": "normal", "name": "NORMAL", "desc": "EL NIVEL TAL CUAL"},
 	{"id": "precision", "name": "PRECISIÓN", "desc": "TERMINA CON PRECISIÓN DE %d%%"},
-	{"id": "no_damage", "name": "SIN DAÑO", "desc": "UN SOLO GOLPE Y PIERDES"},
+	{"id": "no_damage", "name": "IMPECABLE", "desc": "NINGUNA ACCIÓN NORMAL: SOLO GOOD O MEJOR"},
 	{"id": "perfect_combo", "name": "COMBO PERFECTO", "desc": "LOGRA UN COMBO DE %d"},
-	{"id": "speed", "name": "CONTRARRELOJ", "desc": "TERMINA EN %d SEGUNDOS"},
+	{"id": "speed", "name": "VELOCIDAD +15%", "desc": "TODO EL NIVEL UN 15% MÁS RÁPIDO"},
 	{"id": "legendary_only", "name": "SOLO LEGENDARY", "desc": "CADA ENEMIGO, CON GOLPE LEGENDARY"},
 ]
 
@@ -147,7 +147,7 @@ static func level_def(world: int, level: int) -> Dictionary:
 		"seed": 1000 + world * 100 + level,
 		"time": LEVEL_TIMES[level % LEVEL_TIMES.size()],
 		"coins": 30 + world * 20 + level * 4,
-		# Contrarreloj: tiempo objetivo (exige usar el turbo).
+		# Contrarreloj: tiempo objetivo (exige aprovechar hielo y rebotes).
 		"par_time": int(meters * PIXELS_PER_METER / (360.0 + float(world) * 80.0 + float(level) * 4.0) * 0.93) if not is_final else 60 + world * 12,
 	}
 
@@ -166,6 +166,8 @@ static func mode_target(mode: String, world: int, level: int) -> int:
 static func mode_text(mode_index: int, world: int, level: int) -> String:
 	var mode: Dictionary = MODES[mode_index]
 	var text: String = mode["desc"]
+	if String(mode["id"]) == "speed" and level >= LEVELS_PER_WORLD - 1:
+		return "DERRÓTALO EN %d SEGUNDOS" % mode_target("speed", world, level)
 	if text.contains("%d"):
 		text = text % mode_target(String(mode["id"]), world, level)
 	return text
@@ -183,7 +185,7 @@ static func first_clear_diamonds(world: int, level: int) -> int:
 ## Tipos: no_damage, combo, legendary, perfect y precision (porcentaje).
 static func challenges(world: int, level: int) -> Array:
 	var all: Array = [
-		{"type": "no_damage", "target": 0, "text": "TERMINA SIN RECIBIR DAÑO"},
+		{"type": "no_damage", "target": 0, "text": "NINGUNA ACCIÓN NORMAL"},
 		{"type": "combo", "target": 4 + world * 2 + int(float(level) / 4.0), "text": "COMBO PERFECTO DE %d"},
 		{"type": "legendary", "target": 1 + int(float(level) / 6.0) + int(float(world) / 2.0), "text": "%d ACCIONES LEGENDARY"},
 		{"type": "perfect", "target": 4 + int(float(level) / 3.0) + world, "text": "%d ACCIONES PERFECT"},

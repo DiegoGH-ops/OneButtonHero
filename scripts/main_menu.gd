@@ -10,6 +10,7 @@ const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const Shop = preload("res://scripts/shop.gd")
 const ProgressPanel = preload("res://scripts/progress_panel.gd")
 const CampaignMap = preload("res://scripts/campaign_map.gd")
+const SkillTree = preload("res://scripts/skill_tree.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const Daylight = preload("res://scripts/daylight.gd")
@@ -33,6 +34,7 @@ var _record: PixelLabel
 var _wallet: PixelLabel
 var _diamonds: PixelLabel
 var _map: CampaignMap
+var _tree: SkillTree
 var _main_layer: Control
 var _settings_layer: Control
 var _play_button: PixelButton
@@ -77,6 +79,9 @@ func _ready() -> void:
 	_map = CampaignMap.new()
 	ui_root.add_child(_map)
 	_map.closed.connect(_on_overlay_closed)
+	_tree = SkillTree.new()
+	ui_root.add_child(_tree)
+	_tree.closed.connect(_on_overlay_closed)
 	_toaster = Toaster.new()
 	ui_root.add_child(_toaster)
 	GameData.notice.connect(_on_notice)
@@ -169,10 +174,10 @@ func _build_main() -> void:
 	shop_button.fill = Pal.PURPLE
 	shop_button.fill_hot = Pal.RED
 	shop_button.pressed.connect(_open_shop.bind(0))
-	var hero_button: PixelButton = UI.button(_main_layer, "HÉROE", Rect2(542.0, 386.0, 196.0, 60.0), 3.0)
-	hero_button.fill = Pal.TEAL
-	hero_button.fill_hot = Pal.GREEN
-	hero_button.pressed.connect(_open_shop.bind(2))
+	var tree_button: PixelButton = UI.button(_main_layer, "MEJORAS", Rect2(542.0, 386.0, 196.0, 60.0), 3.0)
+	tree_button.fill = Pal.TEAL
+	tree_button.fill_hot = Pal.GREEN
+	tree_button.pressed.connect(_open_tree)
 	var progress_button: PixelButton = UI.button(_main_layer, "PROGRESO", Rect2(750.0, 386.0, 196.0, 60.0), 3.0)
 	progress_button.fill = Pal.ORANGE
 	progress_button.fill_hot = Pal.YELLOW
@@ -195,7 +200,7 @@ func _build_main() -> void:
 	UI.label(_main_layer, "UN SOLO BOTÓN: ESPACIO / CLIC / TOQUE", Vector2(880.0, 584.0), 3.0, Pal.YELLOW)
 	UI.label(_main_layer, "PULSA: SALTAR  -  MANTÉN PULSADO: SALTO MÁS ALTO", Vector2(880.0, 620.0), 2.0, Pal.WHITE)
 	UI.label(_main_layer, "ENEMIGO CERCA (!): EL BOTÓN ATACA CON LA ESPADA", Vector2(880.0, 642.0), 2.0, Pal.WHITE)
-	UI.label(_main_layer, "PODERES: TECLAS 1 2 3 (TURBO, ONDA, SOUL REAPER)", Vector2(880.0, 664.0), 2.0, Pal.CYAN)
+	UI.label(_main_layer, "SUELTA PRONTO: SALTO CORTO - PULSA CAYENDO: PISOTÓN", Vector2(880.0, 664.0), 2.0, Pal.CYAN)
 	UI.label(_main_layer, "APURA AL LÍMITE: GOOD, PERFECT, LEGENDARY Y LAST SECOND", Vector2(880.0, 686.0), 2.0, Pal.YELLOW)
 
 
@@ -223,6 +228,11 @@ func _on_quit_pressed() -> void:
 func _open_shop(tab: int) -> void:
 	_main_layer.visible = false
 	_shop.open(tab)
+
+
+func _open_tree() -> void:
+	_main_layer.visible = false
+	_tree.open()
 
 
 func _open_progress() -> void:
