@@ -139,6 +139,28 @@ func setup(spans_root: Node2D, objects_root: Node2D) -> void:
 		_add_coin(Vector2(330.0 + float(i) * 48.0, GROUND_Y - 36.0), false)
 
 
+## Partida de prueba del panel de administrador: solo un enemigo del mundo,
+## solo un patron o, si ambos son -1, todo mezclado.
+var test_creature: int = -1
+
+
+func configure_test(world: int, creature: int, pattern: int) -> void:
+	_fixed_difficulty = 0.6
+	_creature_world = world
+	_creatures = [0, 1, 2, 3, 4]
+	_allowed = []
+	if creature >= 0:
+		test_creature = creature
+		_allowed = [Pattern.CREATURE]
+	elif pattern >= 0:
+		_allowed = [pattern]
+	else:
+		for entry in TABLE:
+			_allowed.append(entry[0])
+	if bool(Daylight.theme.get("traps", false)):
+		_allowed.append(Pattern.TRAP)
+
+
 ## Configura un nivel de campana (llamar despues de setup). La semilla fija
 ## hace que el recorrido sea siempre el mismo y se pueda aprender.
 func configure(def: Dictionary) -> void:
@@ -577,6 +599,8 @@ func _pattern_creature() -> void:
 	# La recien estrenada sale mas a menudo en su nivel de presentacion.
 	if _newest_creature >= 0 and _rng.randf() < 0.5:
 		index = _newest_creature
+	if test_creature >= 0:
+		index = test_creature
 	var data: Array = Bestiary.entry(_creature_world, index)
 	var archetype: int = data[1]
 	if archetype == Bestiary.Archetype.CHASER:

@@ -746,7 +746,8 @@ func claim_login() -> Dictionary:
 
 ## Suma progreso a las misiones cuyo contador sea `stat`.
 func add_mission_progress(stat: String, amount: int) -> void:
-	if amount <= 0:
+	# Las partidas de prueba del administrador no cuentan.
+	if amount <= 0 or String(run.get("mode", "")) == "test":
 		return
 	for item in weekly:
 		var week_mission: Dictionary = item

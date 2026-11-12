@@ -74,6 +74,8 @@ var _damage_taken: int = 0
 var _phoenix_used: bool = false
 ## Modo campana: nivel con meta, velocidad propia y recorrido fijo.
 var _level_mode: bool = false
+## Partida de prueba del panel de administrador: no guarda nada.
+var _test_mode: bool = false
 var _def: Dictionary = {}
 var _goal_x: float = INF
 var precision: Precision
@@ -177,6 +179,8 @@ func _ready() -> void:
 			_boss.struck.connect(_on_boss_struck)
 			_boss.defeated.connect(_level_complete)
 		_coin_factor = GameData.run_coin_factor(int(_def["world"]))
+	elif String(GameData.run.get("mode", "endless")) == "test":
+		_setup_test()
 	ground.holes = generator.holes
 	Daylight.holes = generator.holes
 
@@ -248,7 +252,7 @@ func _process(delta: float) -> void:
 		if _slowmo <= 0.0:
 			Engine.time_scale = 1.0
 	if _state == State.PLAYING:
-		if _level_mode:
+		if _level_mode or _test_mode:
 			# En campana la velocidad sube poco a poco hasta la meta.
 			_speed = move_toward(_speed, _target_speed, 1.2 * delta)
 		else:
@@ -268,7 +272,7 @@ func _process(delta: float) -> void:
 
 		_update_timers(delta)
 		_check_milestones()
-		if not _level_mode:
+		if not _level_mode and not _test_mode:
 			generator.set_endless_creatures(_endless_creatures)
 		_run_time += delta
 		_update_feel(delta)
@@ -321,7 +325,7 @@ func _update_timers(delta: float) -> void:
 		haze *= clampf(1.0 - Buffs.stat("storm_clear") / 100.0, 0.1, 1.0)
 		hud.set_haze(Color(storm_hex), haze)
 	_event_timer -= delta
-	if _event_timer <= 0.0 and not _level_mode:
+	if _event_timer <= 0.0 and not _level_mode and not _test_mode:
 		_event_timer = randf_range(38.0, 55.0)
 		_start_random_event()
 
@@ -352,7 +356,7 @@ func _update_daylight(first: bool) -> void:
 	if first:
 		_was_night = phase == Daylight.Phase.NIGHT
 		return
-	if _level_mode:
+	if _level_mode or _test_mode:
 		return
 	if phase == Daylight.Phase.NIGHT:
 		_was_night = true
@@ -796,6 +800,8 @@ func _check_dodges() -> void:
 
 ## Presenta lo nuevo de este nivel: enemigo del mundo o mecanica nueva.
 func _announce_new_content() -> void:
+	if _test_mode:
+		return
 	if not _level_mode or bool(_def.get("final", false)):
 		if not _level_mode:
 			var first: Array = Bestiary.entry(0, 0)
@@ -828,6 +834,15 @@ func _on_player_fell() -> void:
 func _lose_life(fell_in_hole: bool) -> void:
 	if _state != State.PLAYING:
 		return
+	# Prueba con invencibilidad: solo se marca el golpe.
+	if Daylight.invincible:
+		Sfx.play("hurt")
+		hud.flash(Pal.RED, 0.25)
+		Fx.popup(fx_root, player.position + Vector2(0.0, -90.0), "¡GOLPE!", Pal.RED, 3.0)
+		if fell_in_hole:
+			_respawn_player()
+		player.start_invulnerability(0.6)
+		return
 	_damage_taken += 1
 	precision.on_damage()
 	_jump_chain = 0
@@ -849,6 +864,24 @@ func _lose_life(fell_in_hole: bool) -> void:
 	_game_over()
 
 
+## Partida de prueba (panel de administrador): mundo, enemigo o patron
+## elegidos, velocidad del mundo y, si se pidio, invencibilidad.
+func _setup_test() -> void:
+	_test_mode = true
+	var world_index: int = clampi(int(GameData.run.get("world", 0)), 0, Campaign.world_count() - 1)
+	Daylight.theme = Campaign.theme(world_index)
+	Daylight.time = 0.25
+	_speed = 360.0 + 80.0 * float(world_index)
+	_target_speed = _speed + 30.0
+	_level = 5
+	precision.window_scale = [1.25, 1.05, 0.92, 0.82, 0.72][world_index]
+	_def = {"world": world_index, "level": 0, "final": false}
+	generator.configure_test(world_index, int(GameData.run.get("creature", -1)), int(GameData.run.get("pattern", -1)))
+	Daylight.invincible = bool(GameData.run.get("invincible", false))
+	hud.set_level_name("PRUEBA" + (" - INVENCIBLE" if Daylight.invincible else ""))
+	hud.toast("MODO PRUEBA: NO SE GUARDA NADA", Pal.ORANGE)
+
+
 ## Reaparece al otro lado del hueco.
 func _respawn_player() -> void:
 	var x: float = generator.get_respawn_x(player.position.x)
@@ -862,6 +895,8 @@ func _bank_run() -> bool:
 	if _banked:
 		return false
 	_banked = true
+	if _test_mode:
+		return false
 	GameData.add_mission_progress("distance", _meters())
 	if _diamond_found and _level_mode:
 		GameData.claim_hidden_diamond(int(_def["world"]), int(_def["level"]))

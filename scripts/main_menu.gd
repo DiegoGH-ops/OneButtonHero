@@ -11,6 +11,7 @@ const Shop = preload("res://scripts/shop.gd")
 const ProgressPanel = preload("res://scripts/progress_panel.gd")
 const CampaignMap = preload("res://scripts/campaign_map.gd")
 const SkillTree = preload("res://scripts/skill_tree.gd")
+const AdminPanel = preload("res://scripts/admin_panel.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const Daylight = preload("res://scripts/daylight.gd")
@@ -47,6 +48,7 @@ var _fullscreen_button: PixelButton
 var _reset_button: PixelButton
 var _back_button: PixelButton
 var _shop: Shop
+var _admin: AdminPanel
 var _progress: ProgressPanel
 var _toaster: Toaster
 
@@ -82,6 +84,10 @@ func _ready() -> void:
 	_tree = SkillTree.new()
 	ui_root.add_child(_tree)
 	_tree.closed.connect(_on_overlay_closed)
+	_admin = AdminPanel.new()
+	ui_root.add_child(_admin)
+	_admin.closed.connect(_on_admin_closed)
+	_admin.open_tree_requested.connect(_open_tree)
 	_toaster = Toaster.new()
 	ui_root.add_child(_toaster)
 	GameData.notice.connect(_on_notice)
@@ -123,6 +129,8 @@ func _update_scene() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _admin.visible:
+		return
 	if event.is_action_pressed("ui_cancel") and _settings_layer.visible:
 		_close_settings()
 		get_viewport().set_input_as_handled()
@@ -286,6 +294,11 @@ func _build_settings() -> void:
 	_back_button.fill = Pal.GREEN
 	_back_button.fill_hot = Pal.LIME
 	_back_button.pressed.connect(_close_settings)
+	# Acceso discreto al panel de administrador (pide codigo).
+	var admin_button: PixelButton = UI.button(_settings_layer, "ADMIN", Rect2(812.0, 604.0, 112.0, 40.0), 2.0)
+	admin_button.fill = Pal.SLATE
+	admin_button.fill_hot = Pal.STEEL
+	admin_button.pressed.connect(_open_admin)
 	_refresh_settings()
 
 
@@ -307,6 +320,18 @@ func _open_settings() -> void:
 	_settings_layer.visible = true
 	_reset_armed = false
 	_reset_button.caption = "BORRAR PROGRESO"
+	_back_button.grab_focus()
+
+
+func _open_admin() -> void:
+	_settings_layer.visible = false
+	_admin.open()
+
+
+func _on_admin_closed() -> void:
+	_settings_layer.visible = true
+	hero.refresh_cosmetics()
+	_refresh_texts()
 	_back_button.grab_focus()
 
 
