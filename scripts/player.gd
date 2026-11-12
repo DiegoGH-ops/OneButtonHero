@@ -28,6 +28,7 @@ const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Buffs = preload("res://scripts/buffs.gd")
+const HeroFx = preload("res://scripts/hero_fx.gd")
 
 ## SALTO VARIABLE: la altura depende del tiempo que se mantiene el boton.
 ##   Impulso inicial JUMP_VELOCITY; mientras se mantiene (hasta MAX_HOLD_TIME)
@@ -127,6 +128,11 @@ var _crit: float = 0.0
 var _skin: Dictionary = {}
 var _top_sprite: String = "hero_top"
 var _cape_prefix: String = "hero_cape_"
+## Aspecto propio del heroe (colores del torso, altura y efectos).
+var _top_map: Dictionary = {}
+var _top_key: String = ""
+var _top_y: float = -68.0
+var _skin_fx: String = ""
 var _sword_sprite: String = "sword"
 var _skin_key: String = ""
 var _sword: Dictionary = {}
@@ -195,8 +201,12 @@ func refresh_cosmetics() -> void:
 	_skin = skin["remap"]
 	_skin_key = String(skin["id"])
 	# Algunos heroes tienen sprites propios (Caballero del Abismo).
-	_top_sprite = String(skin.get("top", "hero_top"))
-	_cape_prefix = String(skin.get("cape", "hero_cape_"))
+	_top_sprite = HeroFx.top_sprite(skin)
+	_cape_prefix = HeroFx.cape_prefix(skin)
+	_top_map = HeroFx.top_map(skin)
+	_top_key = HeroFx.top_key(skin)
+	_top_y = HeroFx.top_offset_y(skin, 4.0)
+	_skin_fx = String(skin.get("fx", ""))
 	var sword: Dictionary = GameData.equipped_item("sword")
 	_sword = sword["remap"]
 	_sword_key = String(sword["id"])
@@ -660,11 +670,18 @@ func _draw() -> void:
 		elif _attack_time > 0.0:
 			lean = 0.10
 	var body_xf: Transform2D = Transform2D(lean, _squash, 0.0, pivot)
+	if alive and _skin_fx != "":
+		HeroFx.draw_back(self, _skin_fx, _anim, 1.0, bob)
+	# Asesino fantasma: imagenes residuales que se desvanecen.
+	if alive and _skin_fx == "spectral" and _trail.size() > 8:
+		for k in 2:
+			var ghost: Vector2 = to_local(_trail[3 + k * 4])
+			PixelArt.draw_skin(self, _top_sprite, ghost + Vector2(-28.0, _top_y + bob), 4.0, Color(0.6, 1.0, 1.0, 0.22 - 0.08 * float(k)), _top_map, _top_key)
 	draw_set_transform_matrix(body_xf)
 	cape = _cape_prefix + cape.substr(10)
 	PixelArt.draw_skin(self, cape, Vector2(-38.0, -36.0 + bob) - pivot, 4.0, tint, _skin, _skin_key)
 	PixelArt.draw_skin(self, legs, Vector2(-28.0, -16.0) - pivot, 4.0, tint, _skin, _skin_key)
-	PixelArt.draw_skin(self, _top_sprite, Vector2(-28.0, -68.0 + bob) - pivot, 4.0, tint, _skin, _skin_key)
+	PixelArt.draw_skin(self, _top_sprite, Vector2(-28.0, _top_y + bob) - pivot, 4.0, tint, _top_map, _top_key)
 	if _top_sprite == "abyss_top":
 		# Visor y nucleo de energia violeta que laten.
 		var beat: float = 0.5 + 0.5 * sin(_anim * 6.0)
@@ -692,6 +709,8 @@ func _draw() -> void:
 	else:
 		PixelArt.draw_skin(self, _sword_sprite, Vector2(-10.0, -40.0), 4.0, tint, _sword, _sword_key)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+	if alive and _skin_fx != "":
+		HeroFx.draw_front(self, _skin_fx, _anim, 1.0, bob)
 
 	# Lineas de caida del pisoton.
 	if _stomping:

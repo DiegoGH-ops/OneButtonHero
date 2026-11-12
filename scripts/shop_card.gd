@@ -8,6 +8,7 @@ signal hovered(card: Button)
 const PixelFont = preload("res://scripts/pixel_font.gd")
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
+const HeroFx = preload("res://scripts/hero_fx.gd")
 const Catalog = preload("res://scripts/catalog.gd")
 
 ## Categoria: "skin", "sword", "trail", "aura" o "powerup".
@@ -152,8 +153,9 @@ func _status_color() -> Color:
 func _draw_icon(center: Vector2) -> void:
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
 	if category == "skin":
-		var color_map: Dictionary = item["remap"]
-		PixelArt.draw_skin(self, String(item.get("top", "hero_top")), center + Vector2(-28.0, -30.0), 4.0, white, color_map, String(item["id"]))
+		# Los torsos mas altos (cuernos, sombreros) se suben para que quepan.
+		var lift: float = HeroFx.top_offset_y(item, 4.0) + 68.0
+		PixelArt.draw_skin(self, HeroFx.top_sprite(item), center + Vector2(-28.0, -30.0 + lift * 0.5), 4.0, white, HeroFx.top_map(item), HeroFx.top_key(item))
 	elif category == "sword":
 		var sword_remap: Dictionary = item["remap"]
 		PixelArt.draw_skin(self, String(item.get("sprite", "sword")), center + Vector2(-10.0, -32.0), 4.0, white, sword_remap, String(item["id"]))

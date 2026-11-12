@@ -114,6 +114,8 @@ var _turbo_whole: bool = false
 ## Legendary de esta partida (para "un solo nivel").
 var _run_legendary: int = 0
 var _run_rapid_streak: int = 0
+## Color de los efectos propios del heroe al saltar y aterrizar.
+var _hero_fx_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 var _run_rapid_streak_best: int = 0
 ## Escala de ventanas de timing propia del nivel (antes de la velocidad).
 var _base_window: float = 1.0
@@ -207,6 +209,9 @@ func _ready() -> void:
 	player.run_speed = _speed
 	Daylight.player_pos = player.position
 	player.jumped.connect(_on_player_jumped)
+	var fx_hex: String = String(GameData.equipped_item("skin").get("fx_color", ""))
+	if fx_hex != "":
+		_hero_fx_color = Color(fx_hex)
 	player.jump_shaped.connect(_on_jump_shaped)
 	player.landed.connect(_on_player_landed)
 	player.attacked.connect(_on_player_attacked)
@@ -803,6 +808,8 @@ func _on_player_jumped(pos: Vector2) -> void:
 	Sfx.play("jump", randf_range(0.95, 1.05))
 	precision.on_jump(pos, player.get_speed())
 	Fx.burst(fx_root, pos, Color(Pal.WHITE, 0.8), 6, 130.0, 0.3, 5.0, 300.0, 70.0, Vector2.UP)
+	if _hero_fx_color.a > 0.0:
+		Fx.burst(fx_root, pos + Vector2(-8.0, -10.0), _hero_fx_color, 8, 180.0, 0.4, 4.0, 150.0, 60.0, Vector2(-1.0, 0.3))
 
 
 func _on_player_landed(pos: Vector2) -> void:
@@ -811,6 +818,9 @@ func _on_player_landed(pos: Vector2) -> void:
 		precision.on_land(pos, player.get_speed())
 	Fx.burst(fx_root, pos + Vector2(-10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(-1.0, -0.5))
 	Fx.burst(fx_root, pos + Vector2(10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(1.0, -0.5))
+	# Detalle propio del heroe al aterrizar (chispas de su color).
+	if _hero_fx_color.a > 0.0:
+		Fx.burst(fx_root, pos, _hero_fx_color, 6, 160.0, 0.3, 4.0, 200.0, 70.0, Vector2.UP)
 
 
 func _on_player_attacked(pos: Vector2) -> void:

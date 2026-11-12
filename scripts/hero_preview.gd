@@ -4,6 +4,7 @@ extends Control
 
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
+const HeroFx = preload("res://scripts/hero_fx.gd")
 
 const RUN_LEGS := ["hero_legs_0", "hero_legs_1", "hero_legs_2", "hero_legs_3"]
 const RUN_CAPES := ["hero_cape_0", "hero_cape_1", "hero_cape_2", "hero_cape_1"]
@@ -71,14 +72,18 @@ func _draw() -> void:
 	var index: int = int(_time * 9.0) % 4
 	var bob: float = -4.0 * s if index % 2 == 1 else 0.0
 	var legs: String = RUN_LEGS[index]
-	var cape: String = String(skin.get("cape", "hero_cape_")) + String(RUN_CAPES[index]).substr(10)
+	var cape: String = HeroFx.cape_prefix(skin) + String(RUN_CAPES[index]).substr(10)
+	var fx: String = String(skin.get("fx", ""))
+	HeroFx.draw_back(self, fx, _time, s, bob / s)
 	PixelArt.draw_skin(self, cape, Vector2(-38.0 * s, -36.0 * s + bob), px, white, color_map, skin_key)
 	PixelArt.draw_skin(self, legs, Vector2(-28.0 * s, -16.0 * s), px, white, color_map, skin_key)
-	PixelArt.draw_skin(self, String(skin.get("top", "hero_top")), Vector2(-28.0 * s, -68.0 * s + bob), px, white, color_map, skin_key)
+	PixelArt.draw_skin(self, HeroFx.top_sprite(skin), Vector2(-28.0 * s, HeroFx.top_offset_y(skin, px) + bob), px, white, HeroFx.top_map(skin), HeroFx.top_key(skin))
 	if hidden_slots.has("sword"):
+		HeroFx.draw_front(self, fx, _time, s, bob / s)
 		return
 	var sword_remap: Dictionary = sword["remap"]
 	var sword_key: String = sword["id"]
 	draw_set_transform(Vector2(18.0 * s, -26.0 * s + bob), 0.55 + sin(_time * 9.0) * 0.08, Vector2.ONE)
 	PixelArt.draw_skin(self, String(sword.get("sprite", "sword")), Vector2(-10.0 * s, -40.0 * s), px, white, sword_remap, sword_key)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	HeroFx.draw_front(self, fx, _time, s, bob / s)
