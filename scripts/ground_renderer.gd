@@ -35,7 +35,7 @@ func _draw() -> void:
 	var first: int = int(floor(view_left / TILE)) - 1
 	var count: int = int(1280.0 / TILE) + 3
 	# Cada mundo recolorea el suelo (lava, cristal, nieve, arena...).
-	var remap: Dictionary = Daylight.theme.get("ground", {})
+	var color_map: Dictionary = Daylight.theme.get("ground", {})
 	var remap_key: String = String(Daylight.theme.get("ground_key", ""))
 	var decor_on: bool = bool(Daylight.theme.get("decor", true))
 	for n in count:
@@ -54,7 +54,7 @@ func _draw() -> void:
 			continue
 
 		var top: String = "ground_top_a" if PixelArt.hash01(i, 1) < 0.5 else "ground_top_b"
-		PixelArt.draw_skin(self, top, Vector2(x, GROUND_Y - 4.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), remap, remap_key)
+		PixelArt.draw_skin(self, top, Vector2(x, GROUND_Y - 4.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), color_map, remap_key)
 		for row in 4:
 			var r: float = PixelArt.hash01(i, 10 + row)
 			var sprite: String = "dirt_a"
@@ -63,7 +63,7 @@ func _draw() -> void:
 			elif r > 0.5:
 				sprite = "dirt_b"
 			var shade: float = 1.0 - 0.13 * float(row + 1)
-			PixelArt.draw_skin(self, sprite, Vector2(x, GROUND_Y + 32.0 + float(row) * TILE), 4.0, Color(shade, shade, shade, 1.0), remap, remap_key)
+			PixelArt.draw_skin(self, sprite, Vector2(x, GROUND_Y + 32.0 + float(row) * TILE), 4.0, Color(shade, shade, shade, 1.0), color_map, remap_key)
 
 		# Hielo: brillo azulado sobre la superficie.
 		if Daylight.is_ice(x + TILE * 0.5):

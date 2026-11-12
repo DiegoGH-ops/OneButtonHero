@@ -66,7 +66,7 @@ static func entry(world: int, index: int) -> Array:
 
 
 ## Enemigos del mundo disponibles en un nivel (indices 0..4).
-static func unlocked(world: int, level: int) -> Array:
+static func unlocked(_world: int, level: int) -> Array:
 	var result: Array = []
 	for i in INTRO_LEVELS.size():
 		if level >= int(INTRO_LEVELS[i]):

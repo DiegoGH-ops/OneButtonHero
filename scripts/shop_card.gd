@@ -148,8 +148,8 @@ func _status_color() -> Color:
 func _draw_icon(center: Vector2) -> void:
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
 	if category == "skin":
-		var remap: Dictionary = item["remap"]
-		PixelArt.draw_skin(self, "hero_top", center + Vector2(-28.0, -30.0), 4.0, white, remap, String(item["id"]))
+		var color_map: Dictionary = item["remap"]
+		PixelArt.draw_skin(self, "hero_top", center + Vector2(-28.0, -30.0), 4.0, white, color_map, String(item["id"]))
 	elif category == "sword":
 		var sword_remap: Dictionary = item["remap"]
 		PixelArt.draw_skin(self, "sword", center + Vector2(-10.0, -32.0), 4.0, white, sword_remap, String(item["id"]))

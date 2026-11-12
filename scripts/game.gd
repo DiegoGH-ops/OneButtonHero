@@ -251,8 +251,6 @@ func _process(delta: float) -> void:
 		_update_feel(delta)
 		_check_dodges()
 		player.hawk_x = precision.perfect_jump_x(player.position, player.get_speed()) if Buffs.has("hawk") else INF
-	elif _state != State.PLAYING:
-		_death_time += delta
 		generator.update(player.position.x, _speed, _level, delta)
 		_update_camera()
 		Daylight.time = fposmod(Daylight.time + delta / DAY_LENGTH, 1.0)
@@ -260,6 +258,8 @@ func _process(delta: float) -> void:
 		precision.update(player.position, delta)
 		if _level_mode and player.position.x >= _goal_x:
 			_level_complete()
+	else:
+		_death_time += delta
 
 	# Efectos de camara: temblor y pequeno golpe de zoom.
 	if _shake > 0.0:
@@ -386,17 +386,17 @@ func _challenge_name() -> String:
 
 ## Comprueba al final si se cumplio el modo de dominio elegido.
 func _challenge_met() -> bool:
-	var world: int = int(_def["world"])
+	var world_index: int = int(_def["world"])
 	var level: int = int(_def["level"])
 	if _challenge == "precision":
-		return precision.precision_percent() >= Campaign.mode_target(_challenge, world, level)
+		return precision.precision_percent() >= Campaign.mode_target(_challenge, world_index, level)
 	if _challenge == "no_damage":
 		return _damage_taken == 0 and int(precision.counts[1]) == 0
 	if _challenge == "perfect_combo":
-		return precision.best_combo >= Campaign.mode_target(_challenge, world, level)
+		return precision.best_combo >= Campaign.mode_target(_challenge, world_index, level)
 	if _challenge == "speed":
 		if bool(_def["final"]):
-			return _run_time <= float(Campaign.mode_target(_challenge, world, level))
+			return _run_time <= float(Campaign.mode_target(_challenge, world_index, level))
 		return true
 	if _challenge == "legendary_only":
 		return precision.non_legendary_kills == 0 and int(precision.counts[4]) >= 3
@@ -748,13 +748,13 @@ func _announce_new_content() -> void:
 			var first: Array = Bestiary.entry(0, 0)
 			hud.toast("UN GOLPE Y CAES. ENEMIGO: " + String(first[0]), Pal.ORANGE)
 		return
-	var world: int = int(_def["world"])
+	var world_index: int = int(_def["world"])
 	var level: int = int(_def["level"])
 	var creature: int = Bestiary.introduced(level)
 	if creature >= 0:
-		var data: Array = Bestiary.entry(world, creature)
+		var data: Array = Bestiary.entry(world_index, creature)
 		hud.show_banner("NUEVO: " + String(data[0]), String(Bestiary.TIPS[int(data[1])]))
-	if world == 0:
+	if world_index == 0:
 		for item in LevelGenerator.MECHANICS:
 			var mechanic: Array = item
 			if int(mechanic[1]) == level:
@@ -862,24 +862,24 @@ func _level_complete() -> void:
 		stars += 1
 	if rank >= 3 and _damage_taken <= 1:
 		stars += 1
-	var world: int = int(_def["world"])
+	var world_index: int = int(_def["world"])
 	var level: int = int(_def["level"])
 	var final_score: int = _score()
-	var rewards: Dictionary = GameData.complete_level(world, level, stars, rank, final_score)
+	var rewards: Dictionary = GameData.complete_level(world_index, level, stars, rank, final_score)
 	# Retos opcionales del nivel.
-	var challenge_list: Array = Campaign.challenges(world, level)
+	var challenge_list: Array = Campaign.challenges(world_index, level)
 	var challenge_texts: Array = []
 	var challenge_results: Array = []
 	for item in challenge_list:
 		var challenge: Dictionary = item
 		challenge_texts.append(String(challenge["text"]))
 		challenge_results.append(precision.challenge_done(challenge, info))
-	var extra: Dictionary = GameData.complete_challenges(world, level, challenge_results)
+	var extra: Dictionary = GameData.complete_challenges(world_index, level, challenge_results)
 	# Modo de dominio.
 	var mode_line: String = ""
 	if _challenge != "normal":
 		if _challenge_met():
-			var paid: Dictionary = GameData.complete_mode(world, level, _challenge)
+			var paid: Dictionary = GameData.complete_mode(world_index, level, _challenge)
 			extra["coins"] = int(extra["coins"]) + int(paid["coins"])
 			extra["diamonds"] = int(extra["diamonds"]) + int(paid["diamonds"])
 			mode_line = "MODO %s SUPERADO" % _challenge_name()
@@ -896,7 +896,7 @@ func _level_complete() -> void:
 	Sfx.set_intensity(0)
 	hud.flash(Pal.WHITE, 0.4)
 	Fx.burst(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 40, 520.0, 0.9, 9.0, 600.0, 180.0, Vector2.UP)
-	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world < Campaign.world_count() - 1
+	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world_index < Campaign.world_count() - 1
 	hud.show_victory({
 		"name": String(_def["name"]), "rank": rank, "stars": stars, "score": final_score,
 		"perfect": int(precision.counts[3]), "legendary": int(precision.counts[4]),
@@ -909,15 +909,15 @@ func _level_complete() -> void:
 
 ## Pasa al siguiente nivel de la campana (o al primero del mundo siguiente).
 func _next_level() -> void:
-	var world: int = int(_def.get("world", 0))
+	var world_index: int = int(_def.get("world", 0))
 	var level: int = int(_def.get("level", 0)) + 1
 	if level >= Campaign.LEVELS_PER_WORLD:
 		level = 0
-		world += 1
-	if world >= Campaign.world_count():
+		world_index += 1
+	if world_index >= Campaign.world_count():
 		_go_to_menu()
 		return
-	GameData.run = {"mode": "level", "world": world, "level": level}
+	GameData.run = {"mode": "level", "world": world_index, "level": level}
 	Transition.reload()
 
 

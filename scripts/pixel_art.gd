@@ -23,10 +23,10 @@ static func _color_table() -> Dictionary:
 	return _colors
 
 
-## Devuelve la textura de un sprite. `remap` cambia caracteres de color
+## Devuelve la textura de un sprite. `color_map` cambia caracteres de color
 ## (por ejemplo {"b": "r"} pinta de rojo lo que era azul) y `remap_key`
 ## identifica esa variante en la cache.
-static func tex(sprite_name: String, remap: Dictionary = {}, remap_key: String = "") -> ImageTexture:
+static func tex(sprite_name: String, color_map: Dictionary = {}, remap_key: String = "") -> ImageTexture:
 	var key: String = sprite_name + "|" + remap_key
 	if _cache.has(key):
 		return _cache[key]
@@ -48,8 +48,8 @@ static func tex(sprite_name: String, remap: Dictionary = {}, remap_key: String =
 		var row: String = rows[y]
 		for x in row.length():
 			var ch: String = row[x]
-			if remap.has(ch):
-				ch = remap[ch]
+			if color_map.has(ch):
+				ch = color_map[ch]
 			if colors.has(ch):
 				var c: Color = colors[ch]
 				img.set_pixel(x, y, c)
@@ -88,8 +88,8 @@ static func draw(ci: CanvasItem, sprite_name: String, pos: Vector2, px: float = 
 
 
 ## Igual que draw() pero con un remapeo de colores.
-static func draw_skin(ci: CanvasItem, sprite_name: String, pos: Vector2, px: float, modulate: Color, remap: Dictionary, remap_key: String) -> void:
-	var t: ImageTexture = tex(sprite_name, remap, remap_key)
+static func draw_skin(ci: CanvasItem, sprite_name: String, pos: Vector2, px: float, modulate: Color, color_map: Dictionary, remap_key: String) -> void:
+	var t: ImageTexture = tex(sprite_name, color_map, remap_key)
 	var sz: Vector2 = Vector2(t.get_width(), t.get_height()) * px
 	ci.draw_texture_rect(t, Rect2(pos, sz), false, modulate)
 

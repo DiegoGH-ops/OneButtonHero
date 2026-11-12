@@ -200,10 +200,10 @@ func _split() -> void:
 		piece.call_deferred("_setup_piece", _remap, _remap_key, _sprite)
 
 
-func _setup_piece(remap: Dictionary, remap_key: String, sprite: String) -> void:
+func _setup_piece(color_map: Dictionary, remap_key: String, sprite: String) -> void:
 	archetype = SPLITTER
 	kind = 100 + archetype
-	_remap = remap
+	_remap = color_map
 	_remap_key = remap_key
 	_sprite = sprite
 	make_mini()

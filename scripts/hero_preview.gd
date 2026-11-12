@@ -28,7 +28,7 @@ func _draw() -> void:
 	var sword: Dictionary = GameData.equipped_item("sword")
 	var trail: Dictionary = GameData.equipped_item("trail")
 	var aura: Dictionary = GameData.equipped_item("aura")
-	var remap: Dictionary = skin["remap"]
+	var color_map: Dictionary = skin["remap"]
 	var skin_key: String = skin["id"]
 	var s: float = px / 4.0
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -52,9 +52,9 @@ func _draw() -> void:
 	var bob: float = -4.0 * s if index % 2 == 1 else 0.0
 	var legs: String = RUN_LEGS[index]
 	var cape: String = RUN_CAPES[index]
-	PixelArt.draw_skin(self, cape, Vector2(-38.0 * s, -36.0 * s + bob), px, white, remap, skin_key)
-	PixelArt.draw_skin(self, legs, Vector2(-28.0 * s, -16.0 * s), px, white, remap, skin_key)
-	PixelArt.draw_skin(self, "hero_top", Vector2(-28.0 * s, -68.0 * s + bob), px, white, remap, skin_key)
+	PixelArt.draw_skin(self, cape, Vector2(-38.0 * s, -36.0 * s + bob), px, white, color_map, skin_key)
+	PixelArt.draw_skin(self, legs, Vector2(-28.0 * s, -16.0 * s), px, white, color_map, skin_key)
+	PixelArt.draw_skin(self, "hero_top", Vector2(-28.0 * s, -68.0 * s + bob), px, white, color_map, skin_key)
 	var sword_remap: Dictionary = sword["remap"]
 	var sword_key: String = sword["id"]
 	draw_set_transform(Vector2(18.0 * s, -26.0 * s + bob), 0.55 + sin(_time * 9.0) * 0.08, Vector2.ONE)

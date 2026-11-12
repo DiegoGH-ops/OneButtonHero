@@ -151,26 +151,26 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var top: float = -36.0
-	var skew: float = Daylight.shadow_skew()
+	var shadow_skew: float = Daylight.shadow_skew()
 	var alpha: float = Daylight.shadow_alpha()
 	var tint: Color = Color(1.0, 1.0, 1.0, 1.0)
 	if _flash > 0.0:
 		tint = Color(3.0, 3.0, 3.0, 1.0)
 	# Cada mundo recolorea las criaturas basicas.
-	var remap: Dictionary = Daylight.theme.get("enemy_remap", {})
+	var color_map: Dictionary = Daylight.theme.get("enemy_remap", {})
 	var remap_key: String = String(Daylight.theme.get("ground_key", ""))
 	if kind == Kind.SLIME:
 		var s: float = sin(_time * 6.0)
 		var hop: float = -absf(sin(_time * 3.0)) * 10.0
-		PixelArt.draw_shadow(self, "slime", Vector2(0.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, "slime", Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
 		draw_set_transform(Vector2(0.0, roundf(hop)), 0.0, Vector2(1.0 + 0.08 * s, 1.0 - 0.08 * s))
-		PixelArt.draw_skin(self, "slime", Vector2(-24.0, -36.0), 4.0, tint, remap, remap_key)
+		PixelArt.draw_skin(self, "slime", Vector2(-24.0, -36.0), 4.0, tint, color_map, remap_key)
 		top = -36.0 + hop
 	elif kind == Kind.GOBLIN:
 		var walking: bool = _walked > 0.0 and _walked < float(WALK_LIMITS[kind])
 		var frame: int = int(_time * 7.0) % 2 if walking else 0
 		var bob: float = -4.0 if frame == 1 else 0.0
-		PixelArt.draw_shadow(self, "goblin_a", Vector2(0.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, "goblin_a", Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
 		PixelArt.draw(self, "goblin_b" if frame == 1 else "goblin_a", Vector2(-24.0, -52.0 + bob), 4.0, tint)
 		top = -52.0
 	elif kind == Kind.BAT or kind == Kind.FIREBAT:
@@ -186,19 +186,19 @@ func _draw() -> void:
 		top = -16.0
 	elif kind == Kind.KNIGHT:
 		var sprite: String = "knight_a" if hp > 1 else "knight_b"
-		PixelArt.draw_shadow(self, sprite, Vector2(0.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, sprite, Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
 		PixelArt.draw(self, sprite, Vector2(-26.0, -56.0 + roundf(sin(_time * 5.0) * 2.0)), 4.0, tint)
 		top = -56.0
 	elif kind == Kind.GOLEM or kind == Kind.MUMMY:
 		var body: String = "golem" if kind == Kind.GOLEM else "mummy"
 		var hurt: Color = tint if hp > 1 else Color(tint.r, tint.g * 0.7, tint.b * 0.7, 1.0)
-		PixelArt.draw_shadow(self, body, Vector2(0.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, body, Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
 		PixelArt.draw(self, body, Vector2(-26.0, -56.0 + roundf(absf(sin(_time * 4.0)) * -3.0)), 4.0, hurt)
 		top = -56.0
 	elif kind == Kind.WOLF:
 		var run: float = roundf(absf(sin(_time * 14.0)) * -4.0) if _walked > 0.0 and _walked < 300.0 else 0.0
-		PixelArt.draw_shadow(self, "wolf", Vector2(0.0, 0.0), 4.0, skew, alpha)
-		PixelArt.draw_skin(self, "wolf", Vector2(-28.0, -36.0 + run), 4.0, tint, remap, remap_key)
+		PixelArt.draw_shadow(self, "wolf", Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
+		PixelArt.draw_skin(self, "wolf", Vector2(-28.0, -36.0 + run), 4.0, tint, color_map, remap_key)
 		top = -36.0
 	elif kind == Kind.ORB:
 		var pulse: float = 14.0 + sin(_time * 12.0) * 3.0

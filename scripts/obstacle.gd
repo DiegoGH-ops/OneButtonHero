@@ -149,7 +149,7 @@ func _trap_height() -> float:
 func _draw() -> void:
 	var spike_remap: Dictionary = Daylight.theme.get("spike_remap", {})
 	var spike_key: String = String(Daylight.theme.get("ground_key", "")) + "_spike"
-	var skew: float = Daylight.shadow_skew()
+	var shadow_skew: float = Daylight.shadow_skew()
 	var alpha: float = Daylight.shadow_alpha()
 	if kind == Kind.SPIKES:
 		for i in count:
@@ -188,13 +188,13 @@ func _draw() -> void:
 		var bob: float = roundf(absf(sin(_time * 5.0)) * -8.0)
 		PixelArt.draw(self, "arrow_down", Vector2(6.0, -64.0 + bob), 4.0)
 	elif kind == Kind.ROCK:
-		PixelArt.draw_shadow(self, "rock", Vector2(28.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, "rock", Vector2(28.0, 0.0), 4.0, shadow_skew, alpha)
 		PixelArt.draw(self, "rock", Vector2(0.0, -44.0), 4.0)
 	elif kind == Kind.TOTEM:
-		PixelArt.draw_shadow(self, "totem", Vector2(24.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, "totem", Vector2(24.0, 0.0), 4.0, shadow_skew, alpha)
 		PixelArt.draw(self, "totem", Vector2(0.0, -108.0), 4.0)
 	else:
-		PixelArt.draw_shadow(self, "rock", Vector2(0.0, 0.0), 4.0, skew, alpha)
+		PixelArt.draw_shadow(self, "rock", Vector2(0.0, 0.0), 4.0, shadow_skew, alpha)
 		# La roca gira sobre su centro mientras rueda.
 		draw_set_transform(Vector2(0.0, -24.0), -_rolled / 24.0, Vector2.ONE)
 		PixelArt.draw(self, "rock", Vector2(-28.0, -24.0), 4.0)
