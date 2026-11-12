@@ -9,6 +9,7 @@ const Background = preload("res://scripts/background.gd")
 const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const Shop = preload("res://scripts/shop.gd")
 const ProgressPanel = preload("res://scripts/progress_panel.gd")
+const ResetDialog = preload("res://scripts/reset_dialog.gd")
 const CampaignMap = preload("res://scripts/campaign_map.gd")
 const SkillTree = preload("res://scripts/skill_tree.gd")
 const AdminPanel = preload("res://scripts/admin_panel.gd")
@@ -27,7 +28,7 @@ const MENU_DAY_LENGTH := 60.0
 
 var _scroll: float = 0.0
 var _time: float = 0.0
-var _reset_armed: bool = false
+var _reset_dialog: ResetDialog
 
 var _title_top: PixelLabel
 var _title_main: PixelLabel
@@ -131,7 +132,7 @@ func _update_scene() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _admin.visible:
+	if _admin.visible or (_reset_dialog != null and is_instance_valid(_reset_dialog)):
 		return
 	if event.is_action_pressed("ui_cancel") and _settings_layer.visible:
 		_close_settings()
@@ -327,7 +328,6 @@ func _refresh_settings() -> void:
 func _open_settings() -> void:
 	_main_layer.visible = false
 	_settings_layer.visible = true
-	_reset_armed = false
 	_reset_button.caption = "BORRAR PROGRESO"
 	_back_button.grab_focus()
 
@@ -381,17 +381,24 @@ func _toggle_fullscreen() -> void:
 	_apply()
 
 
-## Borra todo el progreso; pide una segunda pulsacion para confirmar.
+## Borrar progreso: abre las tres confirmaciones (ver reset_dialog.gd).
 func _reset_progress() -> void:
-	if not _reset_armed:
-		_reset_armed = true
-		_reset_button.caption = "¿SEGURO? PULSA OTRA VEZ"
+	if _reset_dialog != null and is_instance_valid(_reset_dialog):
 		return
-	_reset_armed = false
-	GameData.reset_progress()
-	hero.refresh_cosmetics()
-	_refresh_texts()
-	_reset_button.caption = "PROGRESO BORRADO"
+	_reset_dialog = ResetDialog.new()
+	ui_root.add_child(_reset_dialog)
+	_reset_dialog.finished.connect(_on_reset_finished)
+
+
+func _on_reset_finished(deleted: bool) -> void:
+	_reset_dialog = null
+	if deleted:
+		hero.refresh_cosmetics()
+		_refresh_texts()
+		_refresh_settings()
+	else:
+		_toaster.show_toast("BORRADO CANCELADO: NO SE HA TOCADO NADA", Pal.LIME)
+	_back_button.grab_focus()
 
 
 func _apply() -> void:
