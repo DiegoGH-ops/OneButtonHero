@@ -16,6 +16,7 @@ const Enemy = preload("res://scripts/enemy.gd")
 const Coin = preload("res://scripts/coin.gd")
 const GroundSpan = preload("res://scripts/ground_span.gd")
 const Platform = preload("res://scripts/platform.gd")
+const Daylight = preload("res://scripts/daylight.gd")
 const ObstacleScene: PackedScene = preload("res://scenes/obstacle.tscn")
 const EnemyScene: PackedScene = preload("res://scenes/enemy.tscn")
 const CoinScene: PackedScene = preload("res://scenes/coin.tscn")
@@ -30,6 +31,7 @@ const PLATFORM_HEIGHT := 112.0
 enum Pattern {
 	COINS, SPIKES, ROCK, SLIME, HOLE, GOBLIN, TOTEM, PLATFORM,
 	BAT, DOUBLE_SPIKES, DOUBLE_ENEMY, SPIKES_HOLE, WIDE_HOLE,
+	KNIGHT, GHOST, BOULDER, COINS_RICH,
 }
 
 ## [patron, peso, nivel minimo]
@@ -47,6 +49,9 @@ const TABLE := [
 	[Pattern.DOUBLE_ENEMY, 2, 4],
 	[Pattern.SPIKES_HOLE, 2, 4],
 	[Pattern.WIDE_HOLE, 2, 5],
+	[Pattern.GHOST, 2, 2],
+	[Pattern.KNIGHT, 2, 3],
+	[Pattern.BOULDER, 2, 3],
 ]
 
 ## Huecos como Vector2(inicio, fin). ground_renderer.gd comparte esta lista.
@@ -62,6 +67,10 @@ var _level: int = 0
 var _difficulty: float = 0.0
 var _last_pattern: int = -1
 var _cleanup_timer: float = 0.0
+## Patrones obligatorios pendientes (eventos como la lluvia de monedas).
+var _forced: Array = []
+## game.gd lo activa cuando al heroe le falta alguna vida.
+var heart_wanted: bool = false
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -110,6 +119,9 @@ func get_respawn_x(player_x: float) -> float:
 # --------------------------------------------------------------- patrones --
 
 func _pick_pattern() -> int:
+	if not _forced.is_empty():
+		var forced: int = _forced.pop_front()
+		return forced
 	var pool: Array = []
 	for entry in TABLE:
 		var pattern: int = entry[0]
@@ -158,6 +170,14 @@ func _spawn_pattern() -> void:
 			_pattern_double_enemy()
 		Pattern.SPIKES_HOLE:
 			_pattern_spikes_hole()
+		Pattern.KNIGHT:
+			_pattern_knight()
+		Pattern.GHOST:
+			_pattern_ghost()
+		Pattern.BOULDER:
+			_pattern_boulder()
+		Pattern.COINS_RICH:
+			_pattern_coins_rich()
 		_:
 			_pattern_hole(true)
 
@@ -189,12 +209,17 @@ func _pattern_coins() -> void:
 			lift += 26.0 * absf(sin(float(i) * 0.9))
 		_add_coin(Vector2(_gen_x + float(i) * 46.0, GROUND_Y - lift), false)
 	_gen_x += float(count) * 46.0
+	_bonus_pickup()
 
 
 func _pattern_spikes() -> void:
 	_gen_x += _gap()
 	var count: int = _rng.randi_range(1, _max_spikes())
-	_add_obstacle(Obstacle.Kind.SPIKES, _gen_x, count)
+	# A partir del nivel 2 los pinchos pueden ser llamas.
+	var spikes_kind: int = Obstacle.Kind.SPIKES
+	if _level >= 1 and _rng.randf() < 0.35:
+		spikes_kind = Obstacle.Kind.FLAMES
+	_add_obstacle(spikes_kind, _gen_x, count)
 	var width: float = float(count) * TILE
 	_coin_arc(_gen_x + width * 0.5, 3, false)
 	_gen_x += width
@@ -223,7 +248,7 @@ func _pattern_enemy(kind: int) -> void:
 
 ## Zona despejada delante de un enemigo: mayor que su alcance de ataque.
 func _enemy_gap(kind: int) -> float:
-	var walk: float = Enemy.WALK_LIMIT + 20.0 if kind == Enemy.Kind.GOBLIN else 0.0
+	var walk: float = float(Enemy.WALK_LIMITS[kind]) * 1.15
 	return maxf(_gap(), _attack_reach() + walk + 90.0)
 
 
@@ -270,6 +295,52 @@ func _pattern_spikes_hole() -> void:
 	_add_hole(hole_start, width)
 
 
+## Escudero: necesita dos golpes y retrocede tras el primero, por eso se
+## deja libre la zona a la que es empujado.
+func _pattern_knight() -> void:
+	_gen_x += _enemy_gap(Enemy.Kind.KNIGHT)
+	_add_enemy(Enemy.Kind.KNIGHT, _gen_x)
+	_gen_x += 240.0 + _speed * 0.35
+
+
+## Espectro: solo aparece de noche (de dia lo sustituye un murcielago).
+func _pattern_ghost() -> void:
+	var kind: int = Enemy.Kind.GHOST if Daylight.darkness() > 0.5 else Enemy.Kind.BAT
+	_gen_x += _enemy_gap(kind)
+	_add_enemy(kind, _gen_x)
+	_gen_x += 40.0
+
+
+## Roca rodante: avanza hacia el heroe, asi que se deja pista libre delante.
+func _pattern_boulder() -> void:
+	_gen_x += _gap() + Obstacle.ROLL_LIMIT + 40.0
+	_add_obstacle(Obstacle.Kind.BOULDER, _gen_x, 1)
+	_gen_x += 48.0
+
+
+## Tramo cargado de monedas, rubies y gemas (evento "lluvia de monedas").
+func _pattern_coins_rich() -> void:
+	_gen_x += _speed * 0.35
+	var count: int = _rng.randi_range(8, 11)
+	for i in count:
+		var lift: float = 40.0 + 70.0 * absf(sin(float(i) * 0.7))
+		var kind: int = Coin.Kind.COIN
+		if i % 5 == 4:
+			kind = Coin.Kind.GEM
+		elif i % 3 == 2:
+			kind = Coin.Kind.RUBY
+		_add_pickup(Vector2(_gen_x + float(i) * 44.0, GROUND_Y - lift), kind)
+	_gen_x += float(count) * 44.0
+
+
+## Encola un evento: "coins" (lluvia de monedas) u "horde" (horda).
+func start_event(event: String) -> void:
+	if event == "coins":
+		_forced = [Pattern.COINS_RICH, Pattern.COINS_RICH, Pattern.COINS_RICH, Pattern.COINS_RICH]
+	elif event == "horde":
+		_forced = [Pattern.SLIME, Pattern.GOBLIN, Pattern.SLIME, Pattern.BAT, Pattern.GOBLIN]
+
+
 ## Plataforma flotante con monedas y una gema; debajo, unos pinchos.
 func _pattern_platform() -> void:
 	_gen_x += _gap()
@@ -301,10 +372,32 @@ func _coin_arc(center_x: float, count: int, gem_on_top: bool) -> void:
 
 
 func _add_coin(pos: Vector2, special: bool) -> void:
+	var kind: int = Coin.Kind.COIN
+	if special:
+		kind = Coin.Kind.RUBY if _rng.randf() < 0.3 else Coin.Kind.GEM
+	_add_pickup(pos, kind)
+
+
+func _add_pickup(pos: Vector2, kind: int) -> void:
 	var coin: Coin = CoinScene.instantiate()
 	coin.position = pos
-	coin.setup(special)
+	coin.setup(kind)
 	_objects_root.add_child(coin)
+
+
+## Recompensas especiales ocasionales: corazon, estrella o cofre.
+func _bonus_pickup() -> void:
+	var roll: float = _rng.randf()
+	var x: float = _gen_x + 70.0
+	if heart_wanted and roll < 0.22:
+		_add_pickup(Vector2(x, GROUND_Y - 96.0), Coin.Kind.HEART)
+	elif roll < 0.30:
+		_add_pickup(Vector2(x, GROUND_Y), Coin.Kind.CHEST)
+	elif roll < 0.38:
+		_add_pickup(Vector2(x, GROUND_Y - 96.0), Coin.Kind.STAR)
+	else:
+		return
+	_gen_x += 110.0
 
 
 func _add_obstacle(kind: int, x: float, count: int) -> void:
@@ -316,7 +409,7 @@ func _add_obstacle(kind: int, x: float, count: int) -> void:
 
 func _add_enemy(kind: int, x: float) -> void:
 	var enemy: Enemy = EnemyScene.instantiate()
-	var y: float = GROUND_Y - 52.0 if kind == Enemy.Kind.BAT else GROUND_Y
+	var y: float = GROUND_Y - 52.0 if (kind == Enemy.Kind.BAT or kind == Enemy.Kind.GHOST) else GROUND_Y
 	enemy.position = Vector2(x, y)
 	_objects_root.add_child(enemy)
 	enemy.setup(kind)

@@ -21,6 +21,7 @@ boot_splash/show_image=false
 
 GameData="*res://scripts/game_data.gd"
 Sfx="*res://scripts/sfx.gd"
+Transition="*res://scripts/transition.gd"
 
 [display]
 

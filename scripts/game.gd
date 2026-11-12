@@ -1,12 +1,17 @@
 extends Node2D
 ## Escena principal de la partida. Coordina al heroe, el generador de nivel,
-## la camara, la dificultad, la puntuacion, las vidas y la interfaz.
+## la camara, el ciclo de dia y noche, la dificultad, los poderes, las
+## mejoras de la tienda, los eventos aleatorios, la puntuacion y la interfaz.
 
 const Player = preload("res://scripts/player.gd")
 const Hud = preload("res://scripts/hud.gd")
 const Background = preload("res://scripts/background.gd")
 const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const LevelGenerator = preload("res://scripts/level_generator.gd")
+const Lights = preload("res://scripts/lights.gd")
+const Coin = preload("res://scripts/coin.gd")
+const Catalog = preload("res://scripts/catalog.gd")
+const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
 const Pal = preload("res://scripts/palette.gd")
 
@@ -19,16 +24,20 @@ const LEVEL_SECONDS := 20.0
 const SPEED_STEP := 38.0
 const MAX_SPEED := 800.0
 const MAX_LIVES := 3
-## Distancia horizontal entre el heroe y el centro de la camara.
 const CAMERA_LEAD := 320.0
 const PIXELS_PER_METER := 48.0
+## Segundos que dura un ciclo completo de dia y noche.
+const DAY_LENGTH := 110.0
+## Cada cuantos metros hay una pequena recompensa.
+const MILESTONE_METERS := 250
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const MAGNET_RADII := [0.0, 110.0, 160.0, 220.0]
+const SHIELD_REGEN := [0.0, 0.0, 45.0, 25.0]
 
-## Peligros que se estrenan en cada nivel (para el aviso en pantalla).
 const NEW_HAZARDS := {
-	1: "NUEVO: HUECOS Y DIABLILLOS",
-	2: "NUEVO: TÓTEMS Y PLATAFORMAS",
-	3: "NUEVO: MURCIÉLAGOS Y PINCHOS DOBLES",
+	1: "NUEVO: HUECOS, LLAMAS Y DIABLILLOS",
+	2: "NUEVO: TÓTEMS, PLATAFORMAS Y ESPECTROS",
+	3: "NUEVO: ESCUDEROS Y ROCAS RODANTES",
 	4: "NUEVO: COMBINACIONES",
 	5: "NUEVO: ABISMOS ANCHOS",
 }
@@ -40,60 +49,141 @@ var _level: int = 0
 var _level_timer: float = 0.0
 var _distance_px: float = 0.0
 var _last_player_x: float = 0.0
-var _bonus: int = 0
-var _coins: int = 0
+var _points: float = 0.0
+var _coins_f: float = 0.0
 var _kills: int = 0
+var _gems: int = 0
 var _lives: int = MAX_LIVES
+var _combo: int = 0
 var _shake: float = 0.0
-var _enemy_colors: Array = [Pal.GREEN, Pal.RED, Pal.PURPLE]
+var _zoom_punch: float = 0.0
+var _next_milestone: int = MILESTONE_METERS
+var _banked: bool = false
+var _revive_used: bool = false
+var _enemy_colors: Array = [Pal.GREEN, Pal.RED, Pal.PURPLE, Pal.STEEL, Pal.WHITE]
+
+# Mejoras y objetos de la tienda.
+var _magnet_base: float = 0.0
+var _coin_mult: float = 1.0
+var _score_mult: float = 1.0
+var _bounty: int = 0
+var _shield_regen: float = 0.0
+var _shield_timer: float = 0.0
+var _cooldown_factor: float = 1.0
+var _double_coins: bool = false
+var _magnet_boost: float = 0.0
+
+# Dia y noche, eventos y poderes.
+var _phase: int = -1
+var _was_night: bool = false
+var _event_timer: float = 30.0
+var _gold_rush: float = 0.0
+var _slow_time: float = 0.0
+var _power_cooldowns: Array = [0.0, 0.0, 0.0]
 
 @onready var player: Player = $Player
 @onready var camera: Camera2D = $Camera2D
 @onready var background: Background = $BackgroundLayer/Background
+@onready var world: Node2D = $World
 @onready var ground: GroundRenderer = $World/Ground
 @onready var spans_root: Node2D = $World/Spans
 @onready var objects_root: Node2D = $World/Objects
 @onready var fx_root: Node2D = $Fx
+@onready var lights: Lights = $Lights
 @onready var generator: LevelGenerator = $Generator
 @onready var hud: Hud = $HUD
 
 
 func _ready() -> void:
 	get_tree().paused = false
+	Engine.time_scale = 1.0
+	# Cada partida empieza a una hora distinta del dia.
+	Daylight.time = randf_range(0.10, 0.50)
+	Daylight.magnet_radius = 0.0
 	generator.setup(spans_root, objects_root)
 	ground.holes = generator.holes
+	Daylight.holes = generator.holes
 
 	player.position = Vector2(0.0, GROUND_Y - 2.0)
 	player.run_speed = _speed
+	Daylight.player_pos = player.position
 	player.jumped.connect(_on_player_jumped)
 	player.landed.connect(_on_player_landed)
 	player.attacked.connect(_on_player_attacked)
-	player.coin_collected.connect(_on_coin_collected)
+	player.pickup_collected.connect(_on_pickup_collected)
 	player.enemy_killed.connect(_on_enemy_killed)
+	player.enemy_hit.connect(_on_enemy_hit)
+	player.hazard_smashed.connect(_on_hazard_smashed)
+	player.shield_broken.connect(_on_shield_broken)
 	player.damaged.connect(_on_player_damaged)
 	player.fell.connect(_on_player_fell)
 	_last_player_x = player.position.x
 
 	hud.restart_requested.connect(_restart)
 	hud.menu_requested.connect(_go_to_menu)
+	hud.power_pressed.connect(_use_power)
 	hud.set_max_lives(MAX_LIVES)
 	hud.set_high_score(GameData.high_score)
 
+	_apply_shop_items()
 	camera.make_current()
 	_update_camera()
+	_update_daylight(true)
 	_update_hud()
-	Sfx.start_music()
+	_event_timer = randf_range(28.0, 40.0)
 
 	player.active = true
 	hud.can_pause = true
 
 
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+
+
+## Aplica mejoras permanentes, consumibles y cosmeticos comprados.
+func _apply_shop_items() -> void:
+	_magnet_base = MAGNET_RADII[clampi(GameData.upgrade_level("magnet"), 0, 3)]
+	_coin_mult = 1.0 + 0.25 * float(GameData.upgrade_level("coin_mult"))
+	_score_mult = 1.0 + 0.10 * float(GameData.upgrade_level("score"))
+	_bounty = GameData.upgrade_level("bounty")
+	_cooldown_factor = 1.0 - 0.15 * float(GameData.upgrade_level("energy"))
+	var shield_level: int = clampi(GameData.upgrade_level("shield"), 0, 3)
+	player.shield_active = shield_level > 0
+	_shield_regen = SHIELD_REGEN[shield_level]
+
+	var used: PackedStringArray = PackedStringArray()
+	if GameData.use_consumable("guard"):
+		player.start_rage(15.0)
+		used.append("PROTECCIÓN")
+	if GameData.use_consumable("double"):
+		_double_coins = true
+		used.append("DOBLE BOTÍN")
+	if GameData.use_consumable("magnet_boost"):
+		_magnet_boost = 45.0
+		used.append("SUPERIMÁN")
+	if not used.is_empty():
+		hud.toast("ACTIVO: " + ", ".join(used), Pal.CYAN)
+
+	var aura: Dictionary = GameData.equipped_item("aura")
+	var aura_hex: String = aura["color"]
+	if aura_hex != "":
+		lights.aura_color = Color(aura_hex)
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if _state == State.PLAYING and event.is_action_pressed(GameData.ACTION):
+	if _state != State.PLAYING:
+		return
+	if event.is_action_pressed(GameData.ACTION):
 		player.press()
+		return
+	for i in GameData.POWER_ACTIONS.size():
+		if event.is_action_pressed(String(GameData.POWER_ACTIONS[i])):
+			_use_power(i)
 
 
 func _process(delta: float) -> void:
+	# Tiempo real: no le afecta el poder "Tiempo lento".
+	var real_delta: float = delta / maxf(Engine.time_scale, 0.05)
 	if _state == State.PLAYING:
 		_level_timer += delta
 		if _level_timer >= LEVEL_SECONDS:
@@ -101,25 +191,36 @@ func _process(delta: float) -> void:
 			_level_up()
 		_speed = move_toward(_speed, _target_speed, 24.0 * delta)
 		player.run_speed = _speed
+		Daylight.run_speed = player.get_speed()
 
 		var moved: float = player.position.x - _last_player_x
 		if moved > 0.0:
 			_distance_px += moved
+			_points += moved / PIXELS_PER_METER * _point_multiplier()
 		_last_player_x = player.position.x
 
+		_update_timers(delta, real_delta)
+		_check_milestones()
+		generator.heart_wanted = _lives < MAX_LIVES
 		generator.update(player.position.x, _speed, _level, delta)
 		_update_camera()
+		Daylight.time = fposmod(Daylight.time + delta / DAY_LENGTH, 1.0)
+		_update_daylight(false)
 
-	# Temblor de camara.
+	# Efectos de camara: temblor y pequeno golpe de zoom.
 	if _shake > 0.0:
-		_shake = maxf(_shake - delta * 2.5, 0.0)
+		_shake = maxf(_shake - real_delta * 2.5, 0.0)
 		var strength: float = _shake * 14.0 if GameData.screen_shake else 0.0
 		camera.offset = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * strength
 	else:
 		camera.offset = Vector2.ZERO
+	_zoom_punch = maxf(_zoom_punch - real_delta * 3.0, 0.0)
+	var zoom: float = 1.0 + _zoom_punch * 0.05
+	camera.zoom = Vector2(zoom, zoom)
 
 	background.scroll_x = camera.position.x
 	ground.view_left = camera.position.x - 640.0
+	lights.camera_x = camera.position.x
 	_update_hud()
 
 
@@ -127,14 +228,152 @@ func _update_camera() -> void:
 	camera.position = Vector2(player.position.x + CAMERA_LEAD, 360.0)
 
 
+## Temporizadores de efectos, escudo, poderes y eventos.
+func _update_timers(delta: float, real_delta: float) -> void:
+	_magnet_boost = maxf(_magnet_boost - delta, 0.0)
+	_gold_rush = maxf(_gold_rush - delta, 0.0)
+	var radius: float = _magnet_base
+	if _magnet_boost > 0.0:
+		radius = maxf(radius, 280.0)
+	Daylight.magnet_radius = radius
+
+	if _shield_regen > 0.0 and not player.shield_active:
+		_shield_timer += delta
+		if _shield_timer >= _shield_regen:
+			_shield_timer = 0.0
+			player.shield_active = true
+			Sfx.play("heart")
+			hud.toast("ESCUDO RECARGADO", Pal.CYAN)
+
+	for i in _power_cooldowns.size():
+		_power_cooldowns[i] = maxf(float(_power_cooldowns[i]) - real_delta, 0.0)
+	if _slow_time > 0.0:
+		_slow_time -= real_delta
+		if _slow_time <= 0.0:
+			Engine.time_scale = 1.0
+
+	_event_timer -= delta
+	if _event_timer <= 0.0:
+		_event_timer = randf_range(38.0, 55.0)
+		_start_random_event()
+
+
+# ---------------------------------------------------------- dia y noche --
+
+func _update_daylight(first: bool) -> void:
+	var ambient: Color = Daylight.ambient()
+	world.modulate = ambient
+	player.modulate = ambient.lerp(Color(1.0, 1.0, 1.0), 0.4)
+	var phase: int = Daylight.phase()
+	if phase == _phase:
+		return
+	var previous: int = _phase
+	_phase = phase
+	# Musica segun la hora, con fundido cruzado.
+	if phase == Daylight.Phase.NIGHT:
+		Sfx.play_music("night")
+	elif phase == Daylight.Phase.SUNSET:
+		Sfx.play_music("sunset")
+	else:
+		Sfx.play_music("day")
+	if first:
+		_was_night = phase == Daylight.Phase.NIGHT
+		return
+	if phase == Daylight.Phase.NIGHT:
+		_was_night = true
+		hud.show_banner("CAE LA NOCHE", "PUNTOS X1.5 - CUIDADO CON LOS ESPECTROS")
+	elif phase == Daylight.Phase.SUNSET:
+		hud.toast("ATARDECER", Pal.ORANGE)
+	elif phase == Daylight.Phase.DAWN and previous == Daylight.Phase.NIGHT:
+		hud.show_banner("AMANECE", "HAS SOBREVIVIDO A LA NOCHE: +30 MONEDAS")
+		if _was_night:
+			_add_coins(30.0, false)
+			GameData.add_stat("nights_survived", 1)
+			GameData.add_mission_progress("nights", 1)
+			GameData.check_achievements()
+			Sfx.play("mission")
+	else:
+		hud.toast(Daylight.phase_name(), Pal.WHITE)
+
+
+# -------------------------------------------------- puntos, monedas, hud --
+
+func _combo_multiplier() -> float:
+	return 1.0 + float(mini(_combo, 10)) * 0.1
+
+
+func _point_multiplier() -> float:
+	return _score_mult * Daylight.score_multiplier() * _combo_multiplier()
+
+
+func _add_points(base: float) -> int:
+	var gained: float = base * _point_multiplier()
+	_points += gained
+	return int(roundf(gained))
+
+
+## Suma monedas a la partida. `boosted` aplica los multiplicadores.
+func _add_coins(amount: float, boosted: bool = true) -> void:
+	var total: float = amount
+	if boosted:
+		total *= _coin_mult
+		if _double_coins:
+			total *= 2.0
+		if _gold_rush > 0.0:
+			total *= 2.0
+	_coins_f += total
+
+
 func _score() -> int:
-	return int(_distance_px / PIXELS_PER_METER) + _bonus
+	return int(_points)
+
+
+func _meters() -> int:
+	return int(_distance_px / PIXELS_PER_METER)
 
 
 func _update_hud() -> void:
 	var ratio: float = clampf((_speed - BASE_SPEED) / (MAX_SPEED - BASE_SPEED), 0.0, 1.0)
 	var pips: int = 1 + int(roundf(ratio * 9.0))
-	hud.set_stats(_score(), _coins, _lives, _level + 1, pips, int(roundf(_speed / PIXELS_PER_METER)))
+	hud.set_stats(_score(), int(_coins_f), _lives, _level + 1, pips, int(roundf(player.get_speed() / PIXELS_PER_METER)))
+
+	var mult: float = _point_multiplier()
+	var mult_text: String = ""
+	if mult > 1.04:
+		mult_text = "PUNTOS X%.1f" % mult
+	var effects: PackedStringArray = PackedStringArray()
+	if player.is_turbo():
+		effects.append("TURBO")
+	elif player.is_raging():
+		effects.append("INVENCIBLE")
+	if _slow_time > 0.0:
+		effects.append("TIEMPO LENTO %d" % int(ceilf(_slow_time)))
+	if _gold_rush > 0.0:
+		effects.append("FIEBRE DEL ORO %d" % int(ceilf(_gold_rush)))
+	if _double_coins:
+		effects.append("MONEDAS X2")
+	if _magnet_boost > 0.0:
+		effects.append("SUPERIMÁN %d" % int(ceilf(_magnet_boost)))
+	if _combo >= 2:
+		effects.append("COMBO %d" % _combo)
+	hud.set_status(Daylight.phase_name(), Daylight.darkness() > 0.5, mult_text, player.shield_active, "\n".join(effects))
+
+	for i in Catalog.POWERS.size():
+		var power: Dictionary = Catalog.POWERS[i]
+		var total: float = float(power["cooldown"]) * _cooldown_factor
+		var running: bool = (i == 0 and player.is_turbo()) or (i == 2 and _slow_time > 0.0)
+		hud.set_power(i, float(_power_cooldowns[i]) / total, running)
+
+
+## Pequenas recompensas por distancia recorrida.
+func _check_milestones() -> void:
+	if _meters() < _next_milestone:
+		return
+	var reward: int = 10 + int(_next_milestone / float(MILESTONE_METERS)) * 2
+	_add_coins(float(reward), false)
+	hud.toast("%d M: +%d MONEDAS" % [_next_milestone, reward], Pal.YELLOW)
+	Sfx.play("coin")
+	_next_milestone += MILESTONE_METERS
 
 
 # -------------------------------------------------------------- dificultad --
@@ -142,13 +381,91 @@ func _update_hud() -> void:
 func _level_up() -> void:
 	_level += 1
 	_target_speed = minf(BASE_SPEED + SPEED_STEP * float(_level), MAX_SPEED)
-	# El cielo avanza del dia al atardecer y a la noche.
-	background.target_mood = clampf(float(_level - 1) / 7.0, 0.0, 1.0)
 	var subtitle: String = "¡MÁS RÁPIDO!"
 	if NEW_HAZARDS.has(_level):
 		subtitle = NEW_HAZARDS[_level]
 	hud.show_banner("NIVEL %d" % (_level + 1), subtitle)
+	_zoom_punch = 1.0
 	Sfx.play("level")
+
+
+## Eventos aleatorios que rompen la rutina de la partida.
+func _start_random_event() -> void:
+	var roll: int = randi() % 3
+	if roll == 0:
+		generator.start_event("coins")
+		hud.show_banner("LLUVIA DE MONEDAS", "¡RECÓGELAS TODAS!")
+	elif roll == 1:
+		generator.start_event("horde")
+		hud.show_banner("¡HORDA!", "ENEMIGOS EN CADENA: SUBE TU COMBO")
+	else:
+		_gold_rush = 12.0
+		hud.show_banner("FIEBRE DEL ORO", "MONEDAS X2 DURANTE 12 SEGUNDOS")
+	Sfx.play("level")
+
+
+# ----------------------------------------------------------------- poderes --
+
+func _use_power(index: int) -> void:
+	if _state != State.PLAYING or index < 0 or index >= Catalog.POWERS.size():
+		return
+	if float(_power_cooldowns[index]) > 0.0:
+		Sfx.play("error")
+		return
+	var power: Dictionary = Catalog.POWERS[index]
+	_power_cooldowns[index] = float(power["cooldown"]) * _cooldown_factor
+	GameData.add_stat("powers_used", 1)
+	GameData.add_mission_progress("powers", 1)
+	if index == 0:
+		# Turbo: corre mas, cruza huecos y arrolla lo que encuentra.
+		player.start_turbo(float(power["duration"]))
+		Sfx.play("power_turbo")
+		hud.flash(Pal.YELLOW, 0.25)
+		_zoom_punch = 1.0
+	elif index == 1:
+		_shockwave()
+	else:
+		# Tiempo lento: el mundo se ralentiza unos segundos.
+		_slow_time = float(power["duration"])
+		Engine.time_scale = 0.55
+		Sfx.play("power_slow")
+		hud.flash(Pal.PURPLE, 0.35)
+
+
+## Onda expansiva: elimina enemigos y obstaculos cercanos.
+func _shockwave() -> void:
+	Sfx.play("power_wave")
+	hud.flash(Pal.CYAN, 0.35)
+	_shake = maxf(_shake, 0.8)
+	player.flourish()
+	var origin: Vector2 = player.position + Vector2(0.0, -30.0)
+	Fx.burst(fx_root, origin, Pal.CYAN, 40, 900.0, 0.5, 9.0, 0.0, 180.0, Vector2.RIGHT)
+	Fx.burst(fx_root, origin, Pal.WHITE, 20, 600.0, 0.4, 6.0, 0.0, 180.0, Vector2.RIGHT)
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy: Node2D = node as Node2D
+		if enemy == null or not _in_wave_range(enemy.global_position.x):
+			continue
+		var kind: int = int(enemy.get("kind"))
+		var pos: Vector2 = enemy.global_position
+		var result: int = -1
+		var guard: int = 0
+		while result < 0 and guard < 4:
+			result = int(enemy.call("hit"))
+			guard += 1
+		if result > 0:
+			_on_enemy_killed(result, pos, kind)
+	for node in get_tree().get_nodes_in_group("hazards"):
+		var hazard: Node2D = node as Node2D
+		if hazard == null or not _in_wave_range(hazard.global_position.x):
+			continue
+		var center: Vector2 = hazard.call("get_center")
+		if bool(hazard.call("destroy")):
+			_on_hazard_smashed(center)
+
+
+func _in_wave_range(x: float) -> bool:
+	var dx: float = x - player.position.x
+	return dx > -200.0 and dx < 820.0
 
 
 # ----------------------------------------------------------------- senales --
@@ -160,7 +477,8 @@ func _on_player_jumped(pos: Vector2) -> void:
 
 func _on_player_landed(pos: Vector2) -> void:
 	Sfx.play("land")
-	Fx.burst(fx_root, pos, Color(Pal.WHITE, 0.7), 5, 110.0, 0.25, 5.0, 300.0, 80.0, Vector2.UP)
+	Fx.burst(fx_root, pos + Vector2(-10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(-1.0, -0.5))
+	Fx.burst(fx_root, pos + Vector2(10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(1.0, -0.5))
 
 
 func _on_player_attacked(pos: Vector2) -> void:
@@ -168,28 +486,90 @@ func _on_player_attacked(pos: Vector2) -> void:
 	Fx.burst(fx_root, pos + Vector2(60.0, -34.0), Pal.CYAN, 6, 260.0, 0.22, 5.0, 0.0, 35.0, Vector2.RIGHT)
 
 
-func _on_coin_collected(value: int, pos: Vector2, special: bool) -> void:
-	_coins += 5 if special else 1
-	_bonus += value
-	if special:
-		Sfx.play("gem")
-		Fx.burst(fx_root, pos, Pal.CYAN, 16, 280.0, 0.5, 7.0, 500.0, 180.0, Vector2.UP)
-		Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % value, Pal.CYAN, 4.0)
-	else:
+func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
+	if kind == Coin.Kind.COIN:
+		_add_coins(1.0)
+		_add_points(float(value))
+		GameData.add_mission_progress("coins", 1)
 		Sfx.play("coin", randf_range(0.97, 1.06))
 		Fx.burst(fx_root, pos, Pal.YELLOW, 8, 200.0, 0.4, 5.0, 500.0, 180.0, Vector2.UP)
 		Fx.popup(fx_root, pos + Vector2(0.0, -26.0), "+%d" % value, Pal.YELLOW, 3.0)
+	elif kind == Coin.Kind.GEM or kind == Coin.Kind.RUBY:
+		var is_gem: bool = kind == Coin.Kind.GEM
+		_add_coins(5.0 if is_gem else 3.0)
+		var gained: int = _add_points(float(value))
+		GameData.add_mission_progress("coins", 5 if is_gem else 3)
+		if is_gem:
+			_gems += 1
+			GameData.add_mission_progress("gems", 1)
+		Sfx.play("gem")
+		var color: Color = Pal.CYAN if is_gem else Pal.RED
+		Fx.burst(fx_root, pos, color, 16, 280.0, 0.5, 7.0, 500.0, 180.0, Vector2.UP)
+		Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % gained, color, 4.0)
+	elif kind == Coin.Kind.HEART:
+		Sfx.play("heart")
+		if _lives < MAX_LIVES:
+			_lives += 1
+			Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+1 VIDA", Pal.RED, 4.0)
+		else:
+			Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % _add_points(50.0), Pal.RED, 4.0)
+		Fx.burst(fx_root, pos, Pal.RED, 16, 260.0, 0.5, 7.0, 300.0, 180.0, Vector2.UP)
+	elif kind == Coin.Kind.STAR:
+		Sfx.play("power_turbo")
+		player.start_rage(8.0)
+		_magnet_boost = maxf(_magnet_boost, 8.0)
+		hud.show_banner("¡ESTRELLA!", "INVENCIBLE DURANTE 8 SEGUNDOS")
+		hud.flash(Pal.YELLOW, 0.3)
+		Fx.burst(fx_root, pos, Pal.YELLOW, 24, 380.0, 0.6, 8.0, 300.0, 180.0, Vector2.UP)
+	else:
+		# Cofre del tesoro.
+		_add_coins(25.0)
+		GameData.add_mission_progress("coins", 25)
+		Sfx.play("buy")
+		_zoom_punch = 0.6
+		Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 30, 420.0, 0.7, 8.0, 900.0, 70.0, Vector2.UP)
+		Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "¡COFRE! +25", Pal.YELLOW, 4.0)
 
 
 func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	_kills += 1
-	_bonus += points
+	_combo += 1
+	var gained: int = _add_points(float(points))
+	if _bounty > 0:
+		_add_coins(float(_bounty))
+	GameData.add_mission_progress("kills", 1)
 	_shake = maxf(_shake, 0.35)
 	Sfx.play("kill")
 	var color: Color = _enemy_colors[clampi(kind, 0, _enemy_colors.size() - 1)]
 	Fx.burst(fx_root, pos + Vector2(0.0, -20.0), color, 18, 340.0, 0.55, 8.0, 700.0, 180.0, Vector2.UP)
-	Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.WHITE, 8, 240.0, 0.35, 5.0, 300.0, 180.0, Vector2.UP)
-	Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "+%d" % points, Pal.WHITE, 4.0)
+	Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.WHITE, 10, 260.0, 0.3, 6.0, 0.0, 180.0, Vector2.UP)
+	Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "+%d" % gained, Pal.WHITE, 4.0)
+	if _combo >= 3 and _combo % 5 == 0:
+		hud.toast("¡COMBO %d!  PUNTOS X%.1f" % [_combo, _combo_multiplier()], Pal.ORANGE)
+
+
+## Golpe que no mata (escudo del escudero roto).
+func _on_enemy_hit(pos: Vector2) -> void:
+	Sfx.play("hit")
+	_shake = maxf(_shake, 0.25)
+	Fx.burst(fx_root, pos + Vector2(-10.0, -30.0), Pal.SKY, 12, 320.0, 0.4, 6.0, 600.0, 180.0, Vector2.UP)
+	Fx.popup(fx_root, pos + Vector2(0.0, -70.0), "¡ESCUDO ROTO!", Pal.SKY, 2.0)
+
+
+func _on_hazard_smashed(pos: Vector2) -> void:
+	_add_points(15.0)
+	Sfx.play("hit")
+	_shake = maxf(_shake, 0.3)
+	Fx.burst(fx_root, pos, Pal.SILVER, 14, 360.0, 0.5, 8.0, 800.0, 180.0, Vector2.UP)
+
+
+func _on_shield_broken() -> void:
+	Sfx.play("shield")
+	_shield_timer = 0.0
+	_shake = maxf(_shake, 0.5)
+	hud.flash(Pal.CYAN, 0.3)
+	hud.toast("EL ESCUDO TE HA SALVADO", Pal.CYAN)
+	Fx.burst(fx_root, player.position + Vector2(0.0, -30.0), Pal.CYAN, 20, 340.0, 0.5, 7.0, 400.0, 180.0, Vector2.UP)
 
 
 func _on_player_damaged() -> void:
@@ -204,23 +584,49 @@ func _lose_life(fell_in_hole: bool) -> void:
 	if _state != State.PLAYING:
 		return
 	_lives -= 1
+	_combo = 0
 	_shake = 1.0
 	Sfx.play("hurt")
-	hud.flash_damage()
+	hud.flash(Pal.RED, 0.45)
+	player.play_hurt()
 	if not fell_in_hole:
 		Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 14, 300.0, 0.5, 7.0, 700.0, 180.0, Vector2.UP)
 	if _lives <= 0:
+		# Objeto "Revivir": se gasta solo, una vez por partida.
+		if not _revive_used and GameData.use_consumable("revive"):
+			_revive_used = true
+			_lives = 2
+			if fell_in_hole:
+				_respawn_player()
+			player.start_rage(3.0)
+			Sfx.play("revive")
+			hud.show_banner("¡HAS REVIVIDO!", "OBJETO REVIVIR GASTADO")
+			hud.flash(Pal.WHITE, 0.6)
+			return
 		_game_over()
 		return
 	if fell_in_hole:
-		# Reaparece al otro lado del hueco, con unos segundos de inmunidad.
-		var x: float = generator.get_respawn_x(player.position.x)
-		player.respawn(Vector2(x, GROUND_Y - 150.0))
-		_last_player_x = player.position.x
-		_update_camera()
+		_respawn_player()
 		player.start_invulnerability(2.2)
 	else:
 		player.start_invulnerability(1.6)
+
+
+## Reaparece al otro lado del hueco.
+func _respawn_player() -> void:
+	var x: float = generator.get_respawn_x(player.position.x)
+	player.respawn(Vector2(x, GROUND_Y - 150.0))
+	_last_player_x = player.position.x
+	_update_camera()
+
+
+## Guarda en el perfil los resultados de la partida (una sola vez).
+func _bank_run() -> bool:
+	if _banked:
+		return false
+	_banked = true
+	GameData.add_mission_progress("distance", _meters())
+	return GameData.finish_run(_score(), int(_coins_f), _kills, _gems, _meters())
 
 
 func _game_over() -> void:
@@ -228,22 +634,28 @@ func _game_over() -> void:
 	_lives = 0
 	hud.can_pause = false
 	player.die()
+	# Camara lenta dramatica durante la caida.
+	Engine.time_scale = 0.5
+	_slow_time = 0.0
 	Sfx.play("gameover")
+	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
 	_update_hud()
-	await get_tree().create_timer(1.3).timeout
+	await get_tree().create_timer(1.3, true, false, true).timeout
 	if not is_inside_tree():
 		return
+	Engine.time_scale = 1.0
 	_state = State.GAME_OVER
 	var final_score: int = _score()
-	var is_record: bool = GameData.submit_score(final_score, _coins)
-	hud.show_game_over(final_score, GameData.high_score, is_record, _coins, _kills, int(_distance_px / PIXELS_PER_METER))
+	var is_record: bool = _bank_run()
+	Sfx.play_music("gameover")
+	hud.show_game_over(final_score, GameData.high_score, is_record, int(_coins_f), _kills, _meters())
 
 
 func _restart() -> void:
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	_bank_run()
+	Transition.reload()
 
 
 func _go_to_menu() -> void:
-	get_tree().paused = false
-	get_tree().change_scene_to_file(MENU_SCENE)
+	_bank_run()
+	Transition.change_scene(MENU_SCENE)
