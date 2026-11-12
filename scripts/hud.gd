@@ -6,7 +6,7 @@ extends CanvasLayer
 signal restart_requested
 signal menu_requested
 signal next_requested
-## Boton 2X: el jugador ha activado o desactivado la velocidad doble.
+## Boton de velocidad: el jugador ha activado o desactivado la velocidad 1.5X.
 signal speed_toggled(on: bool)
 
 const UI = preload("res://scripts/ui.gd")
@@ -133,17 +133,17 @@ func _build_bar() -> void:
 	_pause_button.pressed.connect(_pause)
 	_speed_button = SpeedButton.new()
 	add_child(_speed_button)
-	_speed_button.position = Vector2(1180.0, 86.0)
-	_speed_button.size = Vector2(84.0, 46.0)
+	_speed_button.position = Vector2(1162.0, 86.0)
+	_speed_button.size = Vector2(102.0, 46.0)
 	_speed_button.turbo_changed.connect(func(on: bool) -> void: speed_toggled.emit(on))
 
 
-## Estado del boton 2X (disponible solo en niveles normales de campana).
+## Estado del boton de velocidad 1.5X (disponible solo en niveles normales de campana).
 func set_speed_button(on: bool, available: bool) -> void:
 	_speed_button.set_state(on, available)
 
 
-## Oculta el boton 2X en las pantallas finales.
+## Oculta el boton de velocidad en las pantallas finales.
 func hide_speed_button() -> void:
 	_speed_button.visible = false
 

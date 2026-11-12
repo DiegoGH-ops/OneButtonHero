@@ -7,8 +7,72 @@ extends RefCounted
 ##           y amarillo       L lima       G verde     t turquesa n azul marino
 ##           b azul           B celeste    c cian      w blanco   l plata
 ##           g acero          d pizarra    h piel     u marron   e marron oscuro   m rosa
+##           v violeta brillante           x negro abismo
 
 const DATA := {
+	# Caballero del Abismo (recompensa del ultimo jefe): casco con cuernos,
+	# visor violeta, armadura negra con remates plateados y capa rasgada.
+	"abyss_top": [
+		"..g........g..",
+		"..xg.xxxx.gx..",
+		"...xxggggxx...",
+		"..xggxxxxggx..",
+		"..xgxvvvvxgx..",
+		"..xgxxxxxxgx..",
+		"...xggxxggx...",
+		"..xxlxxxxlxx..",
+		".xldxxvvxxdlx.",
+		".xddxvwvxxddx.",
+		".xddxxvvxxddx.",
+		"..xddxxxxddx..",
+		"...xxlpplxx...",
+	],
+	"abyss_cape_0": [
+		"...xpx",
+		"..xppx",
+		".xpppx",
+		"xpppvx",
+		"xpvpvx",
+		".xvxvx",
+		"..x.x.",
+		"......",
+	],
+	"abyss_cape_1": [
+		"...xpx",
+		"..xppx",
+		".xpppx",
+		"xppvpx",
+		"xvpppx",
+		"xvxpvx",
+		".x.x..",
+		"......",
+	],
+	"abyss_cape_2": [
+		"...xpx",
+		"..xppx",
+		".xpppx",
+		"xpppvx",
+		"xppvpx",
+		".xpvxv",
+		"..x.x.",
+		"......",
+	],
+	"abyss_sword": [
+		"...v...",
+		"..vxv..",
+		"..vxv..",
+		"..vxv..",
+		"..vxv..",
+		"..vxv..",
+		"..vxv..",
+		"..vxv..",
+		".gvxvg.",
+		"gglllgg",
+		"..xpx..",
+		"..xpx..",
+		"..xvx..",
+		"...x...",
+	],
 	"sword": [
 		"..k..",
 		".kwk.",

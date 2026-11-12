@@ -95,6 +95,9 @@ var _ice: float = 0.0
 ## Estela de carrera: posiciones recientes en coordenadas del mundo.
 var _trail: Array = []
 var _trail_colors: Array = []
+var _trail_sparkle: bool = false
+## Aura con particulas flotantes (Aura del Abismo).
+var _aura_particles: bool = false
 var _aura_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 
 # Valores con buffs aplicados (refresh_stats).
@@ -120,6 +123,9 @@ var _vreach: float = 1.0
 var _crit: float = 0.0
 
 var _skin: Dictionary = {}
+var _top_sprite: String = "hero_top"
+var _cape_prefix: String = "hero_cape_"
+var _sword_sprite: String = "sword"
 var _skin_key: String = ""
 var _sword: Dictionary = {}
 var _sword_key: String = ""
@@ -186,14 +192,20 @@ func refresh_cosmetics() -> void:
 	var skin: Dictionary = GameData.equipped_item("skin")
 	_skin = skin["remap"]
 	_skin_key = String(skin["id"])
+	# Algunos heroes tienen sprites propios (Caballero del Abismo).
+	_top_sprite = String(skin.get("top", "hero_top"))
+	_cape_prefix = String(skin.get("cape", "hero_cape_"))
 	var sword: Dictionary = GameData.equipped_item("sword")
 	_sword = sword["remap"]
 	_sword_key = String(sword["id"])
+	_sword_sprite = String(sword.get("sprite", "sword"))
 	var slash: Array = sword["slash"]
 	_slash_a = Color(String(slash[0]))
 	_slash_b = Color(String(slash[1]))
 	var trail: Dictionary = GameData.equipped_item("trail")
 	var colors: Array = trail["colors"]
+	_trail_sparkle = bool(trail.get("sparkle", false))
+	_aura_particles = bool(GameData.equipped_item("aura").get("particles", false))
 	_trail_colors = []
 	for hex in colors:
 		_trail_colors.append(Color(String(hex)))
@@ -630,6 +642,8 @@ func _draw() -> void:
 	_draw_trail()
 	if alive and combo_level > 0:
 		_draw_combo_energy()
+	if alive and _aura_particles:
+		_draw_aura_particles()
 
 	# Al morir gira sobre su centro; en vida se aplasta y estira desde los pies.
 	var pivot: Vector2 = Vector2.ZERO if alive else Vector2(0.0, -34.0)
@@ -643,9 +657,14 @@ func _draw() -> void:
 			lean = 0.10
 	var body_xf: Transform2D = Transform2D(lean, _squash, 0.0, pivot)
 	draw_set_transform_matrix(body_xf)
+	cape = _cape_prefix + cape.substr(10)
 	PixelArt.draw_skin(self, cape, Vector2(-38.0, -36.0 + bob) - pivot, 4.0, tint, _skin, _skin_key)
 	PixelArt.draw_skin(self, legs, Vector2(-28.0, -16.0) - pivot, 4.0, tint, _skin, _skin_key)
-	PixelArt.draw_skin(self, "hero_top", Vector2(-28.0, -68.0 + bob) - pivot, 4.0, tint, _skin, _skin_key)
+	PixelArt.draw_skin(self, _top_sprite, Vector2(-28.0, -68.0 + bob) - pivot, 4.0, tint, _skin, _skin_key)
+	if _top_sprite == "abyss_top":
+		# Visor y nucleo de energia violeta que laten.
+		var beat: float = 0.5 + 0.5 * sin(_anim * 6.0)
+		PixelArt.draw_glow(self, Vector2(0.0, -50.0 + bob) - pivot, 26.0, Color(Pal.VIOLET, 0.45 + 0.3 * beat))
 
 	# Espada: gira alrededor de la mano y deja una estela al atacar.
 	var hand: Vector2 = Vector2(18.0, -26.0 + bob) - pivot
@@ -663,7 +682,11 @@ func _draw() -> void:
 	elif not on_floor:
 		sword_angle = 0.2 if velocity.y < 0.0 else 0.95
 	draw_set_transform_matrix(body_xf * Transform2D(sword_angle, hand))
-	PixelArt.draw_skin(self, "sword", Vector2(-10.0, -40.0), 4.0, tint, _sword, _sword_key)
+	if _sword_sprite == "abyss_sword":
+		PixelArt.draw_glow(self, Vector2(4.0, -24.0), 30.0, Color(Pal.VIOLET, 0.5))
+		PixelArt.draw_skin(self, _sword_sprite, Vector2(-14.0, -48.0), 4.0, tint, _sword, _sword_key)
+	else:
+		PixelArt.draw_skin(self, _sword_sprite, Vector2(-10.0, -40.0), 4.0, tint, _sword, _sword_key)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
 
 	# Lineas de caida del pisoton.
@@ -687,11 +710,30 @@ func _draw_trail() -> void:
 			c = c.lerp(_aura_color, 0.45)
 		var size: float = snappedf(6.0 + 14.0 * t + 8.0 * fast, 2.0)
 		draw_rect(Rect2(snappedf(p.x, 2.0) - size * 0.5, snappedf(p.y, 2.0) - size * 0.5, size, size), Color(c, (0.15 + 0.45 * t) * (0.6 + 0.4 * fast)))
+	# Estela con destellos (Abismo y similares): chispas que titilan.
+	if _trail_sparkle:
+		for k in 5:
+			var index2: int = mini(count - 1, 2 + k * 3)
+			var sq: Vector2 = to_local(_trail[index2]) + Vector2(sin(_anim * 7.0 + float(k) * 2.0) * 12.0, cos(_anim * 5.0 + float(k)) * 12.0)
+			var blink: float = maxf(sin(_anim * 12.0 + float(k) * 1.7), 0.0)
+			draw_rect(Rect2(snappedf(sq.x, 2.0) - 2.0, snappedf(sq.y, 2.0) - 6.0, 4.0, 12.0), Color(Pal.WHITE, blink * 0.8))
+			draw_rect(Rect2(snappedf(sq.x, 2.0) - 6.0, snappedf(sq.y, 2.0) - 2.0, 12.0, 4.0), Color(Pal.VIOLET, blink * 0.8))
 	# Chispas sueltas en la cola.
 	for k in 3:
 		var index: int = mini(count - 1, 4 + k * 3)
 		var q: Vector2 = to_local(_trail[index]) + Vector2(0.0, sin(_anim * 9.0 + float(k)) * 10.0)
 		draw_rect(Rect2(snappedf(q.x, 2.0), snappedf(q.y, 2.0), 4.0, 4.0), Color(Pal.WHITE, 0.6))
+
+
+## Aura con particulas: motas de energia oscura que suben y orbitan.
+func _draw_aura_particles() -> void:
+	for k in 10:
+		var phase: float = _anim * 0.9 + float(k) * 0.37
+		var rise: float = fposmod(phase, 1.0)
+		var angle: float = float(k) * 2.4 + _anim * 1.5
+		var p: Vector2 = Vector2(cos(angle) * (20.0 + 10.0 * sin(phase * 3.0)), -10.0 - rise * 70.0)
+		var c: Color = Pal.VIOLET if k % 3 != 0 else Pal.WHITE
+		draw_rect(Rect2(snappedf(p.x, 2.0) - 2.0, snappedf(p.y, 2.0) - 2.0, 4.0, 4.0), Color(c, 0.85 * (1.0 - rise)))
 
 
 ## Energia de combo: chispas que orbitan al heroe (mas con mas combo).

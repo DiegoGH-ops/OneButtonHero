@@ -77,7 +77,7 @@ var music_enabled: bool = true
 var sfx_volume: float = 0.8
 var music_volume: float = 0.7
 var screen_shake: bool = true
-## Preferencia del boton 2X (se recuerda entre niveles).
+## Preferencia del boton de velocidad 1.5X (se recuerda entre niveles).
 var speed_2x: bool = false
 var fullscreen: bool = false
 

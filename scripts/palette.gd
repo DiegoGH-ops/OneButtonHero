@@ -23,3 +23,6 @@ const SKIN := Color("f6c9a0")
 const BROWN := Color("8a5a44")
 const DARK_BROWN := Color("5a3a30")
 const PINK := Color("f29cb5")
+## Violeta brillante y negro abismo (conjunto del Caballero del Abismo).
+const VIOLET := Color("b06fd0")
+const VOID := Color("0f0e18")
