@@ -12,6 +12,8 @@ extends CharacterBody2D
 ## El origen del nodo esta en los pies del personaje.
 
 signal jumped(pos: Vector2)
+## Fin de la fase de subida de un salto: 0 = toque minimo, 1 = mantenido al tope.
+signal jump_shaped(ratio: float)
 signal landed(pos: Vector2)
 signal attacked(pos: Vector2)
 signal pickup_collected(kind: int, value: int, pos: Vector2)
@@ -413,9 +415,11 @@ func _physics_process(delta: float) -> void:
 			# Al soltar: recorte proporcional a la velocidad que quedaba.
 			velocity.y = maxf(velocity.y, velocity.y * _release)
 			_jumping = false
+			jump_shaped.emit(clampf(_jump_time / MAX_HOLD_TIME, 0.0, 1.0))
 		elif _jump_time >= MAX_HOLD_TIME:
 			# Tiempo maximo: sigue subiendo con la inercia y la gravedad normal.
 			_jumping = false
+			jump_shaped.emit(1.0)
 		_hold_shown = _jump_time
 
 	# Hielo: sobre el se acelera poco a poco; en el aire se conserva el impulso.

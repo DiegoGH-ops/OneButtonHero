@@ -453,6 +453,7 @@ func _pause() -> void:
 	if not can_pause or get_tree().paused:
 		return
 	get_tree().paused = true
+	GameData.track("pause")
 	_pause_layer.visible = true
 	_continue_button.grab_focus()
 

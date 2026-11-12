@@ -24,7 +24,7 @@ TIER_BASE = {k: int(v) for k, v in re.findall(r'"(\w+)": (\d+)', re.search(r"con
 TIER_GROWTH = float(re.search(r"const TIER_GROWTH := ([\d.]+)", CATALOG).group(1))
 WORLD_PRICE = [float(x) for x in re.search(r"const WORLD_PRICE := \[([^\]]*)\]", CATALOG).group(1).split(",")]
 
-tree_text = CATALOG[CATALOG.index("const TREE := ["):CATALOG.index("const ACHIEVEMENTS")]
+tree_text = CATALOG[CATALOG.index("const TREE := ["):CATALOG.index("static var _tree_index")]
 NODES = []
 for m in re.finditer(r'\{"id": "([^"]+)", "cat": "([^"]+)".*?"tier": "(\w+)", "lv": (\d+), "w": (\d)', tree_text):
     NODES.append({"id": m.group(1), "cat": m.group(2), "tier": m.group(3), "lv": int(m.group(4)), "w": int(m.group(5))})

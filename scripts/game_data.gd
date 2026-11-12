@@ -7,10 +7,15 @@ signal settings_changed
 signal wallet_changed
 ## Aviso para mostrar en pantalla (logro, mision, recompensa...).
 signal notice(text: String)
+## Logro conseguido (lo muestra AchievementPopup con su animacion).
+signal achievement_unlocked(entry: Dictionary)
 
 const Catalog = preload("res://scripts/catalog.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Buffs = preload("res://scripts/buffs.gd")
+const Missions = preload("res://scripts/missions.gd")
+const Achievements = preload("res://scripts/achievements.gd")
+const AchievementPopup = preload("res://scripts/achievement_popup.gd")
 
 const SAVE_PATH := "user://one_button_hero.cfg"
 ## Accion principal: ESPACIO, clic izquierdo o toque en pantalla.
@@ -50,25 +55,43 @@ var owned: Dictionary = {"skin_azul": true, "sword_acero": true, "trail_polvo": 
 var equipped: Dictionary = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
 
 ## Estadisticas acumuladas.
+const DEFAULT_STATS := [
+	"high_score", "best_distance", "games_played", "total_coins", "total_kills", "total_gems", "total_distance", "nights_survived",
+	"powers_used", "deaths", "best_combo", "perfects", "legendaries", "levels_cleared", "bosses", "modes_cleared", "total_stars", "owned_count",
+]
 var stats: Dictionary = {
 	"high_score": 0, "best_distance": 0, "games_played": 0, "total_coins": 0,
 	"total_kills": 0, "total_gems": 0, "total_distance": 0, "nights_survived": 0,
 	"powers_used": 0, "deaths": 0, "best_combo": 0, "perfects": 0, "legendaries": 0, "levels_cleared": 0,
 	"bosses": 0, "modes_cleared": 0, "total_stars": 0, "owned_count": 0,
 }
+## Logros conseguidos: id -> {"date": "AAAA-MM-DD"}.
 var achievements: Dictionary = {}
+## Titulo elegido (de los que dan los logros).
+var title: String = ""
+## Marcas de "solo la primera vez" (niveles distintos, 3 estrellas...).
+var uniques: Dictionary = {}
 
-## Misiones del dia.
-var missions_date: String = ""
-var missions: Array = []
-var mission_progress: Dictionary = {}
-var mission_done: Dictionary = {}
-
-## Desafio semanal (tres misiones mas exigentes que duran toda la semana).
-var week_id: int = -1
-var weekly: Array = []
+## Misiones. Las diarias y semanales se sortean por periodo; el resto son
+## permanentes y leen las estadisticas.
+var period_day: int = -1
+var period_week: int = -1
+## Hora mas alta vista: atrasar el reloj no renueva nada.
+var clock_high: float = 0.0
+var daily_ids: Array = []
+var daily_progress: Dictionary = {}
+var daily_claimed: Dictionary = {}
+var weekly_ids: Array = []
 var weekly_progress: Dictionary = {}
-var weekly_done: Dictionary = {}
+var weekly_claimed: Dictionary = {}
+## Permanentes cobradas: id -> fecha.
+var mission_claimed: Dictionary = {}
+## Completadas que aun no se han visto en el panel (estado "COMPLETADA").
+var mission_fresh: Dictionary = {}
+## Permanentes ya anunciadas (para avisar una sola vez).
+var mission_announced: Dictionary = {}
+var _missions_by_stat: Dictionary = {}
+var _achievements_by_stat: Dictionary = {}
 
 ## Recompensa por jugar cada dia (racha de dias seguidos).
 var login_day: int = -1
@@ -93,7 +116,10 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_register_input()
 	load_data()
+	_migrate_stats()
 	refresh_missions()
+	add_child(AchievementPopup.new())
+	call_deferred("check_achievements")
 	_apply_window_mode()
 
 
@@ -140,14 +166,22 @@ func load_data() -> void:
 	var old_score: int = int(cfg.get_value("scores", "high_score", 0))
 	if old_score > int(stats.get("high_score", 0)):
 		stats["high_score"] = old_score
-	missions_date = String(cfg.get_value("missions", "date", ""))
-	week_id = int(cfg.get_value("weekly", "id", -1))
-	_merge(weekly_progress, cfg.get_value("weekly", "progress", {}))
-	_merge(weekly_done, cfg.get_value("weekly", "done", {}))
+	title = String(cfg.get_value("profile", "title", ""))
+	_merge(uniques, cfg.get_value("profile", "uniques", {}))
+	period_day = int(cfg.get_value("missions3", "day", -1))
+	period_week = int(cfg.get_value("missions3", "week", -1))
+	clock_high = float(cfg.get_value("missions3", "clock", 0.0))
+	daily_ids = Array(cfg.get_value("missions3", "daily_ids", []))
+	weekly_ids = Array(cfg.get_value("missions3", "weekly_ids", []))
+	_merge(daily_progress, cfg.get_value("missions3", "daily_progress", {}))
+	_merge(daily_claimed, cfg.get_value("missions3", "daily_claimed", {}))
+	_merge(weekly_progress, cfg.get_value("missions3", "weekly_progress", {}))
+	_merge(weekly_claimed, cfg.get_value("missions3", "weekly_claimed", {}))
+	_merge(mission_claimed, cfg.get_value("missions3", "claimed", {}))
+	_merge(mission_fresh, cfg.get_value("missions3", "fresh", {}))
+	_merge(mission_announced, cfg.get_value("missions3", "announced", {}))
 	login_day = int(cfg.get_value("login", "day", -1))
 	login_streak = int(cfg.get_value("login", "streak", 0))
-	_merge(mission_progress, cfg.get_value("missions", "progress", {}))
-	_merge(mission_done, cfg.get_value("missions", "done", {}))
 	sfx_enabled = bool(cfg.get_value("settings", "sfx_enabled", true))
 	music_enabled = bool(cfg.get_value("settings", "music_enabled", true))
 	sfx_volume = clampf(float(cfg.get_value("settings", "sfx_volume", 0.8)), 0.0, 1.0)
@@ -172,14 +206,22 @@ func save_data() -> void:
 	cfg.set_value("profile", "equipped", equipped)
 	cfg.set_value("profile", "stats", stats)
 	cfg.set_value("profile", "achievements", achievements)
-	cfg.set_value("missions", "date", missions_date)
-	cfg.set_value("weekly", "id", week_id)
-	cfg.set_value("weekly", "progress", weekly_progress)
-	cfg.set_value("weekly", "done", weekly_done)
+	cfg.set_value("profile", "title", title)
+	cfg.set_value("profile", "uniques", uniques)
+	cfg.set_value("missions3", "day", period_day)
+	cfg.set_value("missions3", "week", period_week)
+	cfg.set_value("missions3", "clock", clock_high)
+	cfg.set_value("missions3", "daily_ids", daily_ids)
+	cfg.set_value("missions3", "weekly_ids", weekly_ids)
+	cfg.set_value("missions3", "daily_progress", daily_progress)
+	cfg.set_value("missions3", "daily_claimed", daily_claimed)
+	cfg.set_value("missions3", "weekly_progress", weekly_progress)
+	cfg.set_value("missions3", "weekly_claimed", weekly_claimed)
+	cfg.set_value("missions3", "claimed", mission_claimed)
+	cfg.set_value("missions3", "fresh", mission_fresh)
+	cfg.set_value("missions3", "announced", mission_announced)
 	cfg.set_value("login", "day", login_day)
 	cfg.set_value("login", "streak", login_streak)
-	cfg.set_value("missions", "progress", mission_progress)
-	cfg.set_value("missions", "done", mission_done)
 	cfg.set_value("settings", "sfx_enabled", sfx_enabled)
 	cfg.set_value("settings", "music_enabled", music_enabled)
 	cfg.set_value("settings", "sfx_volume", sfx_volume)
@@ -247,9 +289,14 @@ func buy_cosmetic(slot: String, id: String) -> bool:
 			return false
 		diamonds -= gems
 		wallet_changed.emit()
+		track("diamonds_spent", gems)
 	elif not _spend(int(entry["price"])):
 		return false
+	else:
+		track("coins_spent", int(entry["price"]))
 	owned[id] = true
+	track("buy_cosmetic")
+	_track_cosmetic(entry)
 	equipped[slot] = id
 	Buffs.invalidate()
 	save_data()
@@ -332,6 +379,8 @@ func buy_powerup(id: String) -> bool:
 		return false
 	if not _spend(int(entry["price"])):
 		return false
+	track("coins_spent", int(entry["price"]))
+	track("buy_power")
 	powerups[id] = true
 	Buffs.invalidate()
 	save_data()
@@ -454,8 +503,12 @@ func node_block_reason(id: String) -> String:
 func buy_node(id: String) -> bool:
 	if node_block_reason(id) != "":
 		return false
-	if not admin_free_tree and not _spend(node_price(id)):
+	var price: int = node_price(id)
+	if not admin_free_tree and not _spend(price):
 		return false
+	# Con el arbol gratis del administrador track() no registra nada.
+	track("coins_spent", price)
+	track("tree_bought")
 	tree[id] = node_level(id) + 1
 	Buffs.invalidate()
 	save_data()
@@ -575,6 +628,16 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 	# Interes: un porcentaje de los ahorros, con tope segun el mundo.
 	if Buffs.stat("interest") > 0.0:
 		coins += mini(int(float(wallet) * Buffs.stat("interest") / 100.0), int(150.0 * reward))
+	# Registro para misiones y logros (no cuenta en pruebas ni con admin).
+	var key: String = level_key(world, level)
+	track("level_clear")
+	if track_unique("level_unique", "l:" + key):
+		track("level_new")
+	if new_stars > 0:
+		track("stars_gained", new_stars)
+	if stars >= 3:
+		track("three_star")
+		track_unique("three_star_levels", "3:" + key)
 	campaign[level_key(world, level)] = {
 		"stars": maxi(stars, int(old.get("stars", 0))),
 		"rank": maxi(rank, int(old.get("rank", 0))),
@@ -596,6 +659,27 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 	save_data()
 	wallet_changed.emit()
 	return {"coins": coins, "diamonds": gems, "first": first, "items": unlocked_items}
+
+
+func _track_cosmetic(entry: Dictionary) -> void:
+	track("cosmetics_got")
+	if String(entry.get("rarity", "")) == "MÍTICO":
+		track("mythic_got")
+	if String(entry.get("set", "")) == "abyss" and abyss_set_owned():
+		track_unique("abyss_owned", "abyss_set")
+
+
+func abyss_set_owned() -> bool:
+	for id in ["skin_abyss", "sword_abyss", "trail_abyss", "aura_abyss"]:
+		if not is_owned(String(id)):
+			return false
+	return true
+
+
+## Lleva puesto el conjunto completo del Caballero del Abismo.
+func abyss_set_worn() -> bool:
+	return equipped_item("skin")["id"] == "skin_abyss" and equipped_item("sword")["id"] == "sword_abyss" \
+		and equipped_item("trail")["id"] == "trail_abyss" and equipped_item("aura")["id"] == "aura_abyss"
 
 
 func world_challenges_done(world: int) -> bool:
@@ -632,6 +716,7 @@ func grant_reward_key(key: String) -> Array:
 			var entry: Dictionary = item
 			if String(entry.get("reward", "")) == key and not is_owned(String(entry["id"])):
 				owned[String(entry["id"])] = true
+				_track_cosmetic(entry)
 				names.append(String(entry["name"]))
 	return names
 
@@ -646,6 +731,7 @@ func complete_mode(world: int, level: int, mode: String) -> Dictionary:
 	record["modes"] = modes
 	campaign[level_key(world, level)] = record
 	add_stat("modes_cleared", 1)
+	track("mode_clear")
 	var coins: int = int(120.0 * Campaign.world_reward(world) * Buffs.factor("mode_coins"))
 	var gems: int = 1
 	if randf() * 100.0 < Buffs.stat("mode_diamonds"):
@@ -691,6 +777,9 @@ func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
 	for i in 3:
 		var before: bool = i < old.size() and bool(old[i])
 		var now: bool = i < results.size() and bool(results[i])
+		if now:
+			track("challenges_met")
+			track_unique("challenge_new", "c:%s:%d" % [key, i])
 		if now and not before:
 			coins += int(30.0 * Campaign.world_reward(world) * Buffs.factor("challenge_coins"))
 		merged[i] = before or now
@@ -713,135 +802,69 @@ func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
 
 # --------------------------------------------------------------- progresion --
 
-## Elige las tres misiones del dia (las mismas para toda la jornada).
-func refresh_missions() -> void:
-	var today: String = Time.get_date_string_from_system()
-	if today != missions_date:
-		missions_date = today
-		mission_progress = {}
-		mission_done = {}
-	_refresh_weekly()
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = hash(today)
-	var pool: Array = Catalog.MISSIONS.duplicate()
-	missions = []
-	for i in 3:
-		var index: int = rng.randi_range(0, pool.size() - 1)
-		missions.append(pool[index])
-		pool.remove_at(index)
-
-
-## Dia local como numero entero (para rachas y semanas).
-func _local_day() -> int:
-	var bias: int = int(Time.get_time_zone_from_system().get("bias", 0))
-	return int(floor((Time.get_unix_time_from_system() + float(bias) * 60.0) / 86400.0))
-
-
-## Desafio semanal: tres misiones x5 que cambian cada lunes.
-func _refresh_weekly() -> void:
-	var week: int = int(floor(float(_local_day() + 3) / 7.0))
-	if week != week_id:
-		week_id = week
-		weekly_progress = {}
-		weekly_done = {}
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = week * 7919 + 13
-	var pool: Array = Catalog.MISSIONS.duplicate()
-	weekly = []
-	for i in 3:
-		var index: int = rng.randi_range(0, pool.size() - 1)
-		var base: Dictionary = pool[index]
-		var mission: Dictionary = base.duplicate()
-		mission["id"] = "w_" + String(base["id"])
-		mission["target"] = int(base["target"]) * 5
-		mission["reward"] = int(base["reward"]) * 4
-		weekly.append(mission)
-		pool.remove_at(index)
-
-
-## Recompensa por jugar hoy. Devuelve {} si ya se cobro.
-func claim_login() -> Dictionary:
-	var today: int = _local_day()
-	if today == login_day:
-		return {}
-	login_streak = login_streak + 1 if today == login_day + 1 else 1
-	login_day = today
-	var day: int = (login_streak - 1) % 7 + 1
-	var coins: int = int(40.0 * float(day) * Buffs.factor("login"))
-	var gems: int = 1 if day == 7 else 0
-	diamonds += gems
-	add_coins(coins)
-	save_data()
-	return {"day": day, "coins": coins, "diamonds": gems}
-
-
-## Suma progreso a las misiones cuyo contador sea `stat`.
-func add_mission_progress(stat: String, amount: int) -> void:
-	# Las partidas de prueba del administrador no cuentan.
-	if amount <= 0 or String(run.get("mode", "")) == "test":
-		return
-	for item in weekly:
-		var week_mission: Dictionary = item
-		var week_key: String = week_mission["id"]
-		if String(week_mission["stat"]) != stat or bool(weekly_done.get(week_key, false)):
-			continue
-		var week_value: int = int(weekly_progress.get(week_key, 0)) + amount
-		weekly_progress[week_key] = week_value
-		if week_value >= int(week_mission["target"]):
-			weekly_done[week_key] = true
-			var week_reward: int = int(float(week_mission["reward"]) * Buffs.factor("weekly"))
-			add_coins(week_reward)
-			diamonds += 1
-			notice.emit("DESAFÍO SEMANAL: +%d Y 1 DIAMANTE" % week_reward)
-	for item in missions:
-		var mission: Dictionary = item
-		var id: String = mission["id"]
-		if String(mission["stat"]) != stat or bool(mission_done.get(id, false)):
-			continue
-		var value: int = int(mission_progress.get(id, 0)) + amount
-		mission_progress[id] = value
-		if value >= int(mission["target"]):
-			mission_done[id] = true
-			var mission_reward: int = int(float(mission["reward"]) * Buffs.factor("mission"))
-			add_coins(mission_reward)
-			notice.emit("MISIÓN CUMPLIDA: +%d MONEDAS" % mission_reward)
-
-
-func mission_text(mission: Dictionary) -> String:
-	return String(mission["text"]) % int(mission["target"])
-
-
-func add_stat(stat: String, amount: int) -> void:
-	stats[stat] = int(stats.get(stat, 0)) + amount
-
+## --- Registro de sucesos ----------------------------------------------------
+## Toda estadistica de misiones y logros entra por track(), track_max() o
+## track_unique(). Las partidas de prueba y el modo administrador (mundos o
+## niveles abiertos, arbol gratis) no registran nada: no conceden logros ni
+## ensucian las estadisticas.
 
 ## Partida de prueba del panel de administrador: no cuenta para nada.
 func is_test_run() -> bool:
 	return String(run.get("mode", "")) == "test"
 
 
-## Registro de sucesos reales del juego (estadisticas, misiones y logros).
-## Lo llaman game.gd y los sistemas de juego cuando el suceso ocurre de
-## verdad (un salto PERFECT lo decide el sistema de timing, no la pulsacion).
+## Alguna herramienta de administrador que altera la progresion esta activa.
+func admin_active() -> bool:
+	return admin_free_tree or admin_levels or admin_worlds != "normal"
+
+
+func stats_locked() -> bool:
+	return is_test_run() or admin_active() or bool(run.get("admin", false))
+
+
+## Mundo de la partida actual (-1 en el modo infinito).
+func run_world() -> int:
+	if String(run.get("mode", "")) == "level":
+		return int(run.get("world", -1))
+	return -1
+
+
+func add_stat(stat: String, amount: int) -> void:
+	stats[stat] = int(stats.get(stat, 0)) + amount
+
+
+## Suma a un suceso (y a su version por mundo, "kills@w2").
 func track(event: String, amount: int = 1) -> void:
-	if amount == 0 or is_test_run():
+	if amount <= 0 or stats_locked():
 		return
-	stats[event] = int(stats.get(event, 0)) + amount
-	_on_tracked(event, amount)
+	_bump(event, amount)
+	var world: int = run_world()
+	if world >= 0:
+		_bump("%s@w%d" % [event, world], amount)
 
 
-## Guarda el maximo alcanzado de una estadistica (mejor racha, etc.).
+## Guarda la mejor marca de un suceso (combo de una partida, rachas...).
 func track_max(event: String, value: int) -> void:
-	if is_test_run():
+	if stats_locked():
 		return
-	if value > int(stats.get(event, 0)):
-		stats[event] = value
-		_on_tracked(event, 0)
+	_raise(event, value)
+	var world: int = run_world()
+	if world >= 0:
+		_raise("%s@w%d" % [event, world], value)
+
+
+## Suma solo la primera vez que ocurre algo concreto (un nivel distinto...).
+func track_unique(event: String, key: String) -> bool:
+	if stats_locked() or uniques.has(key):
+		return false
+	uniques[key] = true
+	track(event)
+	return true
 
 
 ## Rachas (portales seguidos, niveles sin morir...). Devuelve la racha.
 func bump_streak(streak: String, success: bool) -> int:
-	if is_test_run():
+	if stats_locked():
 		return 0
 	var key: String = "streak_" + streak
 	var value: int = int(stats.get(key, 0)) + 1 if success else 0
@@ -849,26 +872,391 @@ func bump_streak(streak: String, success: bool) -> int:
 	return value
 
 
-## Gancho para misiones y logros (ver missions.gd).
-func _on_tracked(_event: String, _amount: int) -> void:
-	pass
+func _bump(key: String, amount: int) -> void:
+	stats[key] = int(stats.get(key, 0)) + amount
+	_period_progress(key, amount, false)
+	_after_stat(key)
 
 
-## Comprueba los logros y entrega sus recompensas.
-func check_achievements() -> void:
-	stats["total_stars"] = total_stars()
-	stats["owned_count"] = owned.size()
-	for item in Catalog.ACHIEVEMENTS:
-		var entry: Dictionary = item
-		var id: String = entry["id"]
-		if bool(achievements.get(id, false)):
+func _raise(key: String, value: int) -> void:
+	_period_progress(key, value, true)
+	if value > int(stats.get(key, 0)):
+		stats[key] = value
+		_after_stat(key)
+
+
+# --------------------------------------------------------------- misiones --
+
+## Reloj protegido: si la hora del sistema retrocede, se usa la mas alta
+## vista, asi atrasar el reloj no renueva misiones ni recompensas.
+func _clock() -> float:
+	var now: float = Time.get_unix_time_from_system()
+	if now < clock_high:
+		return clock_high
+	clock_high = now
+	return now
+
+
+## Dia local como numero entero (para rachas y periodos).
+func _local_day() -> int:
+	var bias: int = int(Time.get_time_zone_from_system().get("bias", 0))
+	return int(floor((_clock() + float(bias) * 60.0) / 86400.0))
+
+
+func _week_of(day: int) -> int:
+	return int(floor(float(day + 3) / 7.0))
+
+
+## Renueva las diarias y semanales cuando cambia el dia o la semana. Solo
+## avanza: un dia anterior al ya visto nunca vuelve a sortear misiones.
+func refresh_missions() -> void:
+	var day: int = _local_day()
+	var changed: bool = false
+	if day > period_day:
+		period_day = day
+		daily_ids = _pick(Missions.by_category("diaria"), Missions.DAILY_COUNT, day * 7349 + 11)
+		daily_progress = {}
+		daily_claimed = {}
+		changed = true
+	var week: int = _week_of(day)
+	if week > period_week:
+		period_week = week
+		weekly_ids = _pick(Missions.by_category("semanal"), Missions.WEEKLY_COUNT, week * 7919 + 13)
+		weekly_progress = {}
+		weekly_claimed = {}
+		changed = true
+	if changed:
+		save_data()
+
+
+func _pick(pool_source: Array, count: int, seed_value: int) -> Array:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = seed_value
+	var pool: Array = pool_source.duplicate()
+	var ids: Array = []
+	for i in mini(count, pool.size()):
+		var index: int = rng.randi_range(0, pool.size() - 1)
+		ids.append(String(Dictionary(pool[index])["id"]))
+		pool.remove_at(index)
+	return ids
+
+
+func is_rotating(mission: Dictionary) -> bool:
+	var cat: String = mission["cat"]
+	return cat == "diaria" or cat == "semanal"
+
+
+## Misiones visibles de una categoria (las de rotacion: solo las del periodo).
+func missions_of(cat: String) -> Array:
+	if cat == "diaria" or cat == "semanal":
+		var list: Array = []
+		for id in (daily_ids if cat == "diaria" else weekly_ids):
+			var entry: Dictionary = Missions.find(String(id))
+			if not entry.is_empty():
+				list.append(entry)
+		return list
+	return Missions.by_category(cat)
+
+
+func _period_progress(key: String, value: int, is_max: bool) -> void:
+	for pair in [[daily_ids, daily_progress, daily_claimed], [weekly_ids, weekly_progress, weekly_claimed]]:
+		var ids: Array = pair[0]
+		var progress: Dictionary = pair[1]
+		var claimed: Dictionary = pair[2]
+		for id in ids:
+			var mission: Dictionary = Missions.find(String(id))
+			if mission.is_empty() or String(mission["stat"]) != key or claimed.has(id):
+				continue
+			var max_mode: bool = String(mission["mode"]) == "max"
+			if max_mode != is_max:
+				continue
+			var before: int = int(progress.get(id, 0))
+			var after: int = maxi(before, value) if is_max else before + value
+			progress[id] = after
+			if before < int(mission["target"]) and after >= int(mission["target"]):
+				_announce_mission(mission)
+
+
+func mission_progress(mission: Dictionary) -> int:
+	var id: String = mission["id"]
+	if String(mission["cat"]) == "diaria":
+		return int(daily_progress.get(id, 0))
+	if String(mission["cat"]) == "semanal":
+		return int(weekly_progress.get(id, 0))
+	return int(stats.get(String(mission["stat"]), 0))
+
+
+func is_mission_claimed(mission: Dictionary) -> bool:
+	var id: String = mission["id"]
+	if String(mission["cat"]) == "diaria":
+		return daily_claimed.has(id)
+	if String(mission["cat"]) == "semanal":
+		return weekly_claimed.has(id)
+	return mission_claimed.has(id)
+
+
+## Estado: 0 no iniciada, 1 en progreso, 2 completada (recien), 3 recompensa
+## disponible, 4 reclamada.
+func mission_state(mission: Dictionary) -> int:
+	if is_mission_claimed(mission):
+		return 4
+	var value: int = mission_progress(mission)
+	if value >= int(mission["target"]):
+		return 2 if mission_fresh.has(String(mission["id"])) else 3
+	return 1 if value > 0 else 0
+
+
+## Las recompensas de diarias y semanales crecen con el mundo alcanzado
+## para seguir siendo utiles (el resto ya estan ajustadas a su mundo).
+func mission_coins(mission: Dictionary) -> int:
+	var coins: float = float(mission["coins"])
+	var cat: String = mission["cat"]
+	if cat == "diaria":
+		coins *= Campaign.world_reward(highest_world()) * Buffs.factor("mission")
+	elif cat == "semanal":
+		coins *= Campaign.world_reward(highest_world()) * Buffs.factor("weekly")
+	return int(coins)
+
+
+## Cobra una mision. Devuelve {} si no se puede (no completada o ya cobrada):
+## la marca de cobrada se pone antes de pagar, asi nunca se paga dos veces.
+func claim_mission(id: String) -> Dictionary:
+	var mission: Dictionary = Missions.find(id)
+	if mission.is_empty() or is_test_run() or is_mission_claimed(mission):
+		return {}
+	if mission_progress(mission) < int(mission["target"]):
+		return {}
+	var cat: String = mission["cat"]
+	if is_rotating(mission) and not (daily_ids.has(id) or weekly_ids.has(id)):
+		return {}
+	var date: String = Time.get_date_string_from_unix_time(int(_clock()))
+	if cat == "diaria":
+		daily_claimed[id] = true
+	elif cat == "semanal":
+		weekly_claimed[id] = true
+	else:
+		mission_claimed[id] = date
+	mission_fresh.erase(id)
+	var coins: int = mission_coins(mission)
+	var gems: int = int(mission["gems"])
+	diamonds += gems
+	add_coins(coins)
+	track("missions_claimed")
+	if cat == "diaria":
+		track("daily_claimed")
+	elif cat == "semanal":
+		track("weekly_claimed")
+	elif cat == "secreta":
+		track("secret_claimed")
+	save_data()
+	wallet_changed.emit()
+	return {"coins": coins, "diamonds": gems}
+
+
+## Cobra todas las disponibles de una categoria ("" = todas).
+func claim_all(cat: String = "") -> Dictionary:
+	var total: Dictionary = {"coins": 0, "diamonds": 0, "count": 0}
+	for c in Missions.CATEGORIES:
+		if cat != "" and String(c) != cat:
 			continue
-		if int(stats.get(String(entry["stat"]), 0)) >= int(entry["target"]):
-			achievements[id] = true
-			var prize: int = int(float(entry["reward"]) * Buffs.factor("achievement"))
-			add_coins(prize)
-			notice.emit("LOGRO: %s  +%d" % [String(entry["name"]), prize])
+		for item in missions_of(String(c)):
+			var mission: Dictionary = item
+			if mission_state(mission) < 2:
+				continue
+			var paid: Dictionary = claim_mission(String(mission["id"]))
+			if not paid.is_empty():
+				total["coins"] = int(total["coins"]) + int(paid["coins"])
+				total["diamonds"] = int(total["diamonds"]) + int(paid["diamonds"])
+				total["count"] = int(total["count"]) + 1
+	return total
 
+
+func claimable_count() -> int:
+	var count: int = 0
+	for c in Missions.CATEGORIES:
+		for item in missions_of(String(c)):
+			if mission_state(item) in [2, 3]:
+				count += 1
+	return count
+
+
+## Las misiones recien completadas se ven como "COMPLETADA" la primera vez.
+func mark_missions_seen() -> void:
+	mission_fresh = {}
+
+
+func _announce_mission(mission: Dictionary) -> void:
+	if is_mission_claimed(mission):
+		return
+	mission_fresh[String(mission["id"])] = true
+	var title: String = String(mission["name"])
+	if String(mission["cat"]) == "secreta":
+		title = "SECRETA: " + title
+	notice.emit("MISIÓN COMPLETADA: %s" % title)
+
+
+## Indices stat -> misiones permanentes / logros, para comprobar solo lo
+## que puede haber cambiado.
+func _mission_index() -> Dictionary:
+	if _missions_by_stat.is_empty():
+		for item in Missions.all():
+			var mission: Dictionary = item
+			if is_rotating(mission):
+				continue
+			var key: String = mission["stat"]
+			if not _missions_by_stat.has(key):
+				_missions_by_stat[key] = []
+			_missions_by_stat[key].append(mission)
+	return _missions_by_stat
+
+
+func _achievement_index() -> Dictionary:
+	if _achievements_by_stat.is_empty():
+		for item in Achievements.all():
+			var entry: Dictionary = item
+			var key: String = entry["stat"]
+			if not _achievements_by_stat.has(key):
+				_achievements_by_stat[key] = []
+			_achievements_by_stat[key].append(entry)
+	return _achievements_by_stat
+
+
+## Tras cambiar una estadistica: misiones permanentes y logros que dependen
+## de ella, y estadisticas derivadas.
+func _after_stat(key: String) -> void:
+	var value: int = int(stats.get(key, 0))
+	for item in _mission_index().get(key, []):
+		var mission: Dictionary = item
+		if value >= int(mission["target"]) and not is_mission_claimed(mission) and not mission_announced.has(String(mission["id"])):
+			mission_announced[String(mission["id"])] = true
+			_announce_mission(mission)
+	for item in _achievement_index().get(key, []):
+		var entry: Dictionary = item
+		if value >= int(entry["target"]) and not has_achievement(String(entry["id"])):
+			_unlock_achievement(entry)
+	if key.begins_with("boss_flawless@w"):
+		var worlds: int = 0
+		for w in Campaign.world_count():
+			if int(stats.get("boss_flawless@w%d" % w, 0)) > 0:
+				worlds += 1
+		_raise("boss_flawless_worlds", worlds)
+	elif key.begins_with("boss_kill@w"):
+		var conquered: int = 0
+		for w in Campaign.world_count():
+			if int(stats.get("boss_kill@w%d" % w, 0)) > 0:
+				conquered += 1
+		_raise("worlds_conquered", conquered)
+
+
+# ------------------------------------------------------------------ logros --
+
+func has_achievement(id: String) -> bool:
+	var value: Variant = achievements.get(id, null)
+	return value != null and not (value is bool and not bool(value))
+
+
+func achievement_date(id: String) -> String:
+	var value: Variant = achievements.get(id, null)
+	if value is Dictionary:
+		return String(Dictionary(value).get("date", ""))
+	return ""
+
+
+func achievement_progress(entry: Dictionary) -> int:
+	return mini(int(stats.get(String(entry["stat"]), 0)), int(entry["target"]))
+
+
+func _unlock_achievement(entry: Dictionary) -> void:
+	var id: String = entry["id"]
+	if has_achievement(id) or stats_locked():
+		return
+	achievements[id] = {"date": Time.get_date_string_from_unix_time(int(_clock()))}
+	var coins: int = int(float(entry["coins"]) * Buffs.factor("achievement"))
+	diamonds += int(entry["gems"])
+	add_coins(coins)
+	var cosmetic: String = String(entry.get("cosmetic", ""))
+	if cosmetic != "":
+		grant_reward_key("a_" + id)
+	achievement_unlocked.emit(entry)
+	call_deferred("save_data")
+
+
+## Comprueba todos los logros (al cargar o tras una migracion).
+func check_achievements() -> void:
+	if stats_locked():
+		return
+	for item in Achievements.all():
+		var entry: Dictionary = item
+		if not has_achievement(String(entry["id"])) and int(stats.get(String(entry["stat"]), 0)) >= int(entry["target"]):
+			_unlock_achievement(entry)
+
+
+func prestige() -> int:
+	var total: int = 0
+	for item in Achievements.all():
+		var entry: Dictionary = item
+		if has_achievement(String(entry["id"])):
+			total += int(entry["prestige"])
+	return total
+
+
+func unlocked_titles() -> Array:
+	var list: Array = []
+	for item in Achievements.all():
+		var entry: Dictionary = item
+		if entry.has("title") and has_achievement(String(entry["id"])):
+			list.append(String(entry["title"]))
+	return list
+
+
+func badges() -> Array:
+	var list: Array = []
+	for item in Achievements.all():
+		var entry: Dictionary = item
+		if bool(entry.get("badge", false)) and has_achievement(String(entry["id"])):
+			list.append(entry)
+	return list
+
+
+func set_title(text: String) -> void:
+	if text == "" or unlocked_titles().has(text):
+		title = text
+		save_data()
+
+
+## Pasa las estadisticas de versiones anteriores a las nuevas (una vez).
+func _migrate_stats() -> void:
+	if int(stats.get("_v3", 0)) > 0:
+		return
+	stats["_v3"] = 1
+	var copies: Dictionary = {"kills": "total_kills", "coins_picked": "total_coins", "gems_picked": "total_gems", "nights": "nights_survived", "run": "games_played", "death": "deaths", "distance": "total_distance", "mode_clear": "modes_cleared", "boss_kill": "bosses", "run_distance": "best_distance"}
+	for key in copies:
+		stats[key] = maxi(int(stats.get(key, 0)), int(stats.get(String(copies[key]), 0)))
+	for key in campaign:
+		var record: Variant = campaign[key]
+		if not (record is Dictionary) or int(Dictionary(record).get("stars", 0)) <= 0:
+			continue
+		var parts: PackedStringArray = String(key).split("_")
+		if parts.size() != 2 or not parts[0].is_valid_int():
+			continue
+		var w: int = int(parts[0])
+		uniques["l:" + String(key)] = true
+		add_stat("level_unique", 1)
+		add_stat("level_unique@w%d" % w, 1)
+		add_stat("stars_gained", int(Dictionary(record)["stars"]))
+		if int(Dictionary(record)["stars"]) >= 3:
+			uniques["3:" + String(key)] = true
+			add_stat("three_star_levels", 1)
+			add_stat("three_star_levels@w%d" % w, 1)
+		if int(parts[1]) == Campaign.LEVELS_PER_WORLD - 1:
+			stats["boss_kill@w%d" % w] = maxi(int(stats.get("boss_kill@w%d" % w, 0)), 1)
+	var conquered: int = 0
+	for w in Campaign.world_count():
+		if int(stats.get("boss_kill@w%d" % w, 0)) > 0:
+			conquered += 1
+	stats["worlds_conquered"] = conquered
+	stats["tree_bought"] = tree_total_levels()
+	stats["cosmetics_got"] = maxi(owned.size() - 4, 0)
 
 ## Registra el final de una partida. Devuelve true si hay nuevo record.
 func finish_run(score: int, coins: int, kills: int, gems: int, meters: int) -> bool:
@@ -883,29 +1271,66 @@ func finish_run(score: int, coins: int, kills: int, gems: int, meters: int) -> b
 	add_stat("total_gems", gems)
 	add_stat("total_distance", meters)
 	add_coins(coins)
-	add_mission_progress("runs", 1)
-	check_achievements()
+	track("run")
+	track("distance", meters)
+	track_max("run_distance", meters)
+	track_max("coins_run", coins)
+	track_max("kills_run", kills)
+	if run_world() < 0 and not is_test_run():
+		track_max("endless_distance", meters)
 	save_data()
 	return is_record
 
 
+## Recompensa por jugar hoy. Devuelve {} si ya se cobro.
+func claim_login() -> Dictionary:
+	var today: int = _local_day()
+	if today <= login_day:
+		return {}
+	login_streak = login_streak + 1 if today == login_day + 1 else 1
+	login_day = today
+	var day: int = (login_streak - 1) % 7 + 1
+	var coins: int = int(40.0 * float(day) * Buffs.factor("login"))
+	var gems: int = 1 if day == 7 else 0
+	diamonds += gems
+	add_coins(coins)
+	track("login")
+	save_data()
+	return {"day": day, "coins": coins, "diamonds": gems}
+
+
+## Borrado de progreso (tras la triple confirmacion del menu). Se conservan
+## los ajustes (sonido, graficos, controles) y la configuracion de
+## administrador; tambien el reloj protegido y el sorteo del periodo, para
+## que borrar no sirva para renovar misiones.
 func reset_progress() -> void:
 	wallet = 0
 	diamonds = 0
 	campaign = {}
-	weekly_progress = {}
-	weekly_done = {}
 	tree = {}
 	powerups = {}
 	shards = 0
 	trial = {}
+	run = {"mode": "endless"}
+	abyss_pending = false
 	owned = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
 	equipped = {"skin": "skin_azul", "sword": "sword_acero", "trail": "trail_polvo", "aura": "aura_ninguna"}
-	for key in stats:
+	stats = {}
+	for key in DEFAULT_STATS:
 		stats[key] = 0
+	stats["_v3"] = 1
 	achievements = {}
-	mission_progress = {}
-	mission_done = {}
+	title = ""
+	uniques = {}
+	daily_progress = {}
+	daily_claimed = {}
+	weekly_progress = {}
+	weekly_claimed = {}
+	mission_claimed = {}
+	mission_fresh = {}
+	mission_announced = {}
+	login_day = -1
+	login_streak = 0
 	Buffs.invalidate()
 	save_data()
 	wallet_changed.emit()

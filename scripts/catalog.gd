@@ -6,6 +6,8 @@ extends RefCounted
 ## Buffs: {"stat": valor}. Los nombres de los stats y como se muestran estan
 ## en buffs.gd (STATS). Todos son pequenos a proposito.
 
+
+const Achievements = preload("res://scripts/achievements.gd")
 ## Aspectos del heroe: remapeo de colores y un buff que define su estilo.
 const SKINS := [
 	{"id": "skin_azul", "name": "CABALLERO AZUL", "price": 0, "rarity": "COMÚN", "remap": {}, "buff": {"points": 1.0}},
@@ -29,6 +31,7 @@ const SKINS := [
 	{"id": "skin_celeste", "name": "GUARDIÁN CELESTE", "price": 0, "gems": 13, "rarity": "LEGENDARIO", "desc": "FORJADO CON LA LUZ DEL AMANECER", "remap": {"b": "w", "B": "c", "r": "y", "l": "c"}, "buff": {"perfect": 3.5}},
 	{"id": "skin_eclipse", "name": "ECLIPSE", "price": 0, "gems": 22, "rarity": "MÍTICO", "desc": "CUANDO EL SOL SE APAGA, ÉL BRILLA", "remap": {"b": "k", "B": "o", "r": "y", "l": "d", "g": "k", "w": "o"}, "buff": {"legend": 4.0}},
 	# --- Exclusivos de cada mundo: 60 estrellas (m_) ---
+	{"id": "skin_pesadilla", "name": "PESADILLA", "price": 0, "reward": "a_l_nightmare", "rarity": "LEGENDARIO", "desc": "LA ARMADURA DE QUIEN VENCIÓ A TODOS LOS JEFES SIN UN RASGUÑO", "remap": {"b": "r", "B": "x", "r": "o", "l": "d"}, "buff": {"boss_damage": 5.0}},
 	{"id": "skin_druida", "name": "DRUIDA", "price": 0, "reward": "m_0", "rarity": "ÉPICO", "desc": "EL BOSQUE DE VERDANTIA LO RECONOCE COMO SUYO", "remap": {"b": "G", "B": "L", "r": "u", "l": "G"}, "buff": {"jump_points": 5.0}},
 	{"id": "skin_brasa", "name": "SEÑOR DE BRASAS", "price": 0, "reward": "m_1", "rarity": "ÉPICO", "desc": "DOMÓ EL FUEGO DE INFERNUS", "remap": {"b": "o", "B": "r", "r": "y", "l": "r"}, "buff": {"mash": 8.0}},
 	{"id": "skin_cristal", "name": "CRISTALINO", "price": 0, "reward": "m_2", "rarity": "LEGENDARIO", "desc": "REFLEJA LA LUZ DE AMETHYSTIA", "remap": {"b": "m", "B": "c", "r": "w", "l": "m"}, "buff": {"perfect": 3.0}},
@@ -63,6 +66,7 @@ const SWORDS := [
 	{"id": "sword_dragon", "name": "COLMILLO DE DRAGÓN", "price": 0, "gems": 13, "rarity": "LEGENDARIO", "desc": "ARRANCADO A UNA BESTIA ANTIGUA", "remap": {"w": "r", "y": "o", "o": "k"}, "slash": ["b13e53", "ef7d57"], "buff": {"reach": 3.0}},
 	{"id": "sword_vacio", "name": "VACÍO ESTELAR", "price": 0, "gems": 22, "rarity": "MÍTICO", "desc": "CORTA HASTA LA OSCURIDAD", "remap": {"w": "n", "y": "m", "o": "p"}, "slash": ["29366f", "f29cb5"], "buff": {"reach": 3.5}},
 	# --- Exclusivas de cada mundo: todos sus retos (c_) ---
+	{"id": "sword_ultimo_clic", "name": "ÚLTIMO CLIC", "price": 0, "reward": "a_l_last_click", "rarity": "LEGENDARIO", "desc": "FORJADA EN LA ÚLTIMA DÉCIMA DE SEGUNDO", "remap": {"w": "c", "y": "w", "o": "l"}, "slash": ["73eff7", "f4f4f4"], "buff": {"mash": 6.0}},
 	{"id": "sword_espino", "name": "ESPINO ANCESTRAL", "price": 0, "reward": "c_0", "rarity": "ÉPICO", "desc": "RAMA VIVA DEL ÁRBOL MÁS VIEJO DE VERDANTIA", "remap": {"w": "G", "y": "u", "o": "e"}, "slash": ["38b764", "8a5a44"], "buff": {"reach": 2.0}},
 	{"id": "sword_volcan", "name": "FILO VOLCÁNICO", "price": 0, "reward": "c_1", "rarity": "ÉPICO", "desc": "TEMPLADA EN LAVA DE INFERNUS", "remap": {"w": "o", "y": "r", "o": "k"}, "slash": ["ef7d57", "b13e53"], "buff": {"reach": 2.5}},
 	{"id": "sword_geoda", "name": "HOJA DE GEODA", "price": 0, "reward": "c_2", "rarity": "LEGENDARIO", "desc": "CRISTAL DE AMETHYSTIA QUE NUNCA SE ROMPE", "remap": {"w": "m", "y": "p", "o": "c"}, "slash": ["f29cb5", "b06fd0"], "buff": {"reach": 2.5}},
@@ -93,6 +97,7 @@ const TRAILS := [
 	{"id": "trail_rayo", "name": "RAYO", "price": 0, "gems": 6, "rarity": "ÉPICO", "desc": "CHISPAS QUE CRUZAN EL AIRE", "sparkle": true, "colors": ["ffcd75", "f4f4f4"], "buff": {"perfect": 2.5}},
 	{"id": "trail_cometa", "name": "COMETA", "price": 0, "gems": 11, "rarity": "LEGENDARIO", "desc": "UNA COLA DE FUEGO QUE ILUMINA EL CIELO", "sparkle": true, "colors": ["ef7d57", "ffcd75", "f4f4f4"], "buff": {"jump_points": 6.0}},
 	{"id": "trail_galaxia", "name": "GALAXIA", "price": 0, "gems": 20, "rarity": "MÍTICO", "desc": "LLEVAS LAS ESTRELLAS DETRÁS", "sparkle": true, "colors": ["29366f", "b06fd0", "f4f4f4", "73eff7"], "buff": {"legend": 3.5}},
+	{"id": "trail_absoluta", "name": "VELOCIDAD ABSOLUTA", "price": 0, "reward": "a_l_speed", "rarity": "LEGENDARIO", "desc": "UNA ESTELA DE FUEGO QUE SOLO DEJAN LOS MÁS RÁPIDOS", "sparkle": true, "colors": ["ffcd75", "ef7d57", "f4f4f4"], "buff": {"jump_points": 6.0}},
 	{"id": "trail_abyss", "name": "ESTELA DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "PARTÍCULAS VIOLETAS Y DESTELLOS DE ENERGÍA OSCURA", "sparkle": true, "colors": ["b06fd0", "5d275d", "0f0e18"], "buff": {"chain": 15.0}},
 ]
 
@@ -118,6 +123,7 @@ const AURAS := [
 	{"id": "aura_ignea", "name": "AURA ÍGNEA", "price": 0, "gems": 7, "rarity": "ÉPICO", "desc": "ARDE MÁS CUANTO MAYOR ES EL COMBO", "color": "ef7d57", "buff": {"combo_points": 6.0}},
 	{"id": "aura_tormenta", "name": "AURA DE TORMENTA", "price": 0, "gems": 12, "rarity": "LEGENDARIO", "desc": "RELÁMPAGOS QUE DESCUBREN GEMAS", "color": "73eff7", "buff": {"gems": 4.0}},
 	{"id": "aura_estelar", "name": "AURA ESTELAR", "price": 0, "gems": 20, "rarity": "MÍTICO", "desc": "POLVO DE ESTRELLAS A TU ALREDEDOR", "particles": true, "color": "f4f4f4", "buff": {"points": 5.0}},
+	{"id": "aura_cronos", "name": "CRONOS", "price": 0, "reward": "a_l_timing", "rarity": "LEGENDARIO", "desc": "EL TIEMPO SE DETIENE A TU ALREDEDOR", "particles": true, "color": "ffcd75", "buff": {"perfect": 2.0, "legend": 2.0}},
 	{"id": "aura_abyss", "name": "AURA DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "ENERGÍA VIOLETA QUE TE ENVUELVE CON MOTAS FLOTANTES", "particles": true, "color": "b06fd0", "buff": {"combo_points": 8.0}},
 ]
 
@@ -361,44 +367,6 @@ const TREE := [
 	{"id": "z_polymath", "cat": "secretas", "pos": [4, 2], "tier": "secret", "lv": 1, "w": 2, "cond": {"all_cats": 3}, "hint": "3 NIVELES EN CADA CATEGORÍA", "name": "POLÍMATA", "desc": "QUIEN LO PRUEBA TODO LO APROVECHA TODO", "buff": {"points": 6.0, "coins": 6.0, "perfect": 1.5}},
 ]
 
-const ACHIEVEMENTS := [
-	{"id": "dist_500", "name": "CAMINANTE", "desc": "RECORRE 500 M EN UNA PARTIDA", "stat": "best_distance", "target": 500, "reward": 50},
-	{"id": "dist_1500", "name": "CORREDOR", "desc": "RECORRE 1500 M EN UNA PARTIDA", "stat": "best_distance", "target": 1500, "reward": 150},
-	{"id": "dist_3000", "name": "LEYENDA", "desc": "RECORRE 3000 M EN UNA PARTIDA", "stat": "best_distance", "target": 3000, "reward": 400},
-	{"id": "kills_25", "name": "CAZADOR", "desc": "DERROTA 25 ENEMIGOS", "stat": "total_kills", "target": 25, "reward": 60},
-	{"id": "kills_150", "name": "VERDUGO", "desc": "DERROTA 150 ENEMIGOS", "stat": "total_kills", "target": 150, "reward": 250},
-	{"id": "coins_500", "name": "AHORRADOR", "desc": "REÚNE 500 MONEDAS EN TOTAL", "stat": "total_coins", "target": 500, "reward": 80},
-	{"id": "coins_3000", "name": "TESORERO", "desc": "REÚNE 3000 MONEDAS EN TOTAL", "stat": "total_coins", "target": 3000, "reward": 300},
-	{"id": "games_10", "name": "PERSISTENTE", "desc": "JUEGA 10 PARTIDAS", "stat": "games_played", "target": 10, "reward": 50},
-	{"id": "games_50", "name": "VETERANO", "desc": "JUEGA 50 PARTIDAS", "stat": "games_played", "target": 50, "reward": 200},
-	{"id": "score_2000", "name": "PUNTUADOR", "desc": "CONSIGUE 2000 PUNTOS", "stat": "high_score", "target": 2000, "reward": 100},
-	{"id": "score_6000", "name": "MAESTRO", "desc": "CONSIGUE 6000 PUNTOS", "stat": "high_score", "target": 6000, "reward": 300},
-	{"id": "nights_1", "name": "NOCTÁMBULO", "desc": "SOBREVIVE A UNA NOCHE ENTERA", "stat": "nights_survived", "target": 1, "reward": 100},
-	{"id": "gems_20", "name": "JOYERO", "desc": "RECOGE 20 GEMAS", "stat": "total_gems", "target": 20, "reward": 100},
-	{"id": "combo_10", "name": "IMPARABLE", "desc": "COMBO PERFECTO DE 10", "stat": "best_combo", "target": 10, "reward": 100},
-	{"id": "combo_25", "name": "INFALIBLE", "desc": "COMBO PERFECTO DE 25", "stat": "best_combo", "target": 25, "reward": 300},
-	{"id": "perfects_100", "name": "PRECISO", "desc": "100 ACCIONES PERFECT", "stat": "perfects", "target": 100, "reward": 150},
-	{"id": "legend_25", "name": "ÚLTIMO SEGUNDO", "desc": "25 ACCIONES LEGENDARY", "stat": "legendaries", "target": 25, "reward": 200},
-	{"id": "levels_20", "name": "EXPLORADOR", "desc": "SUPERA 20 NIVELES", "stat": "levels_cleared", "target": 20, "reward": 200},
-	{"id": "levels_100", "name": "CONQUISTADOR", "desc": "SUPERA LOS 100 NIVELES", "stat": "levels_cleared", "target": 100, "reward": 2000},
-	{"id": "bosses_1", "name": "MATAJEFES", "desc": "DERROTA A UN JEFE", "stat": "bosses", "target": 1, "reward": 200},
-	{"id": "bosses_5", "name": "LIBERTADOR", "desc": "DERROTA A LOS CINCO JEFES", "stat": "bosses", "target": 5, "reward": 1500},
-	{"id": "stars_150", "name": "CONSTELACIÓN", "desc": "CONSIGUE 150 ESTRELLAS", "stat": "total_stars", "target": 150, "reward": 500},
-	{"id": "collector_20", "name": "COLECCIONISTA", "desc": "REÚNE 20 OBJETOS DE ASPECTO", "stat": "owned_count", "target": 20, "reward": 300},
-	{"id": "modes_10", "name": "DOMINADOR", "desc": "SUPERA 10 MODOS DE DOMINIO", "stat": "modes_cleared", "target": 10, "reward": 400},
-]
-
-## Plantillas de misiones diarias: cada dia se eligen tres.
-const MISSIONS := [
-	{"id": "m_coins", "text": "RECOGE %d MONEDAS", "stat": "coins", "target": 60, "reward": 40},
-	{"id": "m_kills", "text": "DERROTA %d ENEMIGOS", "stat": "kills", "target": 12, "reward": 40},
-	{"id": "m_distance", "text": "RECORRE %d METROS", "stat": "distance", "target": 1200, "reward": 50},
-	{"id": "m_gems", "text": "RECOGE %d GEMAS", "stat": "gems", "target": 4, "reward": 50},
-	{"id": "m_runs", "text": "JUEGA %d PARTIDAS", "stat": "runs", "target": 3, "reward": 30},
-	{"id": "m_night", "text": "SOBREVIVE %d NOCHE", "stat": "nights", "target": 1, "reward": 60},
-]
-
-
 static var _tree_index: Dictionary = {}
 static var _price_cache: Dictionary = {}
 
@@ -486,6 +454,8 @@ static func rarity_color(rarity: String) -> Color:
 static func reward_text(key: String) -> String:
 	if key == "abyss":
 		return "DERROTA AL ÚLTIMO JEFE"
+	if key.begins_with("a_"):
+		return "LOGRO: " + String(Achievements.find(key.substr(2)).get("name", "ESPECIAL"))
 	var parts: PackedStringArray = key.split("_")
 	if parts.size() == 2 and parts[0] == "m":
 		return "60 ESTRELLAS EN EL MUNDO %d" % (int(parts[1]) + 1)

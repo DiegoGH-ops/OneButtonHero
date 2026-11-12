@@ -50,6 +50,7 @@ var _back_button: PixelButton
 var _shop: Shop
 var _admin: AdminPanel
 var _progress: ProgressPanel
+var _progress_button: PixelButton
 var _toaster: Toaster
 
 @onready var background: Background = $BackgroundLayer/Background
@@ -188,6 +189,7 @@ func _build_main() -> void:
 	tree_button.fill_hot = Pal.GREEN
 	tree_button.pressed.connect(_open_tree)
 	var progress_button: PixelButton = UI.button(_main_layer, "PROGRESO", Rect2(750.0, 386.0, 196.0, 60.0), 3.0)
+	_progress_button = progress_button
 	progress_button.fill = Pal.ORANGE
 	progress_button.fill_hot = Pal.YELLOW
 	progress_button.pressed.connect(_open_progress)
@@ -214,7 +216,13 @@ func _build_main() -> void:
 
 
 func _refresh_texts() -> void:
-	_record.text = "RÉCORD: %d  -  MEJOR DISTANCIA: %d M" % [GameData.high_score, int(GameData.stats.get("best_distance", 0))]
+	var heading: String = "RÉCORD: %d  -  MEJOR DISTANCIA: %d M" % [GameData.high_score, int(GameData.stats.get("best_distance", 0))]
+	if GameData.title != "":
+		heading = GameData.title + "  -  " + heading
+	_record.text = heading
+	if _progress_button != null:
+		var ready_count: int = GameData.claimable_count()
+		_progress_button.caption = "¡PROGRESO!" if ready_count > 0 else "PROGRESO"
 	_wallet.text = str(GameData.wallet)
 	_diamonds.text = str(GameData.diamonds)
 

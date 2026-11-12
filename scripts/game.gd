@@ -109,6 +109,12 @@ var _hero_light: PointLight2D
 ## Boton de velocidad 1.5X activo en esta partida (y si se uso en algun momento).
 var _turbo: bool = false
 var _turbo_used: bool = false
+## El boton 1.5X ha estado activo durante todo el nivel.
+var _turbo_whole: bool = false
+## Legendary de esta partida (para "un solo nivel").
+var _run_legendary: int = 0
+var _run_rapid_streak: int = 0
+var _run_rapid_streak_best: int = 0
 ## Escala de ventanas de timing propia del nivel (antes de la velocidad).
 var _base_window: float = 1.0
 
@@ -201,6 +207,7 @@ func _ready() -> void:
 	player.run_speed = _speed
 	Daylight.player_pos = player.position
 	player.jumped.connect(_on_player_jumped)
+	player.jump_shaped.connect(_on_jump_shaped)
 	player.landed.connect(_on_player_landed)
 	player.attacked.connect(_on_player_attacked)
 	player.pickup_collected.connect(_on_pickup_collected)
@@ -243,6 +250,7 @@ func _ready() -> void:
 	_base_window = precision.window_scale
 	_turbo = GameData.speed_2x and _turbo_allowed()
 	_turbo_used = _turbo
+	_turbo_whole = _turbo
 	hud.set_speed_button(_turbo, _turbo_allowed())
 	hud.speed_toggled.connect(_on_speed_toggled)
 	_apply_game_speed()
@@ -288,6 +296,9 @@ func _on_speed_toggled(on: bool) -> void:
 		return
 	_turbo = on
 	_turbo_used = _turbo_used or on
+	if not on:
+		_turbo_whole = false
+	GameData.track("speed_toggle")
 	GameData.speed_2x = on
 	GameData.save_data()
 	_apply_game_speed()
@@ -441,8 +452,7 @@ func _update_daylight(first: bool) -> void:
 		if _was_night:
 			_add_coins(night_prize, false)
 			GameData.add_stat("nights_survived", 1)
-			GameData.add_mission_progress("nights", 1)
-			GameData.check_achievements()
+			GameData.track("nights")
 			Sfx.play("mission")
 	else:
 		hud.toast(Daylight.phase_name(), Pal.WHITE)
@@ -640,6 +650,7 @@ func _on_boss_struck() -> void:
 		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
 		precision.register(rating, label, _boss.position)
 	_boss.damage(amount)
+	GameData.track("boss_hit")
 	_add_points(60.0 * float(amount))
 	Sfx.play("boss_hit")
 	_shake = maxf(_shake, 0.6)
@@ -725,7 +736,71 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 
 # ----------------------------------------------------------------- senales --
 
+## Saltos minimos (toque) y maximos (mantenido hasta el tope).
+func _on_jump_shaped(ratio: float) -> void:
+	if ratio <= 0.25:
+		GameData.track("jump_tap")
+	elif ratio >= 0.99:
+		GameData.track("jump_full")
+
+
+## Enemigo especial derrotado: cuenta para las misiones de cada criatura.
+func _track_creature_kill(kind: int) -> void:
+	var world: int = GameData.run_world()
+	if world < 0 or kind < 200:
+		return
+	var list: Array = Bestiary.WORLDS[clampi(world, 0, Bestiary.WORLDS.size() - 1)]
+	for i in list.size():
+		var data: Array = list[i]
+		if int(data[1]) == kind - 200:
+			GameData.track("kill_c%d" % i)
+			return
+
+
+## Resultado de un nivel superado para misiones y logros.
+func _track_level_result(world_index: int, level: int, rank: int, stars: int, par: float) -> void:
+	var flawless: bool = _damage_taken == 0
+	if flawless:
+		GameData.track("flawless")
+	GameData.track_max("flawless_streak", GameData.bump_streak("flawless", flawless))
+	GameData.track_max("nodeath_streak", GameData.bump_streak("nodeath", true))
+	if rank >= 3:
+		GameData.track("rank_a")
+	if rank >= 4:
+		GameData.track("rank_s")
+	if rank >= 6:
+		GameData.track("rank_sss")
+		if flawless and int(precision.counts[1]) == 0:
+			GameData.track("sss_flawless")
+	if stars >= 3 and flawless:
+		GameData.track("three_star_flawless")
+	GameData.track_max("level_legendary", int(precision.counts[4]))
+	if _turbo_whole and _turbo:
+		GameData.track("turbo_clear")
+		GameData.track_unique("turbo_unique", "t:%d_%d" % [world_index, level])
+		if rank >= 4:
+			GameData.track("turbo_s")
+	if generator.enemies_spawned > 0 and _kills == 0:
+		GameData.track("pacifist")
+	if par > 0.0 and _run_time >= par * 2.0:
+		GameData.track("slow_clear")
+	if _damage_taken >= 3:
+		GameData.track("comeback")
+	var abyss_worn: bool = GameData.abyss_set_worn()
+	if abyss_worn:
+		GameData.track("abyss_worn")
+	if level == Campaign.LEVELS_PER_WORLD - 1:
+		GameData.track("boss_kill")
+		if flawless:
+			GameData.track("boss_flawless")
+		if par > 0.0 and _run_time <= par:
+			GameData.track("boss_fast")
+		if abyss_worn and rank >= 6 and world_index == Campaign.world_count() - 1:
+			GameData.track("abyss_legend")
+
+
 func _on_player_jumped(pos: Vector2) -> void:
+	GameData.track("jump")
 	Sfx.play("jump", randf_range(0.95, 1.05))
 	precision.on_jump(pos, player.get_speed())
 	Fx.burst(fx_root, pos, Color(Pal.WHITE, 0.8), 6, 130.0, 0.3, 5.0, 300.0, 70.0, Vector2.UP)
@@ -762,7 +837,7 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 	elif kind == Coin.Kind.COIN:
 		_add_coins(1.0)
 		_add_points(float(value))
-		GameData.add_mission_progress("coins", 1)
+		GameData.track("coins_picked", 1)
 		Sfx.play("coin", randf_range(0.97, 1.06))
 		Fx.burst(fx_root, pos, Pal.YELLOW, 8, 200.0, 0.4, 5.0, 500.0, 180.0, Vector2.UP)
 		Fx.popup(fx_root, pos + Vector2(0.0, -26.0), "+%d" % value, Pal.YELLOW, 3.0)
@@ -770,10 +845,10 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		var is_gem: bool = kind == Coin.Kind.GEM
 		_add_coins((5.0 if is_gem else 3.0) + Buffs.stat("gem_coins"))
 		var gained: int = _add_points(float(value))
-		GameData.add_mission_progress("coins", 5 if is_gem else 3)
+		GameData.track("coins_picked", 5 if is_gem else 3)
 		if is_gem:
 			_gems += 1
-			GameData.add_mission_progress("gems", 1)
+			GameData.track("gems_picked")
 		Sfx.play("gem")
 		var color: Color = Pal.CYAN if is_gem else Pal.RED
 		Fx.burst(fx_root, pos, color, 16, 280.0, 0.5, 7.0, 500.0, 180.0, Vector2.UP)
@@ -782,7 +857,7 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		# Cofre del tesoro.
 		var chest_coins: float = 25.0 * Buffs.factor("chest")
 		_add_coins(chest_coins)
-		GameData.add_mission_progress("coins", 25)
+		GameData.track("coins_picked", 25)
 		Sfx.play("buy")
 		_zoom_punch = 0.6
 		Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.YELLOW, 30, 420.0, 0.7, 8.0, 900.0, 70.0, Vector2.UP)
@@ -825,7 +900,9 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	var gained: int = _add_points(kill_points)
 	if Buffs.stat("bounty") > 0.0:
 		_add_coins(Buffs.stat("bounty"))
-	GameData.add_mission_progress("kills", 1)
+	if kind != Enemy.Kind.ORB and kind != Creature.PROJECTILE_KIND:
+		GameData.track("kills")
+		_track_creature_kill(kind)
 	_shake = maxf(_shake, 0.35)
 	Sfx.play("kill")
 	var color: Color = _enemy_colors[clampi(kind, 0, _enemy_colors.size() - 1)]
@@ -852,6 +929,7 @@ func _on_stomped(pos: Vector2, kills: int) -> void:
 		var stomp_gain: int = _add_points(30.0 * float(kills) * Buffs.factor("stomp_points"))
 		Fx.popup(fx_root, pos + Vector2(0.0, -80.0), "+%d" % stomp_gain, Pal.SILVER, 3.0)
 		precision.register(Timing.Rating.PERFECT, "PISOTÓN", pos, "attack")
+		GameData.track("stomps", kills)
 
 
 ## Trampolin: rebote normal o super rebote si se pulso justo al pisarlo.
@@ -862,6 +940,7 @@ func _on_bounced(pos: Vector2, perfect: bool) -> void:
 		_add_points(40.0 * Buffs.factor("bounce_points"))
 		Fx.ring(fx_root, pos, Pal.YELLOW, 70.0)
 		precision.register(Timing.Rating.PERFECT, "SUPER REBOTE", pos, "jump")
+		GameData.track("bounce")
 
 
 ## Portales RAPID SIX: puntos, efectos y estadisticas de cada intento.
@@ -897,7 +976,10 @@ func _check_rapid() -> void:
 				GameData.track("rapid_lightning")
 				hud.toast("¡VELOCIDAD DE LEYENDA!", Pal.CYAN)
 			_run_rapid += 1
+			_run_rapid_streak += 1
+			_run_rapid_streak_best = maxi(_run_rapid_streak_best, _run_rapid_streak)
 		elif event == "fail":
+			_run_rapid_streak = 0
 			GameData.bump_streak("rapid", false)
 			GameData.track("rapid_fail")
 
@@ -1034,12 +1116,11 @@ func _bank_run() -> bool:
 	_banked = true
 	if _test_mode:
 		return false
-	GameData.add_mission_progress("distance", _meters())
 	if _diamond_found and _level_mode:
 		GameData.claim_hidden_diamond(int(_def["world"]), int(_def["level"]))
-	GameData.stats["best_combo"] = maxi(int(GameData.stats.get("best_combo", 0)), precision.best_combo)
-	GameData.add_stat("perfects", int(precision.counts[3]))
-	GameData.add_stat("legendaries", int(precision.counts[4]))
+	GameData.track_max("run_combo", precision.best_combo)
+	GameData.track_max("best_combo", precision.best_combo)
+	GameData.track_max("rapid_streak_run", _run_rapid_streak_best)
 	var fused: int = GameData.add_gem_shards(_gems)
 	if fused > 0:
 		hud.toast("FRAGMENTOS FUNDIDOS: +%d DIAMANTE" % fused, Pal.CYAN)
@@ -1048,6 +1129,9 @@ func _bank_run() -> bool:
 
 func _game_over() -> void:
 	_state = State.DYING
+	GameData.track("death")
+	GameData.bump_streak("nodeath", false)
+	GameData.bump_streak("flawless", false)
 	_death_time = 0.0
 	hud.can_pause = false
 	player.die()
@@ -1121,12 +1205,12 @@ func _level_complete() -> void:
 			mode_line = "MODO %s SUPERADO" % _challenge_name()
 		else:
 			mode_line = "MODO %s NO SUPERADO" % _challenge_name()
+	_track_level_result(world_index, level, rank, stars, float(info["par"]))
 	var items: Array = rewards.get("items", [])
 	if not items.is_empty():
 		Sfx.play("unlock")
 		hud.toast("DESBLOQUEADO: " + ", ".join(PackedStringArray(items)), Pal.CYAN)
 	_bank_run()
-	GameData.check_achievements()
 	Sfx.play("victory")
 	Sfx.play_music("victory")
 	Sfx.set_intensity(0)
@@ -1167,11 +1251,13 @@ func _next_level() -> void:
 	if world_index >= Campaign.world_count():
 		_go_to_menu()
 		return
-	GameData.run = {"mode": "level", "world": world_index, "level": level}
+	GameData.run = {"mode": "level", "world": world_index, "level": level, "admin": bool(GameData.run.get("admin", false))}
 	Transition.reload()
 
 
 func _restart() -> void:
+	if _level_mode:
+		GameData.track("retry")
 	_bank_run()
 	Transition.reload()
 

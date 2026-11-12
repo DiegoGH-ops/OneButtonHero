@@ -174,6 +174,13 @@ func on_land(pos: Vector2, speed: float) -> void:
 func register(rating: int, label: String, pos: Vector2, kind: String = "attack") -> void:
 	last_kind = kind
 	counts[rating] = int(counts[rating]) + 1
+	# Misiones y logros: solo cuenta lo que el sistema de timing evalua.
+	if rating >= Timing.Rating.PERFECT:
+		GameData.track("perfects")
+		GameData.track("perfect_" + kind)
+		if rating == Timing.Rating.LEGENDARY:
+			GameData.track("legendaries")
+			GameData.track("legendary_" + kind)
 	if rating >= Timing.Rating.PERFECT or (methodical and rating == Timing.Rating.GOOD):
 		perfects += 2 if rating == Timing.Rating.LEGENDARY else 1
 		best_combo = maxi(best_combo, perfects)

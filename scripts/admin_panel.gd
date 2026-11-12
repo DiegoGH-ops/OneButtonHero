@@ -32,6 +32,7 @@ const PixelButton = preload("res://scripts/pixel_button.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
 const TextCache = preload("res://scripts/text_cache.gd")
 const Pal = preload("res://scripts/palette.gd")
+const AbyssReveal = preload("res://scripts/abyss_reveal.gd")
 
 const CODE_HASH := "5236b8e5ce1231b87341bc71e6d04f508c2c713a2bf1330392206a96141ccf2f"
 const MAX_DIGITS := 8
@@ -421,7 +422,8 @@ func _pick_level(level: int) -> void:
 
 func _play_level() -> void:
 	GameData.save_data()
-	GameData.run = {"mode": "level", "world": _world, "level": _level, "challenge": "normal"}
+	# Partida lanzada desde el panel: no registra misiones, logros ni estadisticas.
+	GameData.run = {"mode": "level", "world": _world, "level": _level, "challenge": "normal", "admin": true}
 	Transition.change_scene(GAME_SCENE)
 
 
@@ -671,7 +673,14 @@ func _build_tests() -> void:
 	_button("PROBAR PATRÓN", Rect2(56.0, 614.0, 300.0, 46.0), _test_pattern_run, Pal.GREEN.darkened(0.2))
 	_button("NIVEL DE PRUEBA LIBRE", Rect2(366.0, 614.0, 320.0, 46.0), _test_free_run, Pal.BLUE)
 	_button("INVENCIBLE: " + ("SÍ" if _invincible else "NO"), Rect2(696.0, 614.0, 260.0, 46.0), _toggle_invincible, Pal.ORANGE.darkened(0.3))
+	_button("VER SECUENCIA ABISMO", Rect2(966.0, 614.0, 260.0, 46.0), _preview_abyss, Pal.PURPLE)
 	_label("LAS PRUEBAS NO GUARDAN MONEDAS, RÉCORDS NI PROGRESO.", Vector2(366.0, 344.0), 2.0, Pal.LIME)
+
+
+## Muestra la presentacion del Caballero del Abismo sin desbloquear nada.
+func _preview_abyss() -> void:
+	var reveal: Control = AbyssReveal.new()
+	add_child(reveal)
 
 
 func _pick_test_world(world: int) -> void:
