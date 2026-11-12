@@ -103,6 +103,11 @@ var _slowmo: float = 0.0
 ## Luz dinamica del heroe (PointLight2D): alumbra el mundo a su alrededor
 ## de noche y en los mundos oscuros.
 var _hero_light: PointLight2D
+## Boton 2X activo en esta partida (y si se uso en algun momento).
+var _turbo: bool = false
+var _turbo_used: bool = false
+## Escala de ventanas de timing propia del nivel (antes de la velocidad).
+var _base_window: float = 1.0
 
 # Dia y noche y eventos.
 var _phase: int = -1
@@ -230,11 +235,58 @@ func _ready() -> void:
 
 	player.active = true
 	hud.can_pause = true
+	# Velocidad: 1.5X siempre; el boton 2X solo en niveles normales.
+	_base_window = precision.window_scale
+	_turbo = GameData.speed_2x and _turbo_allowed()
+	_turbo_used = _turbo
+	hud.set_speed_button(_turbo, _turbo_allowed())
+	hud.speed_toggled.connect(_on_speed_toggled)
+	_apply_game_speed()
 
 
 func _exit_tree() -> void:
-	Engine.time_scale = 1.0
+	_reset_engine_speed()
 	Sfx.set_intensity(0)
+
+
+## Velocidad general del juego: 1.5X respecto al original y 3X con el boton
+## 2X. Se aplica a TODO el gameplay a la vez (fisica, enemigos, proyectiles,
+## temporizadores y animaciones) con Engine.time_scale, y se suben los pasos
+## de fisica por segundo en la misma proporcion: cada paso sigue simulando
+## 1/60 s de juego, asi las colisiones y el salto variable no pierden
+## precision. Las ventanas de timing se ensanchan un poco para compensar el
+## menor tiempo de reaccion real.
+const BASE_SPEED_FACTOR := 1.5
+
+
+func _turbo_allowed() -> bool:
+	return (_level_mode or _test_mode) and _boss == null
+
+
+func _apply_game_speed() -> void:
+	Daylight.game_speed = BASE_SPEED_FACTOR * (2.0 if _turbo else 1.0)
+	Engine.physics_ticks_per_second = int(roundf(60.0 * Daylight.game_speed))
+	Engine.max_physics_steps_per_frame = 12
+	Engine.time_scale = Daylight.game_speed * (0.55 if _slowmo > 0.0 else 1.0)
+	precision.window_scale = _base_window * (1.35 if _turbo else 1.15)
+
+
+func _reset_engine_speed() -> void:
+	Engine.time_scale = 1.0
+	Engine.physics_ticks_per_second = 60
+
+
+func _on_speed_toggled(on: bool) -> void:
+	if not _turbo_allowed() or _state != State.PLAYING:
+		hud.set_speed_button(_turbo, _turbo_allowed())
+		return
+	_turbo = on
+	_turbo_used = _turbo_used or on
+	GameData.speed_2x = on
+	GameData.save_data()
+	_apply_game_speed()
+	hud.toast("VELOCIDAD 2X" if on else "VELOCIDAD NORMAL", Pal.ORANGE if on else Pal.WHITE)
+	lights.flash(Pal.ORANGE if on else Pal.WHITE, 0.2, 0.25)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -256,8 +308,8 @@ func _process(delta: float) -> void:
 	# Tiempo bala: se cuenta en tiempo real y devuelve el ritmo normal.
 	if _slowmo > 0.0:
 		_slowmo -= real_delta
-		if _slowmo <= 0.0:
-			Engine.time_scale = 1.0
+		if _slowmo <= 0.0 and _state == State.PLAYING:
+			Engine.time_scale = Daylight.game_speed
 	if _state == State.PLAYING:
 		if _level_mode or _test_mode:
 			# En campana la velocidad sube poco a poco hasta la meta.
@@ -608,7 +660,7 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 		# Tiempo bala: un instante a camara lenta tras cada LEGENDARY.
 		if Buffs.stat("slowmo") > 0.0 and _state == State.PLAYING:
 			_slowmo = 0.10 + 0.08 * Buffs.stat("slowmo")
-			Engine.time_scale = 0.55
+			Engine.time_scale = Daylight.game_speed * 0.55
 		if Buffs.stat("combo_coins") > 0.0:
 			_add_coins(Buffs.stat("combo_coins"))
 	# Especializaciones del arbol (excluyentes entre si).
@@ -952,7 +1004,8 @@ func _game_over() -> void:
 	Sfx.set_intensity(0)
 	Sfx.play("gameover")
 	# Muerte: camara lenta breve, destello rojo y onda.
-	Engine.time_scale = 0.4
+	Engine.time_scale = Daylight.game_speed * 0.3
+	hud.hide_speed_button()
 	lights.flash(Pal.RED, 0.6, 0.5)
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 16, 300.0, 0.6, 7.0, 400.0, 180.0, Vector2.UP)
@@ -962,7 +1015,7 @@ func _game_over() -> void:
 	await get_tree().create_timer(wait, true, false, true).timeout
 	if not is_inside_tree():
 		return
-	Engine.time_scale = 1.0
+	_reset_engine_speed()
 	_state = State.GAME_OVER
 	var final_score: int = _score()
 	var is_record: bool = _bank_run()
@@ -976,6 +1029,8 @@ func _level_complete() -> void:
 	_state = State.GAME_OVER
 	hud.can_pause = false
 	player.active = false
+	_reset_engine_speed()
+	hud.hide_speed_button()
 	var info: Dictionary = {
 		"damage": _damage_taken, "kills": _kills, "enemies": generator.enemies_spawned,
 		"picked": _picked, "pickups": generator.pickups_spawned, "coins": int(_coins_f),

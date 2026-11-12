@@ -9,8 +9,24 @@ const Timing = preload("res://scripts/timing.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 
 const GROUND_Y := 560.0
-const JUMP_SPEED := 930.0
-const GRAVITY := 2500.0
+## Fisica del salto variable (mismos valores que player.gd).
+const JUMP_SPEED := 700.0
+const RISE_GRAVITY := 700.0
+const GRAVITY := 2900.0
+const MAX_HOLD := 0.34
+
+
+## Tiempo que tarda un salto mantenido en alcanzar `need` px de altura.
+static func rise_time(need: float) -> float:
+	var hold_top: float = JUMP_SPEED * MAX_HOLD - 0.5 * RISE_GRAVITY * MAX_HOLD * MAX_HOLD
+	if need <= hold_top:
+		var disc: float = JUMP_SPEED * JUMP_SPEED - 2.0 * RISE_GRAVITY * need
+		return (JUMP_SPEED - sqrt(maxf(disc, 0.0))) / RISE_GRAVITY
+	var v: float = JUMP_SPEED - RISE_GRAVITY * MAX_HOLD
+	var disc2: float = v * v - 2.0 * GRAVITY * (need - hold_top)
+	if disc2 <= 0.0:
+		return MAX_HOLD + v / GRAVITY
+	return MAX_HOLD + (v - sqrt(disc2)) / GRAVITY
 
 ## Ensancha (>1) o estrecha (<1) las ventanas de timing.
 var window_scale: float = 1.0
@@ -70,10 +86,7 @@ func on_jump(pos: Vector2, speed: float) -> void:
 	else:
 		# Tiempo que tarda el salto en superar la altura del obstaculo.
 		var need: float = danger.z + 6.0
-		var disc: float = JUMP_SPEED * JUMP_SPEED - 2.0 * GRAVITY * need
-		var rise: float = 0.2
-		if disc > 0.0:
-			rise = (JUMP_SPEED - sqrt(disc)) / GRAVITY
+		var rise: float = rise_time(need)
 		slack = (danger.x - (pos.x + 10.0)) / maxf(speed, 1.0) - rise
 	last_slack = slack
 	var rating: int = Timing.rate(slack, window_scale, bonus)
@@ -237,10 +250,7 @@ func perfect_jump_x(pos: Vector2, speed: float) -> float:
 	if height < 0.0:
 		return best_left - speed * target
 	var need: float = height + 6.0
-	var disc: float = JUMP_SPEED * JUMP_SPEED - 2.0 * GRAVITY * need
-	var rise: float = 0.2
-	if disc > 0.0:
-		rise = (JUMP_SPEED - sqrt(disc)) / GRAVITY
+	var rise: float = rise_time(need)
 	var x: float = best_left - 10.0 - speed * (rise + target)
 	return x if x > pos.x else INF
 

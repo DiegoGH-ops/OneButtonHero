@@ -63,6 +63,7 @@ var _toaster: Toaster
 func _ready() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
+	Engine.physics_ticks_per_second = 60
 	Daylight.time = 0.22
 	Daylight.holes = []
 	Daylight.theme = Campaign.theme(0)

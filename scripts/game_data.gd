@@ -77,6 +77,8 @@ var music_enabled: bool = true
 var sfx_volume: float = 0.8
 var music_volume: float = 0.7
 var screen_shake: bool = true
+## Preferencia del boton 2X (se recuerda entre niveles).
+var speed_2x: bool = false
 var fullscreen: bool = false
 
 var high_score: int:
@@ -148,6 +150,7 @@ func load_data() -> void:
 	sfx_volume = clampf(float(cfg.get_value("settings", "sfx_volume", 0.8)), 0.0, 1.0)
 	music_volume = clampf(float(cfg.get_value("settings", "music_volume", 0.7)), 0.0, 1.0)
 	screen_shake = bool(cfg.get_value("settings", "screen_shake", true))
+	speed_2x = bool(cfg.get_value("settings", "speed_2x", false))
 	fullscreen = bool(cfg.get_value("settings", "fullscreen", false))
 
 
@@ -179,6 +182,7 @@ func save_data() -> void:
 	cfg.set_value("settings", "sfx_volume", sfx_volume)
 	cfg.set_value("settings", "music_volume", music_volume)
 	cfg.set_value("settings", "screen_shake", screen_shake)
+	cfg.set_value("settings", "speed_2x", speed_2x)
 	cfg.set_value("settings", "fullscreen", fullscreen)
 	var err: int = cfg.save(SAVE_PATH)
 	if err != OK:

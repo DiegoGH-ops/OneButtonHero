@@ -24,7 +24,8 @@ enum Kind { SLIME, GOBLIN, BAT, KNIGHT, GHOST, ORB, WOLF, GOLEM, MUMMY, FIREBAT,
 const POINTS := [25, 40, 60, 90, 70, 20, 55, 110, 80, 65, 85]
 ## Distancia que recorre cada tipo hacia el heroe y a que velocidad.
 const WALK_LIMITS := [0.0, 120.0, 0.0, 0.0, 240.0, 6000.0, 300.0, 0.0, 90.0, 0.0, 240.0]
-const WALK_SPEEDS := [0.0, 70.0, 0.0, 0.0, 150.0, 260.0, 210.0, 0.0, 40.0, 0.0, 150.0]
+## El proyectil de los jefes (ORB) va algo mas rapido que antes (260 -> 300).
+const WALK_SPEEDS := [0.0, 70.0, 0.0, 0.0, 150.0, 300.0, 210.0, 0.0, 40.0, 0.0, 150.0]
 const HIT_POINTS := [1, 1, 1, 2, 1, 1, 1, 2, 2, 1, 1]
 const WAKE_DISTANCE := 760.0
 const FIRE_REMAP := {"p": "r", "k": "e"}

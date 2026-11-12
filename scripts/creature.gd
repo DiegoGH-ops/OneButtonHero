@@ -546,15 +546,15 @@ func _process(delta: float) -> void:
 			if dx < 260.0 and hp > 0:
 				position.x += (speed - 70.0 * _adj * Daylight.brute_factor) * delta
 		SPORE:
-			position.x -= 230.0 * Daylight.projectile_factor * delta
+			position.x -= 280.0 * Daylight.projectile_factor * delta
 		SNOWBALL:
-			position.x -= 200.0 * Daylight.projectile_factor * delta
+			position.x -= 235.0 * Daylight.projectile_factor * delta
 			_size = minf(_size + delta * 1.2, 2.4)
 			var r: float = 12.0 * _size
 			_box(r * 2.0, r * 2.0)
 			targetable = _size < 1.6
 		FIREBALL:
-			_vy += 900.0 * delta
+			_vy += 1100.0 * delta
 			_y = minf(_y + _vy * delta, 0.0)
 			_place()
 			if _y >= 0.0:
@@ -568,9 +568,9 @@ func _process(delta: float) -> void:
 		SPEAR:
 			_tick_spear(delta)
 		SHOCKWAVE:
-			position.x -= 300.0 * Daylight.projectile_factor * delta
+			position.x -= 345.0 * Daylight.projectile_factor * delta
 		SHARD:
-			position.x -= 150.0 * Daylight.projectile_factor * delta
+			position.x -= 175.0 * Daylight.projectile_factor * delta
 			_y = -absf(sin(_time * 5.0 + float(_count) * 1.3)) * (60.0 + 20.0 * float(_count))
 			targetable = _y > -40.0
 			_place()
@@ -578,7 +578,7 @@ func _process(delta: float) -> void:
 			_tick_hand(delta)
 		BALL:
 			if dx < _trigger * warn:
-				position.x -= 160.0 * Daylight.projectile_factor * delta
+				position.x -= 185.0 * Daylight.projectile_factor * delta
 	if _hazard or behavior == WISP_SHIFTER or behavior == MAGMA_SPLITTER or behavior == SPORE or behavior == SHARD:
 		modulate = Daylight.unlit()
 	else:
@@ -630,7 +630,7 @@ func _tick_frog(dx: float, delta: float, warn: float) -> void:
 ## Torretas (setas, munecos de nieve): cargan y disparan hacia el heroe.
 func _tick_shooter(dx: float, delta: float, warn: float) -> void:
 	_timer -= delta
-	if dx > 240.0 and dx < 900.0 * warn and _count < 2 and _timer <= 0.0:
+	if dx > 300.0 and dx < 950.0 * warn and _count < 2 and _timer <= 0.0:
 		if _state == 0:
 			_state = 1
 			_timer = 0.45
@@ -811,7 +811,7 @@ func _tick_lancer(dx: float, hero: Vector2, speed: float, delta: float, warn: fl
 		1:
 			if _timer <= 0.0:
 				var target_x: float = hero.x + speed * 0.9
-				var flight: float = 0.8
+				var flight: float = 0.68
 				var vx: float = (target_x - position.x) / flight
 				_spawn_child(SPEAR, position.x - 20.0, {"vx": vx, "vy": -560.0, "y": -50.0})
 				Sfx.play("attack", 0.7)

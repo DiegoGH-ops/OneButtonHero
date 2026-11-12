@@ -6,6 +6,8 @@ extends CanvasLayer
 signal restart_requested
 signal menu_requested
 signal next_requested
+## Boton 2X: el jugador ha activado o desactivado la velocidad doble.
+signal speed_toggled(on: bool)
 
 const UI = preload("res://scripts/ui.gd")
 const HudBar = preload("res://scripts/hud_bar.gd")
@@ -17,12 +19,14 @@ const PixelFont = preload("res://scripts/pixel_font.gd")
 const Pal = preload("res://scripts/palette.gd")
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Timing = preload("res://scripts/timing.gd")
+const SpeedButton = preload("res://scripts/speed_button.gd")
 
 ## game.gd lo activa solo mientras se esta jugando.
 var can_pause: bool = false
 
 var _bar: HudBar
 var _pause_button: PixelButton
+var _speed_button: SpeedButton
 var _pause_layer: Control
 var _continue_button: PixelButton
 var _music_button: PixelButton
@@ -127,6 +131,21 @@ func _build_bar() -> void:
 	# Sin foco de teclado: asi la barra espaciadora nunca pulsa la pausa.
 	_pause_button.focus_mode = Control.FOCUS_NONE
 	_pause_button.pressed.connect(_pause)
+	_speed_button = SpeedButton.new()
+	add_child(_speed_button)
+	_speed_button.position = Vector2(1180.0, 86.0)
+	_speed_button.size = Vector2(84.0, 46.0)
+	_speed_button.turbo_changed.connect(func(on: bool) -> void: speed_toggled.emit(on))
+
+
+## Estado del boton 2X (disponible solo en niveles normales de campana).
+func set_speed_button(on: bool, available: bool) -> void:
+	_speed_button.set_state(on, available)
+
+
+## Oculta el boton 2X en las pantallas finales.
+func hide_speed_button() -> void:
+	_speed_button.visible = false
 
 
 func _build_hint() -> void:

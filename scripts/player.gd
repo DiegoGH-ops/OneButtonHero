@@ -26,12 +26,22 @@ const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Buffs = preload("res://scripts/buffs.gd")
 
-const GRAVITY := 2500.0
-const JUMP_VELOCITY := -930.0
-## Al soltar el boton la velocidad de subida se recorta a este valor.
-const JUMP_CUT_VELOCITY := -340.0
-## Tiempo minimo antes de poder recortar el salto (altura del salto corto).
-const MIN_JUMP_TIME := 0.08
+## SALTO VARIABLE: la altura depende del tiempo que se mantiene el boton.
+##   Impulso inicial JUMP_VELOCITY; mientras se mantiene (hasta MAX_HOLD_TIME)
+##   la subida usa una gravedad muy baja (RISE_GRAVITY) y el heroe sigue
+##   ganando altura; al soltar, la velocidad de subida se recorta
+##   proporcionalmente (JUMP_RELEASE) y vuelve la gravedad normal.
+##   Alturas aproximadas: toque 50 px, pulsacion corta 70, media 105,
+##   larga 140, casi maxima 170 y maxima 235 (antes: entre 89 y 173).
+const GRAVITY := 2900.0
+const RISE_GRAVITY := 700.0
+const JUMP_VELOCITY := -700.0
+const MAX_HOLD_TIME := 0.34
+const JUMP_RELEASE := 0.45
+## Tiempo minimo de pulsacion (el toque mas corto posible).
+const MIN_JUMP_TIME := 0.05
+## Rebote tras aplastar a un enemigo con el pisoton.
+const STOMP_BOUNCE := -560.0
 const MAX_FALL_SPEED := 1500.0
 const COYOTE_TIME := 0.10
 const JUMP_BUFFER_TIME := 0.14
@@ -43,8 +53,8 @@ const STOMP_MIN_HEIGHT := 70.0
 const STOMP_SPEED := 1700.0
 const STOMP_RADIUS := 70.0
 ## Trampolin: rebote normal y super rebote (pulsando justo al pisarlo).
-const BOUNCE_VELOCITY := -1150.0
-const SUPER_BOUNCE_VELOCITY := -1320.0
+const BOUNCE_VELOCITY := -1240.0
+const SUPER_BOUNCE_VELOCITY := -1420.0
 const GROUND_Y := 560.0
 const FALL_LIMIT_Y := 820.0
 const RUN_LEGS := ["hero_legs_0", "hero_legs_1", "hero_legs_2", "hero_legs_3"]
@@ -89,7 +99,9 @@ var _aura_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 # Valores con buffs aplicados (refresh_stats).
 var _reach_mult: float = 1.0
 var _jump_velocity: float = JUMP_VELOCITY
-var _cut_velocity: float = JUMP_CUT_VELOCITY
+var _release: float = JUMP_RELEASE
+## Tiempo que lleva pulsado el salto en curso (para el medidor de altura).
+var _hold_shown: float = 0.0
 var _coyote_time: float = COYOTE_TIME
 var _buffer_time: float = JUMP_BUFFER_TIME
 var _ice_grip: float = 0.0
@@ -139,7 +151,8 @@ func refresh_stats() -> void:
 	_reach_mult = Buffs.factor("reach")
 	# La altura crece con el cuadrado de la velocidad: se aplica la raiz.
 	_jump_velocity = JUMP_VELOCITY * sqrt(Buffs.factor("jump_height"))
-	_cut_velocity = JUMP_CUT_VELOCITY * clampf(1.0 - Buffs.stat("jump_cut") / 100.0, 0.6, 1.0)
+	# Control de salto: al soltar se recorta aun mas (saltos cortos mas cortos).
+	_release = JUMP_RELEASE * clampf(1.0 - Buffs.stat("jump_cut") / 100.0, 0.45, 1.0)
 	_coyote_time = COYOTE_TIME + Buffs.stat("coyote") / 1000.0
 	_buffer_time = JUMP_BUFFER_TIME + Buffs.stat("buffer") / 1000.0
 	_ice_grip = clampf(Buffs.stat("ice_grip") / 100.0, 0.0, 0.8)
@@ -270,6 +283,7 @@ func _start_attack() -> void:
 
 func _do_jump(velocity_y: float) -> void:
 	velocity.y = velocity_y
+	_hold_shown = 0.0
 	_jumping = true
 	_jump_time = 0.0
 	_buffer = 0.0
@@ -337,7 +351,10 @@ func _physics_process(delta: float) -> void:
 	var on_floor: bool = is_on_floor()
 	if not on_floor:
 		var fall_gravity: float = GRAVITY
-		if not _stomping:
+		if _jumping:
+			# Boton mantenido: la subida continua con gravedad reducida.
+			fall_gravity = RISE_GRAVITY
+		elif not _stomping:
 			# Suspension: la gravedad afloja cerca del punto mas alto.
 			if _hang > 0.0 and absf(velocity.y) < 170.0:
 				fall_gravity *= 1.0 - _hang
@@ -369,9 +386,13 @@ func _physics_process(delta: float) -> void:
 		if velocity.y >= 0.0:
 			_jumping = false
 		elif _jump_time >= MIN_JUMP_TIME and not Input.is_action_pressed(GameData.ACTION):
-			if velocity.y < _cut_velocity:
-				velocity.y = _cut_velocity
+			# Al soltar: recorte proporcional a la velocidad que quedaba.
+			velocity.y = maxf(velocity.y, velocity.y * _release)
 			_jumping = false
+		elif _jump_time >= MAX_HOLD_TIME:
+			# Tiempo maximo: sigue subiendo con la inercia y la gravedad normal.
+			_jumping = false
+		_hold_shown = _jump_time
 
 	# Hielo: sobre el se acelera poco a poco; en el aire se conserva el impulso.
 	if on_floor:
@@ -464,7 +485,7 @@ func _check_contacts() -> void:
 			continue
 		if is_enemy and _stomping and not area.get("mash") == true and area.global_position.y > global_position.y - 10.0:
 			_strike(area)
-			velocity.y = JUMP_VELOCITY * 0.6 * _stomp_bounce
+			velocity.y = STOMP_BOUNCE * _stomp_bounce
 			_stomping = false
 			stomped.emit(global_position, 1)
 			continue
@@ -503,7 +524,21 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Medidor del salto variable: cinco marcas que se encienden mientras se
+## mantiene el boton (toque, corto, medio, largo y maximo).
+func _draw_jump_meter() -> void:
+	if not active or not alive or is_on_floor() or _hold_shown <= 0.0:
+		return
+	var ratio: float = clampf(_hold_shown / MAX_HOLD_TIME, 0.0, 1.0)
+	var colors: Array = [Pal.CYAN, Pal.LIME, Pal.YELLOW, Pal.ORANGE, Pal.RED]
+	for i in 5:
+		var lit: bool = ratio >= float(i) / 5.0
+		var c: Color = colors[i] if lit else Color(Pal.INK, 0.5)
+		draw_rect(Rect2(-26.0, -18.0 - float(i) * 9.0, 6.0, 7.0), c)
+
+
 func _draw() -> void:
+	_draw_jump_meter()
 	var alpha: float = 1.0
 	if alive and _invulnerable > 0.0 and int(_invulnerable * 14.0) % 2 == 0:
 		alpha = 0.3
