@@ -8,7 +8,10 @@ const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 
-enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER }
+enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER, TRAP }
+
+## Trampa ritmica: los pinchos suben y bajan con este periodo (segundos).
+const TRAP_PERIOD := 1.5
 
 const TILE := 32.0
 const ROLL_SPEED := 130.0
@@ -40,7 +43,7 @@ func setup(p_kind: int, p_count: int = 1) -> void:
 	kind = p_kind
 	count = maxi(p_count, 1)
 	var shape: RectangleShape2D = RectangleShape2D.new()
-	if kind == Kind.SPIKES or kind == Kind.FLAMES:
+	if kind == Kind.SPIKES or kind == Kind.FLAMES or kind == Kind.TRAP:
 		shape.size = Vector2(float(count) * TILE - 12.0, 18.0)
 		_collider.position = Vector2(float(count) * TILE * 0.5, -9.0)
 	elif kind == Kind.ROCK:
@@ -56,7 +59,7 @@ func setup(p_kind: int, p_count: int = 1) -> void:
 	if kind == Kind.FLAMES:
 		add_to_group("glow")
 		glow_radius = 70.0 + float(count) * 16.0
-	set_process(kind == Kind.FLAMES or kind == Kind.BOULDER)
+	set_process(kind == Kind.FLAMES or kind == Kind.BOULDER or kind == Kind.TRAP)
 	queue_redraw()
 
 
@@ -71,7 +74,7 @@ func get_center() -> Vector2:
 ## altura) en coordenadas del mundo.
 func get_danger() -> Vector3:
 	var x: float = global_position.x
-	if kind == Kind.SPIKES or kind == Kind.FLAMES:
+	if kind == Kind.SPIKES or kind == Kind.FLAMES or kind == Kind.TRAP:
 		return Vector3(x + 6.0, x + float(count) * TILE - 6.0, 18.0)
 	if kind == Kind.ROCK:
 		return Vector3(x + 8.0, x + 48.0, 34.0)
@@ -95,6 +98,13 @@ func _process(delta: float) -> void:
 	_time += delta
 	if kind == Kind.FLAMES:
 		modulate = Daylight.unlit()
+	if kind == Kind.TRAP and not destroyed:
+		# Solo es peligrosa con los pinchos fuera (mitad del ciclo).
+		var up: bool = _trap_height() > 0.5
+		if up and not is_in_group("hazards"):
+			add_to_group("hazards")
+		elif not up and is_in_group("hazards"):
+			remove_from_group("hazards")
 	if kind == Kind.BOULDER and _rolled < ROLL_LIMIT:
 		if global_position.x - Daylight.player_pos.x < ROLL_WAKE:
 			var step: float = ROLL_SPEED * delta
@@ -103,12 +113,33 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+## Altura de los pinchos de la trampa (0 escondidos, 1 fuera).
+func _trap_height() -> float:
+	var t: float = fposmod(_time, TRAP_PERIOD) / TRAP_PERIOD
+	if t < 0.45:
+		return 1.0
+	if t < 0.55:
+		return 1.0 - (t - 0.45) * 10.0
+	if t < 0.9:
+		return 0.0
+	return (t - 0.9) * 10.0
+
+
 func _draw() -> void:
+	var spike_remap: Dictionary = Daylight.theme.get("spike_remap", {})
+	var spike_key: String = String(Daylight.theme.get("ground_key", "")) + "_spike"
 	var skew: float = Daylight.shadow_skew()
 	var alpha: float = Daylight.shadow_alpha()
 	if kind == Kind.SPIKES:
 		for i in count:
-			PixelArt.draw(self, "spike", Vector2(float(i) * TILE, -28.0), 4.0)
+			PixelArt.draw_skin(self, "spike", Vector2(float(i) * TILE, -28.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), spike_remap, spike_key)
+	elif kind == Kind.TRAP:
+		# Losas de piedra con pinchos que asoman al ritmo de la trampa.
+		var rise: float = _trap_height()
+		for i in count:
+			PixelArt.draw_skin(self, "spike", Vector2(float(i) * TILE, -28.0 + (1.0 - rise) * 22.0), 4.0, Color(1.0, 1.0, 1.0, 0.2 + 0.8 * rise), spike_remap, spike_key)
+		draw_rect(Rect2(0.0, -4.0, float(count) * TILE, 8.0), Pal.INK)
+		draw_rect(Rect2(2.0, -2.0, float(count) * TILE - 4.0, 4.0), Pal.RED if rise > 0.5 else Pal.STEEL)
 	elif kind == Kind.FLAMES:
 		for i in count:
 			var frame: int = (int(_time * 9.0) + i) % 2

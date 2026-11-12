@@ -85,6 +85,15 @@ func _ready() -> void:
 	_update_scene()
 	Sfx.play_music("menu")
 	_play_button.grab_focus()
+	# Recompensa por jugar hoy (racha de dias seguidos; el dia 7 da diamante).
+	var login: Dictionary = GameData.claim_login()
+	if not login.is_empty():
+		var text: String = "DÍA %d: +%d MONEDAS" % [int(login["day"]), int(login["coins"])]
+		if int(login["diamonds"]) > 0:
+			text += " +1 DIAMANTE"
+		_toaster.show_toast(text, Pal.YELLOW)
+		Sfx.play("unlock")
+		_refresh_texts()
 
 
 func _process(delta: float) -> void:

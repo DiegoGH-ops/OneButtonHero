@@ -48,9 +48,28 @@ la fuente, las partículas, las luces, los efectos de sonido y las seis cancione
 - **Depuración**: la tecla **F3** muestra en partida las ventanas de timing, el margen de la última
   acción, la distancia y el tiempo al próximo peligro, el combo y la dificultad.
 
-Pendiente: obstáculos y mecánicas exclusivos de cada mundo (hielo resbaladizo, plataformas que
-desaparecen), rutas seguras y arriesgadas, más enemigos por mundo, desafíos diario y semanal,
-música propia por mundo y timing en aterrizajes.
+### Fase 3
+
+- **Curva de dificultad** por tramos (1-4, 5-8, 9-12, 13-16, 17-19 y jefe) que no se reinicia entre
+  mundos: cada mundo arranca más rápido que el final del anterior y con ventanas de timing más estrechas.
+- **Modos de dominio** (opcionales, al superar un nivel): Precisión, Sin daño, Combo perfecto,
+  Contrarreloj y Solo Legendary. Se eligen en el mapa; el primero superado da monedas y un diamante.
+- **Rango** con precisión, Legendary, combo, daño, enemigos derrotados, recompensas y tiempo.
+- **Hitos de campaña**: nivel 1 bono inicial, nivel 5 espada, 10 aura, 15 estela y 20 aspecto de héroe
+  exclusivo de cada mundo; premios por combos de 10, 20, 30 y 50; logros nuevos.
+- **Árbol de mejoras** en cuatro ramas (monedas, combate, supervivencia, precisión), con requisitos y
+  hasta cinco niveles: incluye Armadura, Salto maestro y Esquiva maestra.
+- **Mecánicas por mundo**: pinchos de espinas, lava, cristal, hielo y arena; plataformas que se derrumban
+  (Infernus, Solaris) o parpadean (Amethystia); hielo que acelera (Frostfall); trampas rítmicas
+  (sobre todo en Solaris); ventiscas y tormentas de arena.
+- **Rutas segura y arriesgada**: abajo un solo salto; arriba plataforma del mundo, un peligro y muchas
+  recompensas, con un diamante oculto por nivel.
+- **Timing de aterrizaje**: caer justo tras el borde de un hueco da ATERRIZAJE PERFECT/LEGENDARY.
+- **Desafío semanal** (tres misiones, un diamante cada una) y **recompensa diaria** por racha.
+- **Música**: tema propio por mundo con variante nocturna, jefes, victoria y recompensas; la música
+  se acelera con el combo. Efectos nuevos: pasos, esquiva, combo, diamante, desbloqueo, golpe de jefe.
+- **Estela de carrera** que sigue al héroe, se tiñe con el aura y crece con la velocidad; **tajos**
+  con arcos, líneas de movimiento, destellos y ondas que crecen con PERFECT y LEGENDARY.
 
 ## Contenido
 

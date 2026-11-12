@@ -14,6 +14,8 @@ var category: String = ""
 var item: Dictionary = {}
 ## Icono de la moneda con la que se paga ("coin_0" o "gem").
 var currency_sprite: String = "coin_0"
+## Color de la franja superior (rama del arbol de mejoras).
+var band_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 
 var _title: String = ""
 var _status: String = ""
@@ -98,6 +100,8 @@ func _draw() -> void:
 	var fill: Color = Pal.NAVY.lerp(Pal.BLUE, _hover * 0.6).lerp(Pal.WHITE, _pulse * 0.6)
 	draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, h - 8.0)), fill)
 	draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, 84.0)), fill.darkened(0.25))
+	if band_color.a > 0.0:
+		draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, 8.0)), band_color)
 
 	_draw_icon(o + Vector2(w * 0.5, 46.0))
 

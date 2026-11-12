@@ -44,6 +44,12 @@ func _draw() -> void:
 		if _in_hole(x + TILE * 0.5):
 			# Abismo: se oscurece el fondo que asoma por el hueco.
 			draw_rect(Rect2(x, GROUND_Y + 8.0, TILE, DEPTH - 8.0), Color(Pal.INK, 0.5))
+			if bool(Daylight.theme.get("lava", false)):
+				# Lago de lava al fondo del abismo.
+				var wave: float = sin(float(i) * 1.3 + float(Time.get_ticks_msec()) * 0.004) * 4.0
+				draw_rect(Rect2(x, GROUND_Y + 96.0 + wave, TILE, DEPTH), Pal.RED)
+				draw_rect(Rect2(x, GROUND_Y + 96.0 + wave, TILE, 6.0), Pal.ORANGE)
+				continue
 			draw_rect(Rect2(x, GROUND_Y + 56.0, TILE, DEPTH - 56.0), Color(Pal.INK, 0.6))
 			continue
 
@@ -59,6 +65,13 @@ func _draw() -> void:
 			var shade: float = 1.0 - 0.13 * float(row + 1)
 			PixelArt.draw_skin(self, sprite, Vector2(x, GROUND_Y + 32.0 + float(row) * TILE), 4.0, Color(shade, shade, shade, 1.0), remap, remap_key)
 
+		# Hielo: brillo azulado sobre la superficie.
+		if Daylight.is_ice(x + TILE * 0.5):
+			draw_rect(Rect2(x, GROUND_Y - 4.0, TILE, 12.0), Color(Pal.CYAN, 0.75))
+			draw_rect(Rect2(x + 4.0 + float(posmod(i, 3)) * 8.0, GROUND_Y - 2.0, 8.0, 4.0), Pal.WHITE)
+		# Infernus: las grietas brillan como lava.
+		if bool(Daylight.theme.get("lava", false)) and PixelArt.hash01(i, 9) < 0.3:
+			draw_rect(Rect2(x + 8.0, GROUND_Y + 40.0, 12.0, 4.0), Pal.ORANGE)
 		var hole_left: bool = _in_hole(x - TILE * 0.5)
 		var hole_right: bool = _in_hole(x + TILE * 1.5)
 		if hole_left:

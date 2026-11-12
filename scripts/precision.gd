@@ -24,6 +24,10 @@ var counts: Array = [0, 0, 0, 0, 0]
 ## Ultima accion evaluada (para las herramientas de depuracion).
 var last_slack: float = 0.0
 var last_rating: int = 0
+## Tipo de la ultima accion registrada: "jump", "dodge", "attack" o "land".
+var last_kind: String = "jump"
+## Golpes no legendarios a enemigos (para el modo "Solo Legendary").
+var non_legendary_kills: int = 0
 
 var _pending: Array = []
 var _attack_rating: int = 0
@@ -131,13 +135,28 @@ func _resolve(entry: Dictionary, pos: Vector2) -> void:
 			label = "ESQUIVA PERFECTA"
 		if clear < 5.0:
 			rating = Timing.Rating.LEGENDARY
+	var kind: String = "dodge" if label == "ESQUIVA PERFECTA" or clear < 12.0 else "jump"
 	if rating == Timing.Rating.LEGENDARY:
 		label = "LAST SECOND"
-	register(rating, label, pos)
+	register(rating, label, pos, kind)
+
+
+## Aterrizaje: caer justo despues del borde de un hueco (sin margen) se
+## premia como ATERRIZAJE PERFECT o LEGENDARY.
+func on_land(pos: Vector2, speed: float) -> void:
+	for item in Daylight.holes:
+		var hole: Vector2 = item
+		var past: float = pos.x - hole.y
+		if past >= 0.0 and past < 70.0:
+			var rating: int = Timing.rate(past / maxf(speed, 1.0) * 0.8, window_scale)
+			if rating >= Timing.Rating.PERFECT:
+				register(rating, "ATERRIZAJE " + String(Timing.NAMES[rating]), pos, "land")
+			return
 
 
 ## Anota una accion evaluada: combo, carga de Soul Reaper y aviso.
-func register(rating: int, label: String, pos: Vector2) -> void:
+func register(rating: int, label: String, pos: Vector2, kind: String = "attack") -> void:
+	last_kind = kind
 	counts[rating] = int(counts[rating]) + 1
 	if rating >= Timing.Rating.PERFECT:
 		perfects += 2 if rating == Timing.Rating.LEGENDARY else 1
@@ -155,12 +174,17 @@ func on_damage() -> void:
 
 
 ## Comprueba un reto de nivel (ver Campaign.challenges).
-func challenge_done(entry: Dictionary, damage_taken: int) -> bool:
+## `info` trae datos de la partida: damage, kills, enemies, coins.
+func challenge_done(entry: Dictionary, info: Dictionary) -> bool:
 	var kind: String = entry["type"]
 	var target: int = int(entry["target"])
 	var precise: int = int(counts[3]) + int(counts[4])
 	if kind == "no_damage":
-		return damage_taken == 0
+		return int(info.get("damage", 1)) == 0
+	if kind == "kills":
+		return int(info.get("enemies", 0)) > 0 and int(info.get("kills", 0)) >= int(info.get("enemies", 0))
+	if kind == "coins":
+		return int(info.get("coins", 0)) >= target
 	if kind == "combo":
 		return best_combo >= target
 	if kind == "legendary":
@@ -193,12 +217,27 @@ func actions() -> int:
 	return int(counts[1]) + int(counts[2]) + int(counts[3]) + int(counts[4])
 
 
-## Nota de 0 a 100: precision, golpes legendarios, combo maximo y dano.
-## Sobrevivir sin arriesgar da una nota baja.
-func grade(damage_taken: int) -> float:
+## Precision de la partida en tanto por ciento.
+func precision_percent() -> int:
+	if actions() == 0:
+		return 0
+	return int(100.0 * float(int(counts[3]) + int(counts[4])) / float(actions()))
+
+
+## Nota de 0 a 100 para el rango. `info`: damage, kills, enemies, picked,
+## pickups, time y par (tiempo objetivo). Pesos: precision 38, legendary 12,
+## combo 15, sin dano 15, enemigos 10, recompensas 6, tiempo 4.
+## Sobrevivir sin arriesgar da una nota baja; SSS exige casi todo.
+func grade(info: Dictionary) -> float:
 	var total: float = float(maxi(actions(), 1))
 	var precise: float = float(int(counts[3]) + int(counts[4])) / total
 	var legendary: float = minf(float(int(counts[4])) / total * 3.0, 1.0)
 	var combo: float = minf(float(best_combo) / 20.0, 1.0)
-	var safety: float = [20.0, 12.0, 5.0, 0.0][mini(damage_taken, 3)]
-	return precise * 45.0 + legendary * 15.0 + combo * 20.0 + safety
+	var safety: float = [15.0, 9.0, 4.0, 0.0][mini(int(info.get("damage", 0)), 3)]
+	var kills: float = clampf(float(info.get("kills", 0)) / float(maxi(int(info.get("enemies", 0)), 1)), 0.0, 1.0)
+	var pickups: float = clampf(float(info.get("picked", 0)) / float(maxi(int(info.get("pickups", 0)), 1)), 0.0, 1.0)
+	var par: float = float(info.get("par", 0.0))
+	var time_score: float = 0.0
+	if par > 0.0:
+		time_score = clampf((par * 1.07 - float(info.get("time", par * 2.0))) / (par * 0.12), 0.0, 1.0)
+	return precise * 38.0 + legendary * 12.0 + combo * 15.0 + safety + kills * 10.0 + pickups * 6.0 + time_score * 4.0

@@ -48,3 +48,25 @@ static func popup(parent: Node, pos: Vector2, text: String, color: Color, px: fl
 	tween.tween_property(label, "position:y", pos.y - 56.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.25).set_delay(0.35)
 	tween.tween_callback(label.queue_free)
+
+
+## Onda de impacto: anillo de cuadraditos que se expande y se desvanece.
+static func ring(parent: Node, pos: Vector2, color: Color, radius: float) -> void:
+	if parent == null or not parent.is_inside_tree():
+		return
+	var line: Line2D = Line2D.new()
+	var points: PackedVector2Array = PackedVector2Array()
+	for i in 17:
+		var angle: float = float(i) / 16.0 * TAU
+		points.append(Vector2(cos(angle), sin(angle)) * radius)
+	line.points = points
+	line.width = 6.0
+	line.default_color = color
+	line.joint_mode = Line2D.LINE_JOINT_SHARP
+	parent.add_child(line)
+	line.position = pos
+	line.scale = Vector2(0.2, 0.2)
+	var tween: Tween = line.create_tween()
+	tween.tween_property(line, "scale", Vector2(1.0, 1.0), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(line, "modulate:a", 0.0, 0.35)
+	tween.tween_callback(line.queue_free)

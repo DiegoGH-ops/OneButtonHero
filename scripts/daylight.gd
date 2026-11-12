@@ -24,6 +24,8 @@ static var magnet_radius: float = 0.0
 static var run_speed: float = 340.0
 ## Aspecto del mundo actual (ver campaign.gd). Vacio = bosque por defecto.
 static var theme: Dictionary = {}
+## Tramos de hielo (Frostfall) como Vector2(inicio, fin).
+static var ice: Array = []
 
 
 static func phase() -> int:
@@ -113,6 +115,14 @@ static func theme_color(key: String, fallback: Color) -> Color:
 	if theme.has(key):
 		return Color(String(theme[key]))
 	return fallback
+
+
+static func is_ice(x: float) -> bool:
+	for item in ice:
+		var span: Vector2 = item
+		if x > span.x and x < span.y:
+			return true
+	return false
 
 
 static func is_ground(x: float) -> bool:

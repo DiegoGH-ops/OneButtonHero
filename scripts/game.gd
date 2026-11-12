@@ -36,8 +36,12 @@ const DAY_LENGTH := 110.0
 ## Cada cuantos metros hay una pequena recompensa.
 const MILESTONE_METERS := 250
 const MENU_SCENE := "res://scenes/main_menu.tscn"
-const MAGNET_RADII := [0.0, 110.0, 160.0, 220.0]
-const SHIELD_REGEN := [0.0, 0.0, 45.0, 25.0]
+const MAGNET_RADII := [0.0, 100.0, 140.0, 180.0, 220.0, 260.0]
+const SHIELD_REGEN := [0.0, 0.0, 60.0, 45.0, 32.0, 22.0]
+## Musica de cada mundo de la campana.
+const WORLD_TRACKS := ["forest", "inferno", "crystal", "frost", "desert"]
+## Premio por alcanzar estos combos perfectos en una partida.
+const COMBO_REWARDS := [10, 20, 30, 50]
 
 const NEW_HAZARDS := {
 	1: "NUEVO: HUECOS, LLAMAS Y DIABLILLOS",
@@ -89,6 +93,18 @@ var _cooldown_factor: float = 1.0
 var _perfect_mult: float = 1.0
 var _combo_coins: int = 0
 var _recovery: float = 0.0
+var _jump_mult: float = 1.0
+var _dodge_mult: float = 1.0
+var _max_lives: int = MAX_LIVES
+## Modo de dominio elegido en el mapa ("normal", "no_damage"...).
+var _challenge: String = "normal"
+var _run_time: float = 0.0
+var _picked: int = 0
+var _diamond_found: bool = false
+var _combo_reward_index: int = 0
+var _step_timer: float = 0.0
+var _storm_timer: float = 20.0
+var _storm: float = 0.0
 var _double_coins: bool = false
 var _magnet_boost: float = 0.0
 
@@ -119,6 +135,7 @@ func _ready() -> void:
 	Daylight.time = randf_range(0.10, 0.50)
 	Daylight.magnet_radius = 0.0
 	Daylight.theme = Campaign.theme(0)
+	Daylight.ice = []
 	generator.setup(spans_root, objects_root)
 	precision = Precision.new()
 	add_child(precision)
@@ -134,6 +151,8 @@ func _ready() -> void:
 		_level = 5
 		precision.window_scale = float(_def["window_scale"])
 		generator.configure(_def)
+		_challenge = String(GameData.run.get("challenge", "normal"))
+		generator.diamond_available = not GameData.hidden_diamond_taken(int(_def["world"]), int(_def["level"]))
 		if bool(_def["final"]):
 			# Nivel de jefe: no hay meta; se gana derrotandolo.
 			_goal_x = INF
@@ -168,9 +187,12 @@ func _ready() -> void:
 	if _level_mode and _boss == null:
 		hud.set_level_name("NIVEL " + String(_def["name"]))
 	hud.set_max_lives(MAX_LIVES)
+	if _challenge != "normal":
+		hud.toast("MODO: " + _challenge_name(), Pal.ORANGE)
 	hud.set_high_score(GameData.high_score)
 
 	_apply_shop_items()
+	hud.set_max_lives(_max_lives)
 	camera.make_current()
 	_update_camera()
 	_update_daylight(true)
@@ -183,21 +205,26 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	Sfx.set_intensity(0)
 
 
 ## Aplica mejoras permanentes, consumibles y cosmeticos comprados.
 func _apply_shop_items() -> void:
-	_magnet_base = MAGNET_RADII[clampi(GameData.upgrade_level("magnet"), 0, 3)]
-	_coin_mult = 1.0 + 0.25 * float(GameData.upgrade_level("coin_mult"))
-	_score_mult = 1.0 + 0.10 * float(GameData.upgrade_level("score"))
+	_magnet_base = MAGNET_RADII[clampi(GameData.upgrade_level("magnet"), 0, 5)]
+	_coin_mult = 1.0 + 0.20 * float(GameData.upgrade_level("coin_mult"))
+	_score_mult = 1.0 + 0.08 * float(GameData.upgrade_level("score"))
+	_jump_mult = 1.0 + 0.25 * float(GameData.upgrade_level("jump_bonus"))
+	_dodge_mult = 1.0 + 0.30 * float(GameData.upgrade_level("dodge_bonus"))
+	_max_lives = MAX_LIVES + GameData.upgrade_level("armor")
+	_lives = _max_lives
 	_bounty = GameData.upgrade_level("bounty")
-	_cooldown_factor = 1.0 - 0.15 * float(GameData.upgrade_level("energy"))
+	_cooldown_factor = 1.0 - 0.10 * float(GameData.upgrade_level("energy"))
 	_perfect_mult = 1.0 + 0.2 * float(GameData.upgrade_level("perfect"))
 	_combo_coins = GameData.upgrade_level("combo_coins")
 	_recovery = 0.4 * float(GameData.upgrade_level("recovery"))
-	player.reach_bonus = 1.0 + 0.12 * float(GameData.upgrade_level("reach"))
-	generator.gem_bonus = 0.05 * float(GameData.upgrade_level("lucky"))
-	var shield_level: int = clampi(GameData.upgrade_level("shield"), 0, 3)
+	player.reach_bonus = 1.0 + 0.08 * float(GameData.upgrade_level("reach"))
+	generator.gem_bonus = 0.04 * float(GameData.upgrade_level("lucky"))
+	var shield_level: int = clampi(GameData.upgrade_level("shield"), 0, 5)
 	player.shield_active = shield_level > 0
 	_shield_regen = SHIELD_REGEN[shield_level]
 
@@ -260,7 +287,9 @@ func _process(delta: float) -> void:
 
 		_update_timers(delta, real_delta)
 		_check_milestones()
-		generator.heart_wanted = _lives < MAX_LIVES
+		generator.heart_wanted = _lives < _max_lives
+		_run_time += delta
+		_update_feel(delta)
 		generator.update(player.position.x, _speed, _level, delta)
 		_update_camera()
 		Daylight.time = fposmod(Daylight.time + delta / DAY_LENGTH, 1.0)
@@ -309,6 +338,17 @@ func _update_timers(delta: float, real_delta: float) -> void:
 
 	for i in _power_cooldowns.size():
 		_power_cooldowns[i] = maxf(float(_power_cooldowns[i]) - real_delta, 0.0)
+	# Ventisca / tormenta de arena: reduce la visibilidad un rato.
+	var storm_hex: String = String(Daylight.theme.get("storm", ""))
+	if storm_hex != "":
+		_storm_timer -= delta
+		if _storm_timer <= 0.0:
+			_storm = 7.0
+			_storm_timer = randf_range(22.0, 32.0)
+			hud.toast("¡VENTISCA!" if bool(Daylight.theme.get("ice", false)) else "¡TORMENTA DE ARENA!", Color(storm_hex))
+		_storm = maxf(_storm - delta, 0.0)
+		var haze: float = clampf(minf(_storm, 7.0 - _storm) * 0.5, 0.0, 1.0) * 0.42 if _storm > 0.0 else 0.0
+		hud.set_haze(Color(storm_hex), haze)
 	_event_timer -= delta
 	if _event_timer <= 0.0 and not _level_mode:
 		_event_timer = randf_range(38.0, 55.0)
@@ -326,8 +366,13 @@ func _update_daylight(first: bool) -> void:
 		return
 	var previous: int = _phase
 	_phase = phase
-	# Musica segun la hora, con fundido cruzado.
-	if phase == Daylight.Phase.NIGHT:
+	# Musica segun el mundo y la hora, con fundido cruzado.
+	if _boss != null:
+		Sfx.play_music("boss")
+	elif _level_mode:
+		var track: String = WORLD_TRACKS[clampi(int(_def["world"]), 0, WORLD_TRACKS.size() - 1)]
+		Sfx.play_music(track + "_night" if phase == Daylight.Phase.NIGHT else track)
+	elif phase == Daylight.Phase.NIGHT:
 		Sfx.play_music("night")
 	elif phase == Daylight.Phase.SUNSET:
 		Sfx.play_music("sunset")
@@ -335,6 +380,8 @@ func _update_daylight(first: bool) -> void:
 		Sfx.play_music("day")
 	if first:
 		_was_night = phase == Daylight.Phase.NIGHT
+		return
+	if _level_mode:
 		return
 	if phase == Daylight.Phase.NIGHT:
 		_was_night = true
@@ -351,6 +398,60 @@ func _update_daylight(first: bool) -> void:
 			Sfx.play("mission")
 	else:
 		hud.toast(Daylight.phase_name(), Pal.WHITE)
+
+
+## Sensacion de juego: pasos, energia del combo, intensidad de la musica y
+## premios por combos largos.
+func _update_feel(delta: float) -> void:
+	if player.is_on_floor():
+		_step_timer -= delta
+		if _step_timer <= 0.0:
+			_step_timer = 0.26 * 340.0 / maxf(player.get_speed(), 1.0)
+			Sfx.play("step", randf_range(0.9, 1.1))
+	var mult: float = precision.multiplier()
+	var level: int = 0
+	if mult >= 4.0:
+		level = 3
+	elif mult >= 2.0:
+		level = 2
+	elif mult > 1.0:
+		level = 1
+	if level != player.combo_level:
+		if level > player.combo_level:
+			Sfx.play("combo")
+			Fx.ring(fx_root, player.position + Vector2(0.0, -32.0), Pal.YELLOW, 70.0 + 20.0 * float(level))
+		player.combo_level = level
+		Sfx.set_intensity(level)
+	if _combo_reward_index < COMBO_REWARDS.size() and precision.perfects >= int(COMBO_REWARDS[_combo_reward_index]):
+		var target: int = COMBO_REWARDS[_combo_reward_index]
+		_combo_reward_index += 1
+		_add_coins(float(target), false)
+		hud.toast("COMBO %d: +%d MONEDAS" % [target, target], Pal.ORANGE)
+
+
+func _challenge_name() -> String:
+	for item in Campaign.MODES:
+		var mode: Dictionary = item
+		if String(mode["id"]) == _challenge:
+			return String(mode["name"])
+	return ""
+
+
+## Comprueba al final si se cumplio el modo de dominio elegido.
+func _challenge_met() -> bool:
+	var world: int = int(_def["world"])
+	var level: int = int(_def["level"])
+	if _challenge == "precision":
+		return precision.precision_percent() >= Campaign.mode_target(_challenge, world, level)
+	if _challenge == "no_damage":
+		return _damage_taken == 0
+	if _challenge == "perfect_combo":
+		return precision.best_combo >= Campaign.mode_target(_challenge, world, level)
+	if _challenge == "speed":
+		return _run_time <= float(Campaign.mode_target(_challenge, world, level))
+	if _challenge == "legendary_only":
+		return precision.non_legendary_kills == 0 and int(precision.counts[4]) >= 3
+	return false
 
 
 # -------------------------------------------------- puntos, monedas, hud --
@@ -550,7 +651,7 @@ func _on_boss_struck() -> void:
 		precision.register(rating, label, _boss.position)
 	_boss.damage(amount)
 	_add_points(60.0 * float(amount))
-	Sfx.play("hit")
+	Sfx.play("boss_hit")
 	_shake = maxf(_shake, 0.6)
 	Fx.burst(fx_root, _boss.position + Vector2(-80.0, 100.0), Pal.WHITE, 20, 420.0, 0.5, 8.0, 500.0, 180.0, Vector2.UP)
 	Fx.popup(fx_root, _boss.position + Vector2(0.0, -150.0), "-%d" % amount, Pal.RED, 5.0)
@@ -561,7 +662,12 @@ func _on_boss_struck() -> void:
 func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 	var bonus: float = float(Timing.BONUS[rating])
 	if rating >= Timing.Rating.PERFECT:
-		bonus *= _perfect_mult
+		if precision.last_kind == "attack":
+			bonus *= _perfect_mult
+		elif precision.last_kind == "dodge" or label == "LAST SECOND":
+			bonus *= _dodge_mult
+		else:
+			bonus *= _jump_mult
 		if _combo_coins > 0:
 			_add_coins(float(_combo_coins))
 	var gained: int = _add_points(bonus)
@@ -573,6 +679,7 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 		size = 5.0
 		Sfx.play("legendary")
 		_zoom_punch = 1.0
+		Fx.ring(fx_root, where, Pal.ORANGE, 120.0)
 		_shake = maxf(_shake, 0.45)
 		hud.flash(Pal.WHITE, 0.22)
 		Fx.burst(fx_root, where, Pal.ORANGE, 28, 460.0, 0.6, 9.0, 300.0, 180.0, Vector2.UP)
@@ -585,6 +692,8 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 		Fx.burst(fx_root, where, Pal.YELLOW, 14, 320.0, 0.45, 7.0, 300.0, 180.0, Vector2.UP)
 	else:
 		Sfx.play("good")
+	if precision.last_kind == "dodge":
+		Sfx.play("dodge")
 		Fx.burst(fx_root, where, Pal.LIME, 6, 200.0, 0.3, 5.0, 300.0, 180.0, Vector2.UP)
 	Fx.popup(fx_root, player.position + Vector2(40.0, -120.0), "%s +%d" % [label, gained], color, size)
 
@@ -636,6 +745,8 @@ func _on_player_jumped(pos: Vector2) -> void:
 
 func _on_player_landed(pos: Vector2) -> void:
 	Sfx.play("land")
+	if _state == State.PLAYING:
+		precision.on_land(pos, player.get_speed())
 	Fx.burst(fx_root, pos + Vector2(-10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(-1.0, -0.5))
 	Fx.burst(fx_root, pos + Vector2(10.0, 0.0), Color(Pal.WHITE, 0.7), 4, 120.0, 0.25, 5.0, 300.0, 40.0, Vector2(1.0, -0.5))
 
@@ -645,11 +756,24 @@ func _on_player_attacked(pos: Vector2) -> void:
 	var rating: int = precision.on_attack(pos, player.get_speed())
 	if _soul_ready and rating >= Timing.Rating.PERFECT:
 		player.soul_armed = true
+	# El tajo crece con la precision del ataque.
+	player.slash_power = clampi(rating - 1, 0, 3)
+	if rating >= Timing.Rating.PERFECT:
+		Sfx.play("slash_heavy")
 	Fx.burst(fx_root, pos + Vector2(60.0, -34.0), Pal.CYAN, 6, 260.0, 0.22, 5.0, 0.0, 35.0, Vector2.RIGHT)
 
 
 func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
-	if kind == Coin.Kind.COIN:
+	if kind != Coin.Kind.HEART and kind != Coin.Kind.STAR:
+		_picked += 1
+	if kind == Coin.Kind.DIAMOND:
+		_diamond_found = true
+		Sfx.play("diamond")
+		_zoom_punch = 1.0
+		hud.show_banner("¡DIAMANTE OCULTO!", "RECOMPENSA DE LA RUTA ARRIESGADA")
+		Fx.burst(fx_root, pos, Pal.WHITE, 30, 420.0, 0.7, 8.0, 300.0, 180.0, Vector2.UP)
+		Fx.ring(fx_root, pos, Pal.CYAN, 110.0)
+	elif kind == Coin.Kind.COIN:
 		_add_coins(1.0)
 		_add_points(float(value))
 		GameData.add_mission_progress("coins", 1)
@@ -670,7 +794,7 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 		Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+%d" % gained, color, 4.0)
 	elif kind == Coin.Kind.HEART:
 		Sfx.play("heart")
-		if _lives < MAX_LIVES:
+		if _lives < _max_lives:
 			_lives += 1
 			Fx.popup(fx_root, pos + Vector2(0.0, -30.0), "+1 VIDA", Pal.RED, 4.0)
 		else:
@@ -700,6 +824,15 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	if rating >= Timing.Rating.GOOD:
 		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
 		precision.register(rating, label, pos)
+	if rating != Timing.Rating.LEGENDARY and kind != Enemy.Kind.ORB:
+		precision.non_legendary_kills += 1
+	# Impacto con los colores de la espada equipada; mayor cuanto mejor el golpe.
+	var sword: Dictionary = GameData.equipped_item("sword")
+	var slash: Array = sword["slash"]
+	var impact: Color = Color(String(slash[0]))
+	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), impact, 10 + maxi(rating - 1, 0) * 10, 300.0 + float(rating) * 60.0, 0.45, 7.0, 200.0, 180.0, Vector2.UP)
+	if rating >= Timing.Rating.PERFECT:
+		Fx.ring(fx_root, pos + Vector2(0.0, -24.0), Color(String(slash[1])), 60.0 + float(rating) * 15.0)
 	# Proyectil de jefe devuelto con un golpe perfecto: contraataque.
 	if kind == Enemy.Kind.ORB and _boss != null and is_instance_valid(_boss) and rating >= Timing.Rating.PERFECT:
 		_boss.reflect()
@@ -754,6 +887,10 @@ func _lose_life(fell_in_hole: bool) -> void:
 	_lives -= 1
 	_damage_taken += 1
 	precision.on_damage()
+	# Modo "Sin dano": el primer golpe termina el intento.
+	if _challenge == "no_damage":
+		_lives = 0
+		hud.show_banner("RETO FALLADO", "MODO SIN DAÑO")
 	_shake = 1.0
 	Sfx.play("hurt")
 	hud.flash(Pal.RED, 0.45)
@@ -762,7 +899,7 @@ func _lose_life(fell_in_hole: bool) -> void:
 		Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 14, 300.0, 0.5, 7.0, 700.0, 180.0, Vector2.UP)
 	if _lives <= 0:
 		# Objeto "Revivir": se gasta solo, una vez por partida.
-		if not _revive_used and GameData.use_consumable("revive"):
+		if _challenge != "no_damage" and not _revive_used and GameData.use_consumable("revive"):
 			_revive_used = true
 			_lives = 2
 			if fell_in_hole:
@@ -795,6 +932,8 @@ func _bank_run() -> bool:
 		return false
 	_banked = true
 	GameData.add_mission_progress("distance", _meters())
+	if _diamond_found and _level_mode:
+		GameData.claim_hidden_diamond(int(_def["world"]), int(_def["level"]))
 	GameData.stats["best_combo"] = maxi(int(GameData.stats.get("best_combo", 0)), precision.best_combo)
 	GameData.add_stat("perfects", int(precision.counts[3]))
 	GameData.add_stat("legendaries", int(precision.counts[4]))
@@ -806,6 +945,7 @@ func _game_over() -> void:
 	_lives = 0
 	hud.can_pause = false
 	player.die()
+	Sfx.set_intensity(0)
 	Sfx.play("gameover")
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
 	_update_hud()
@@ -826,7 +966,12 @@ func _level_complete() -> void:
 	_state = State.GAME_OVER
 	hud.can_pause = false
 	player.active = false
-	var grade: float = precision.grade(_damage_taken)
+	var info: Dictionary = {
+		"damage": _damage_taken, "kills": _kills, "enemies": generator.enemies_spawned,
+		"picked": _picked, "pickups": generator.pickups_spawned, "coins": int(_coins_f),
+		"time": _run_time, "par": float(_def.get("par_time", 0)) / 0.93,
+	}
+	var grade: float = precision.grade(info)
 	var rank: int = Timing.rank_for(grade)
 	# Estrellas: 1 por llegar, 2 con rango B o mejor, 3 con rango A o mejor
 	# y como mucho un golpe recibido.
@@ -846,12 +991,27 @@ func _level_complete() -> void:
 	for item in challenge_list:
 		var challenge: Dictionary = item
 		challenge_texts.append(String(challenge["text"]))
-		challenge_results.append(precision.challenge_done(challenge, _damage_taken))
+		challenge_results.append(precision.challenge_done(challenge, info))
 	var extra: Dictionary = GameData.complete_challenges(world, level, challenge_results)
+	# Modo de dominio.
+	var mode_line: String = ""
+	if _challenge != "normal":
+		if _challenge_met():
+			var paid: Dictionary = GameData.complete_mode(world, level, _challenge)
+			extra["coins"] = int(extra["coins"]) + int(paid["coins"])
+			extra["diamonds"] = int(extra["diamonds"]) + int(paid["diamonds"])
+			mode_line = "MODO %s SUPERADO" % _challenge_name()
+		else:
+			mode_line = "MODO %s NO SUPERADO" % _challenge_name()
+	var items: Array = rewards.get("items", [])
+	if not items.is_empty():
+		Sfx.play("unlock")
+		hud.toast("DESBLOQUEADO: " + ", ".join(PackedStringArray(items)), Pal.CYAN)
 	_bank_run()
 	GameData.check_achievements()
 	Sfx.play("victory")
-	Sfx.play_music("menu")
+	Sfx.play_music("victory")
+	Sfx.set_intensity(0)
 	hud.flash(Pal.WHITE, 0.4)
 	Fx.burst(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 40, 520.0, 0.9, 9.0, 600.0, 180.0, Vector2.UP)
 	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world < Campaign.world_count() - 1
@@ -860,7 +1020,7 @@ func _level_complete() -> void:
 		"perfect": int(precision.counts[3]), "legendary": int(precision.counts[4]),
 		"combo": precision.best_combo, "damage": _damage_taken,
 		"coins": int(_coins_f) + int(rewards["coins"]) + int(extra["coins"]), "diamonds": int(rewards["diamonds"]) + int(extra["diamonds"]),
-		"challenges": challenge_texts, "results": challenge_results,
+		"challenges": challenge_texts, "results": challenge_results, "mode": mode_line,
 		"has_next": has_next,
 	})
 

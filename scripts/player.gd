@@ -50,6 +50,10 @@ var shield_active: bool = false
 var soul_armed: bool = false
 ## Mejora "Alcance": multiplica la distancia de ataque.
 var reach_bonus: float = 1.0
+## Potencia del tajo en curso (0 normal, 1 good, 2 perfect, 3 legendary).
+var slash_power: int = 0
+## Nivel de combo (0-3): particulas de energia alrededor del heroe.
+var combo_level: int = 0
 
 var _coyote: float = 0.0
 var _buffer: float = 0.0
@@ -64,6 +68,12 @@ var _anim: float = 0.0
 var _squash: Vector2 = Vector2.ONE
 var _tilt: float = 0.0
 var _was_on_floor: bool = true
+## Hielo (Frostfall): 0..1, acelera al heroe mientras corre sobre el.
+var _ice: float = 0.0
+## Estela de carrera: posiciones recientes en coordenadas del mundo.
+var _trail: Array = []
+var _trail_colors: Array = []
+var _aura_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 var _fell_reported: bool = false
 var _dust: CPUParticles2D
 
@@ -108,6 +118,12 @@ func refresh_cosmetics() -> void:
 	_slash_b = Color(String(slash[1]))
 	var trail: Dictionary = GameData.equipped_item("trail")
 	var colors: Array = trail["colors"]
+	_trail_colors = []
+	for hex in colors:
+		_trail_colors.append(Color(String(hex)))
+	var aura: Dictionary = GameData.equipped_item("aura")
+	var aura_hex: String = aura["color"]
+	_aura_color = Color(aura_hex) if aura_hex != "" else Color(0.0, 0.0, 0.0, 0.0)
 	var fancy: bool = colors.size() > 1
 	_dust.amount = 18 if fancy else 10
 	_dust.lifetime = 0.55 if fancy else 0.35
@@ -213,7 +229,7 @@ func is_raging() -> bool:
 
 
 func get_speed() -> float:
-	return run_speed * (TURBO_MULT if _turbo_time > 0.0 else 1.0)
+	return run_speed * (TURBO_MULT if _turbo_time > 0.0 else 1.0) * (1.0 + 0.3 * _ice)
 
 
 ## Animacion de dano (retroceso y destello).
@@ -301,6 +317,10 @@ func _physics_process(delta: float) -> void:
 				velocity.y = JUMP_CUT_VELOCITY
 			_jumping = false
 
+	# Hielo: sobre el se acelera poco a poco; en el aire se conserva el impulso.
+	if is_on_floor():
+		var target_ice: float = 1.0 if Daylight.is_ice(global_position.x) else 0.0
+		_ice = move_toward(_ice, target_ice, delta * (0.9 if target_ice > _ice else 2.5))
 	velocity.x = get_speed()
 	move_and_slide()
 
@@ -398,6 +418,14 @@ func _on_hurt_box_area_entered(area: Area2D) -> void:
 
 func _process(delta: float) -> void:
 	_anim += delta * clampf(get_speed() / 340.0, 0.8, 2.0)
+	# Estela: mas larga cuanto mas rapido se mueve.
+	if alive and not demo_mode and active:
+		_trail.push_front(global_position + Vector2(0.0, -30.0))
+		var max_points: int = 14 + int(clampf((get_speed() - 340.0) / 25.0, 0.0, 14.0))
+		while _trail.size() > max_points:
+			_trail.pop_back()
+	elif not _trail.is_empty():
+		_trail.pop_back()
 	_squash = _squash.lerp(Vector2.ONE, minf(1.0, delta * 12.0))
 	var running: bool = alive and (demo_mode or (active and is_on_floor()) or _turbo_time > 0.0)
 	if _dust.emitting != running:
@@ -443,6 +471,10 @@ func _draw() -> void:
 			draw_rect(Rect2(-22.0 * shrink, ground_gap - 2.0, 44.0 * shrink, 4.0), Color(0.0, 0.0, 0.0, Daylight.shadow_alpha()))
 	elif demo_mode:
 		draw_rect(Rect2(-22.0, -2.0, 44.0, 4.0), Color(0.0, 0.0, 0.0, 0.22))
+
+	_draw_trail()
+	if alive and combo_level > 0:
+		_draw_combo_energy()
 
 	# Al morir gira sobre su centro; en vida se aplasta y estira desde los pies.
 	var pivot: Vector2 = Vector2.ZERO if alive else Vector2(0.0, -34.0)
@@ -490,6 +522,38 @@ func _draw() -> void:
 			draw_rect(Rect2(lx, ly, 34.0, 4.0), Color(Pal.WHITE, 0.6))
 
 
+## Estela de carrera: cuadraditos que siguen el recorrido del heroe y se
+## desvanecen. Toma los colores de la estela equipada mezclados con el aura.
+func _draw_trail() -> void:
+	var count: int = _trail.size()
+	if count < 3 or _trail_colors.is_empty():
+		return
+	var fast: float = clampf((get_speed() - 340.0) / 300.0, 0.0, 1.0)
+	for i in range(count - 1, 0, -1):
+		var t: float = 1.0 - float(i) / float(count)
+		var p: Vector2 = to_local(_trail[i])
+		var c: Color = _trail_colors[i % _trail_colors.size()]
+		if _aura_color.a > 0.0:
+			c = c.lerp(_aura_color, 0.45)
+		var size: float = snappedf(6.0 + 14.0 * t + 8.0 * fast, 2.0)
+		draw_rect(Rect2(snappedf(p.x, 2.0) - size * 0.5, snappedf(p.y, 2.0) - size * 0.5, size, size), Color(c, (0.15 + 0.45 * t) * (0.6 + 0.4 * fast)))
+	# Chispas sueltas en la cola.
+	for k in 3:
+		var index: int = mini(count - 1, 4 + k * 3)
+		var q: Vector2 = to_local(_trail[index]) + Vector2(0.0, sin(_anim * 9.0 + float(k)) * 10.0)
+		draw_rect(Rect2(snappedf(q.x, 2.0), snappedf(q.y, 2.0), 4.0, 4.0), Color(Pal.WHITE, 0.6))
+
+
+## Energia de combo: chispas que orbitan al heroe (mas con mas combo).
+func _draw_combo_energy() -> void:
+	var colors: Array = [Pal.LIME, Pal.YELLOW, Pal.ORANGE]
+	var c: Color = colors[clampi(combo_level - 1, 0, 2)]
+	for i in combo_level * 4:
+		var angle: float = _anim * (3.0 + float(combo_level)) + float(i) * TAU / float(combo_level * 4)
+		var p: Vector2 = Vector2(cos(angle) * 40.0, -32.0 + sin(angle) * 46.0)
+		draw_rect(Rect2(snappedf(p.x, 2.0) - 3.0, snappedf(p.y, 2.0) - 3.0, 6.0, 6.0), Color(c, 0.85))
+
+
 ## Anillo de cuadraditos (escudo).
 func _draw_ring(center: Vector2, radius: float, color: Color, alpha: float) -> void:
 	var steps: int = 20
@@ -500,18 +564,42 @@ func _draw_ring(center: Vector2, radius: float, color: Color, alpha: float) -> v
 		draw_rect(Rect2(snappedf(p.x, 4.0) - 2.0, snappedf(p.y, 4.0) - 2.0, 4.0, 4.0), Color(color, a))
 
 
-## Estela del tajo: cuadraditos a lo largo del arco que recorre la espada.
+## Tajo de la espada: arco de energia con los colores de la espada equipada.
+## Crece con la precision: PERFECT anade lineas de movimiento y un destello
+## en la punta; LEGENDARY, un segundo arco exterior y chispas.
 func _draw_slash(hand: Vector2, current_angle: float, progress: float, alpha: float) -> void:
+	var power: int = slash_power
+	if soul_armed:
+		power = maxi(power, 2)
 	var fade: float = clampf(1.0 - progress, 0.0, 1.0) * alpha
-	var angle: float = -1.0
+	var rings: int = 3 + power
+	var block: float = 8.0 + float(power) * 2.0
+	var angle: float = -1.0 - 0.15 * float(power)
 	while angle < current_angle:
 		var dir: Vector2 = Vector2(sin(angle), -cos(angle))
 		var closeness: float = 1.0 - clampf((current_angle - angle) / 3.3, 0.0, 1.0)
-		for ring in 3:
-			var radius: float = 44.0 + float(ring) * 10.0
+		for ring in rings:
+			var radius: float = 40.0 + float(ring) * 10.0
 			var p: Vector2 = hand + dir * radius
-			var color: Color = _slash_b if ring == 1 else _slash_a
+			var color: Color = _slash_b if ring % 2 == 1 else _slash_a
 			if soul_armed:
-				color = Pal.PURPLE if ring != 1 else Pal.RED
-			draw_rect(Rect2(snappedf(p.x, 4.0) - 4.0, snappedf(p.y, 4.0) - 4.0, 8.0, 8.0), Color(color, fade * closeness))
-		angle += 0.16
+				color = Pal.PURPLE if ring % 2 == 0 else Pal.RED
+			draw_rect(Rect2(snappedf(p.x, 2.0) - block * 0.5, snappedf(p.y, 2.0) - block * 0.5, block, block), Color(color, fade * closeness))
+		angle += 0.13
+	var tip: Vector2 = hand + Vector2(sin(current_angle), -cos(current_angle)) * (44.0 + float(rings) * 10.0)
+	if power >= 2:
+		# Lineas de movimiento y destello en la punta.
+		for k in 4:
+			var ly: float = hand.y - 50.0 + float(k) * 26.0
+			draw_rect(Rect2(hand.x + 30.0 + float(k % 2) * 20.0, ly, 50.0 + float(power) * 14.0, 4.0), Color(_slash_b, fade * 0.7))
+		PixelArt.draw_glow(self, tip, 24.0 + float(power) * 12.0, Color(_slash_b, fade * 0.9))
+	if power >= 3:
+		var outer: float = -1.4
+		while outer < current_angle:
+			var odir: Vector2 = Vector2(sin(outer), -cos(outer))
+			var op: Vector2 = hand + odir * (110.0 + sin(outer * 6.0 + _anim * 20.0) * 6.0)
+			draw_rect(Rect2(snappedf(op.x, 2.0) - 5.0, snappedf(op.y, 2.0) - 5.0, 10.0, 10.0), Color(Pal.WHITE, fade))
+			outer += 0.2
+		for k in 8:
+			var sp: Vector2 = tip + Vector2(cos(float(k) * 0.8 + _anim * 12.0), sin(float(k) * 1.3 + _anim * 9.0)) * (20.0 + float(k) * 6.0)
+			draw_rect(Rect2(snappedf(sp.x, 2.0), snappedf(sp.y, 2.0), 6.0, 6.0), Color(Pal.YELLOW if k % 2 == 0 else _slash_a, fade))

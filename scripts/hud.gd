@@ -43,6 +43,7 @@ var _banner: PixelLabel
 var _banner_sub: PixelLabel
 var _hint_layer: Control
 var _flash: ColorRect
+var _haze: ColorRect
 var _banner_tween: Tween
 var _toaster: Toaster
 var _shop: Shop
@@ -106,6 +107,13 @@ func toast(text: String, color: Color) -> void:
 # ------------------------------------------------------------ construccion --
 
 func _build_flash() -> void:
+	# Velo de ventisca / tormenta de arena (por debajo de los marcadores).
+	_haze = ColorRect.new()
+	_haze.color = Color(1.0, 1.0, 1.0, 0.0)
+	_haze.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_haze)
+	_haze.position = Vector2.ZERO
+	_haze.size = UI.SCREEN
 	_flash = ColorRect.new()
 	_flash.color = Color(Pal.RED, 0.0)
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -276,6 +284,9 @@ func _draw_victory() -> void:
 	if int(_win_data["diamonds"]) > 0:
 		reward += "   +%d DIAMANTES" % int(_win_data["diamonds"])
 	_win_text(reward, 400.0, 3.0, Pal.YELLOW)
+	var mode_line: String = String(_win_data.get("mode", ""))
+	if mode_line != "":
+		_win_text(mode_line, 492.0, 2.0, Pal.ORANGE if mode_line.contains("NO ") else Pal.LIME)
 
 
 func show_victory(data: Dictionary) -> void:
@@ -319,6 +330,11 @@ func set_combo(count: int, multiplier: float) -> void:
 ## Progreso hacia la meta en los niveles de campana (0..1).
 func set_progress(ratio: float) -> void:
 	_bar.progress = ratio
+
+
+## Velo de tormenta: color y opacidad (0 = despejado).
+func set_haze(color: Color, alpha: float) -> void:
+	_haze.color = Color(color, alpha)
 
 
 ## Barra de vida del jefe.

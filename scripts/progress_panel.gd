@@ -24,6 +24,8 @@ const STATS := [
 var _tab: int = 0
 var _tab_buttons: Array = []
 var _canvas: Control
+var _page: int = 0
+var _page_buttons: Array = []
 
 
 func _ready() -> void:
@@ -44,6 +46,11 @@ func _ready() -> void:
 		_tab_buttons.append(tab)
 	_canvas = UI.layer(self, "Canvas")
 	_canvas.draw.connect(_draw_content)
+	var prev: PixelButton = UI.button(self, "<", Rect2(1020.0, 128.0, 60.0, 48.0), 3.0)
+	prev.pressed.connect(_change_page.bind(-1))
+	var next: PixelButton = UI.button(self, ">", Rect2(1090.0, 128.0, 60.0, 48.0), 3.0)
+	next.pressed.connect(_change_page.bind(1))
+	_page_buttons = [prev, next]
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -54,6 +61,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func open() -> void:
 	GameData.refresh_missions()
+	Sfx.play_music("reward")
 	visible = true
 	modulate.a = 0.0
 	var tween: Tween = create_tween()
@@ -72,9 +80,19 @@ func close() -> void:
 
 func _select_tab(tab: int) -> void:
 	_tab = tab
+	_page = 0
+	for item in _page_buttons:
+		var page_button: PixelButton = item
+		page_button.visible = tab == 1
 	for i in _tab_buttons.size():
 		var button: PixelButton = _tab_buttons[i]
 		button.selected = i == _tab
+	_canvas.queue_redraw()
+
+
+func _change_page(direction: int) -> void:
+	var pages: int = int(ceil(float(Catalog.ACHIEVEMENTS.size()) / 14.0))
+	_page = clampi(_page + direction, 0, pages - 1)
 	_canvas.queue_redraw()
 
 
@@ -103,31 +121,38 @@ func _draw_content() -> void:
 
 
 func _draw_missions() -> void:
-	_text("MISIONES DE HOY - CAMBIAN CADA DÍA", Vector2(64.0, 204.0), 3.0, Pal.CYAN)
+	_text("DESAFÍO DIARIO - CAMBIA CADA DÍA", Vector2(64.0, 196.0), 3.0, Pal.CYAN)
 	for i in GameData.missions.size():
-		var mission: Dictionary = GameData.missions[i]
-		var id: String = mission["id"]
-		var target: int = int(mission["target"])
-		var done: bool = bool(GameData.mission_done.get(id, false))
-		var value: int = target if done else mini(int(GameData.mission_progress.get(id, 0)), target)
-		var rect: Rect2 = Rect2(64.0, 250.0 + float(i) * 128.0, 1152.0, 112.0)
-		_row(rect, done)
-		_text(GameData.mission_text(mission), rect.position + Vector2(28.0, 22.0), 4.0, Pal.WHITE)
-		# Barra de progreso.
-		var bar: Rect2 = Rect2(rect.position + Vector2(28.0, 70.0), Vector2(700.0, 20.0))
-		_canvas.draw_rect(bar, Pal.INK)
-		var ratio: float = float(value) / float(maxi(target, 1))
-		_canvas.draw_rect(Rect2(bar.position + Vector2(4.0, 4.0), Vector2((bar.size.x - 8.0) * ratio, 12.0)), Pal.LIME if done else Pal.YELLOW)
-		_text("%d / %d" % [value, target], bar.position + Vector2(720.0, 2.0), 2.0, Pal.SILVER)
-		if done:
-			_text_right("¡COMPLETADA!", rect.end.x - 28.0, rect.position.y + 40.0, 4.0, Pal.LIME)
-		else:
-			PixelArt.draw(_canvas, "coin_0", Vector2(rect.end.x - 200.0, rect.position.y + 36.0), 5.0)
-			_text("+%d" % int(mission["reward"]), Vector2(rect.end.x - 150.0, rect.position.y + 42.0), 4.0, Pal.YELLOW)
+		_mission_row(GameData.missions[i], 228.0 + float(i) * 66.0, GameData.mission_progress, GameData.mission_done, false)
+	_text("DESAFÍO SEMANAL - +1 DIAMANTE CADA UNO", Vector2(64.0, 432.0), 3.0, Pal.ORANGE)
+	for i in GameData.weekly.size():
+		_mission_row(GameData.weekly[i], 464.0 + float(i) * 66.0, GameData.weekly_progress, GameData.weekly_done, true)
+
+
+func _mission_row(mission: Dictionary, y: float, progress: Dictionary, done_map: Dictionary, weekly: bool) -> void:
+	var id: String = mission["id"]
+	var target: int = int(mission["target"])
+	var done: bool = bool(done_map.get(id, false))
+	var value: int = target if done else mini(int(progress.get(id, 0)), target)
+	var rect: Rect2 = Rect2(64.0, y, 1152.0, 60.0)
+	_row(rect, done)
+	_text(GameData.mission_text(mission), rect.position + Vector2(20.0, 10.0), 3.0, Pal.WHITE)
+	var bar: Rect2 = Rect2(rect.position + Vector2(20.0, 38.0), Vector2(560.0, 12.0))
+	_canvas.draw_rect(bar, Pal.INK)
+	_canvas.draw_rect(Rect2(bar.position + Vector2(2.0, 2.0), Vector2((bar.size.x - 4.0) * float(value) / float(maxi(target, 1)), 8.0)), Pal.LIME if done else (Pal.ORANGE if weekly else Pal.YELLOW))
+	_text("%d / %d" % [value, target], bar.position + Vector2(580.0, -4.0), 2.0, Pal.SILVER)
+	if done:
+		_text_right("¡COMPLETADO!", rect.end.x - 20.0, rect.position.y + 18.0, 3.0, Pal.LIME)
+	else:
+		var reward: String = "+%d" % int(mission["reward"])
+		if weekly:
+			reward += " +1 DIAMANTE"
+		_text_right(reward, rect.end.x - 20.0, rect.position.y + 18.0, 3.0, Pal.YELLOW)
 
 
 func _draw_achievements() -> void:
-	var list: Array = Catalog.ACHIEVEMENTS
+	var list: Array = Catalog.ACHIEVEMENTS.slice(_page * 14, _page * 14 + 14)
+	_text("PÁGINA %d/%d" % [_page + 1, int(ceil(float(Catalog.ACHIEVEMENTS.size()) / 14.0))], Vector2(860.0, 142.0), 2.0, Pal.SILVER)
 	for i in list.size():
 		var entry: Dictionary = list[i]
 		var done: bool = bool(GameData.achievements.get(String(entry["id"]), false))

@@ -32,7 +32,7 @@ const PLATFORM_HEIGHT := 112.0
 enum Pattern {
 	COINS, SPIKES, ROCK, SLIME, HOLE, GOBLIN, TOTEM, PLATFORM,
 	BAT, DOUBLE_SPIKES, DOUBLE_ENEMY, SPIKES_HOLE, WIDE_HOLE,
-	KNIGHT, GHOST, BOULDER, COINS_RICH,
+	KNIGHT, GHOST, BOULDER, COINS_RICH, ROUTE, TRAP,
 }
 
 ## [patron, peso, nivel minimo]
@@ -53,15 +53,17 @@ const TABLE := [
 	[Pattern.GHOST, 2, 2],
 	[Pattern.KNIGHT, 2, 3],
 	[Pattern.BOULDER, 2, 3],
+	[Pattern.ROUTE, 2, 2],
+	[Pattern.TRAP, 2, 4],
 ]
 
 ## Patrones de menor a mayor dureza: los niveles de campana los desbloquean
 ## en este orden (ver campaign.gd).
 const HARDNESS := [
 	Pattern.COINS, Pattern.SPIKES, Pattern.ROCK, Pattern.SLIME, Pattern.HOLE,
-	Pattern.GOBLIN, Pattern.TOTEM, Pattern.PLATFORM, Pattern.BAT, Pattern.DOUBLE_SPIKES,
-	Pattern.KNIGHT, Pattern.BOULDER, Pattern.DOUBLE_ENEMY, Pattern.SPIKES_HOLE,
-	Pattern.WIDE_HOLE, Pattern.GHOST,
+	Pattern.GOBLIN, Pattern.ROUTE, Pattern.TOTEM, Pattern.PLATFORM, Pattern.BAT,
+	Pattern.DOUBLE_SPIKES, Pattern.TRAP, Pattern.KNIGHT, Pattern.BOULDER,
+	Pattern.DOUBLE_ENEMY, Pattern.SPIKES_HOLE, Pattern.WIDE_HOLE, Pattern.GHOST, Pattern.ROUTE,
 ]
 ## Pista libre que se deja antes de la meta.
 const GOAL_RUNWAY := 1500.0
@@ -93,6 +95,12 @@ var _forced: Array = []
 var heart_wanted: bool = false
 ## Mejora "Fortuna": probabilidad extra de que una moneda sea un rubi.
 var gem_bonus: float = 0.0
+## Contadores para el rango: enemigos y recompensas generados.
+var enemies_spawned: int = 0
+var pickups_spawned: int = 0
+## Diamante oculto de la ruta arriesgada (solo campana, una vez por nivel).
+var diamond_available: bool = false
+var _diamond_placed: bool = false
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
@@ -130,6 +138,10 @@ func configure(def: Dictionary) -> void:
 			weight = 6
 		for n in weight:
 			_allowed.append(HARDNESS[i])
+	# Solaris: las trampas antiguas son su seña de identidad.
+	if bool(Daylight.theme.get("traps", false)):
+		for n in 4:
+			_allowed.append(Pattern.TRAP)
 
 
 ## Tramo final: suelo despejado y la bandera de meta.
@@ -156,7 +168,11 @@ func update(player_x: float, speed: float, level: int, delta: float) -> void:
 		elif _gen_x > goal_x - GOAL_RUNWAY:
 			_finish_track()
 		else:
+			# Frostfall: algunos tramos son de hielo (el heroe acelera).
+			var ice_from: float = _gen_x
 			_spawn_pattern()
+			if bool(Daylight.theme.get("ice", false)) and _rng.randf() < 0.4:
+				Daylight.ice.append(Vector2(ice_from, _gen_x))
 		_current_span.set_range(_current_span.start_x, _gen_x)
 		guard += 1
 	_cleanup_timer -= delta
@@ -244,6 +260,10 @@ func _spawn_pattern() -> void:
 			_pattern_boulder()
 		Pattern.COINS_RICH:
 			_pattern_coins_rich()
+		Pattern.ROUTE:
+			_pattern_route()
+		Pattern.TRAP:
+			_pattern_trap()
 		_:
 			_pattern_hole(true)
 
@@ -403,6 +423,64 @@ func _pattern_coins_rich() -> void:
 	_gen_x += float(count) * 44.0
 
 
+## Dos caminos: abajo, la ruta segura (un solo salto y nada mas); arriba,
+## la ruta arriesgada (plataforma propia del mundo, un peligro encima y
+## muchas monedas, gemas y a veces el diamante oculto del nivel).
+func _pattern_route() -> void:
+	_gen_x += _gap()
+	var start: float = snappedf(_gen_x + _speed * 0.15, TILE)
+	var tiles: int = clampi(int(_speed * 1.7 / TILE), 10, 28)
+	var width: float = float(tiles) * TILE
+	var top: float = GROUND_Y - PLATFORM_HEIGHT - 16.0
+	_add_platform(start, top, width, String(Daylight.theme.get("platform", "normal")))
+	var count: int = int(width / 44.0)
+	var hazard_at: int = int(float(count) * 0.55)
+	for i in count:
+		if absi(i - hazard_at) <= 1:
+			continue
+		var kind: int = Coin.Kind.COIN
+		if i % 6 == 3:
+			kind = Coin.Kind.GEM
+		elif i % 4 == 1:
+			kind = Coin.Kind.RUBY
+		_add_pickup(Vector2(start + 30.0 + float(i) * 44.0, top - 40.0), kind)
+	var hazard_x: float = start + 30.0 + float(hazard_at) * 44.0
+	if _level >= 3 and _rng.randf() < 0.5:
+		_add_enemy_at(Enemy.Kind.SLIME, hazard_x, top)
+	else:
+		_add_obstacle_at(Obstacle.Kind.SPIKES, hazard_x - 16.0, top, 1)
+	if diamond_available and not _diamond_placed and _rng.randf() < 0.6:
+		_diamond_placed = true
+		_add_pickup(Vector2(start + width - 40.0, top - 70.0), Coin.Kind.DIAMOND)
+	# Ruta segura: un unico salto, sin recompensas.
+	_add_obstacle(Obstacle.Kind.SPIKES, start + snappedf(width * 0.5, TILE), 1)
+	_gen_x = start + width + _speed * 0.5
+
+
+## Trampa ritmica: hay que leer el ritmo de los pinchos (o saltarlos).
+func _pattern_trap() -> void:
+	_gen_x += _gap()
+	var count: int = _rng.randi_range(2, mini(3, _max_spikes() + 1))
+	_add_obstacle(Obstacle.Kind.TRAP, _gen_x, count)
+	_coin_arc(_gen_x + float(count) * TILE * 0.5, 3, false)
+	_gen_x += float(count) * TILE
+
+
+func _add_enemy_at(kind: int, x: float, y: float) -> void:
+	var enemy: Enemy = EnemyScene.instantiate()
+	enemies_spawned += 1
+	enemy.position = Vector2(x, y)
+	_objects_root.add_child(enemy)
+	enemy.setup(kind)
+
+
+func _add_obstacle_at(kind: int, x: float, y: float, count: int) -> void:
+	var obstacle: Obstacle = ObstacleScene.instantiate()
+	obstacle.position = Vector2(x, y)
+	_objects_root.add_child(obstacle)
+	obstacle.setup(kind, count)
+
+
 ## Encola un evento: "coins" (lluvia de monedas) u "horde" (horda).
 func start_event(event: String) -> void:
 	if event == "coins":
@@ -451,6 +529,8 @@ func _add_coin(pos: Vector2, special: bool) -> void:
 
 
 func _add_pickup(pos: Vector2, kind: int) -> void:
+	if kind != Coin.Kind.HEART and kind != Coin.Kind.STAR:
+		pickups_spawned += 1
 	var coin: Coin = CoinScene.instantiate()
 	coin.position = pos
 	coin.setup(kind)
@@ -481,6 +561,8 @@ func _add_obstacle(kind: int, x: float, count: int) -> void:
 
 func _add_enemy(kind: int, x: float) -> void:
 	var enemy: Enemy = EnemyScene.instantiate()
+	if kind != Enemy.Kind.ORB:
+		enemies_spawned += 1
 	var flying: bool = kind == Enemy.Kind.BAT or kind == Enemy.Kind.GHOST or kind == Enemy.Kind.ORB or kind == Enemy.Kind.FIREBAT or kind == Enemy.Kind.WRAITH
 	var y: float = GROUND_Y - 52.0 if flying else GROUND_Y
 	enemy.position = Vector2(x, y)
@@ -509,11 +591,11 @@ func spawn_enemy(kind: int, x: float) -> Node:
 	return _objects_root.get_child(_objects_root.get_child_count() - 1)
 
 
-func _add_platform(x: float, y: float, width: float) -> void:
+func _add_platform(x: float, y: float, width: float, mode: String = "normal") -> void:
 	var platform: Platform = Platform.new()
 	platform.position = Vector2(x, y)
 	_objects_root.add_child(platform)
-	platform.setup(width)
+	platform.setup(width, mode)
 
 
 func _new_span(x: float) -> GroundSpan:
@@ -544,6 +626,11 @@ func _cleanup(player_x: float) -> void:
 		if span != _current_span and span.end_x < limit:
 			_spans.remove_at(i)
 			span.queue_free()
+	while not Daylight.ice.is_empty():
+		var span: Vector2 = Daylight.ice[0]
+		if span.y >= limit:
+			break
+		Daylight.ice.remove_at(0)
 	while not holes.is_empty():
 		var hole: Vector2 = holes[0]
 		if hole.y >= limit:

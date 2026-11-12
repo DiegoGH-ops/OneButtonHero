@@ -6,9 +6,10 @@ const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 
-enum Kind { COIN, GEM, RUBY, HEART, STAR, CHEST }
+enum Kind { COIN, GEM, RUBY, HEART, STAR, CHEST, DIAMOND }
 
-const VALUES := [10, 50, 25, 0, 0, 0]
+const VALUES := [10, 50, 25, 0, 0, 0, 100]
+const DIAMOND_REMAP := {"c": "w", "B": "c", "b": "B"}
 const SPIN_FRAMES := ["coin_0", "coin_1", "coin_2", "coin_1"]
 const RUBY_REMAP := {"y": "r", "o": "p", "w": "o"}
 
@@ -52,6 +53,10 @@ func setup(p_kind: int) -> void:
 			glow_radius = 60.0
 			glow_color = Pal.YELLOW
 			glow_day = 0.4
+		Kind.DIAMOND:
+			glow_radius = 80.0
+			glow_color = Pal.WHITE
+			glow_day = 0.6
 		Kind.CHEST:
 			glow_radius = 54.0
 			glow_color = Pal.YELLOW
@@ -91,6 +96,15 @@ func _draw() -> void:
 				var angle: float = _time * 2.5 + float(i) * TAU / 3.0
 				var p: Vector2 = Vector2(cos(angle), sin(angle)) * 28.0 + Vector2(0.0, bob)
 				draw_rect(Rect2(snappedf(p.x, 4.0) - 2.0, snappedf(p.y, 4.0) - 2.0, 4.0, 4.0), Pal.WHITE)
+		Kind.DIAMOND:
+			var spin: float = 1.0 + 0.1 * sin(_time * 6.0)
+			draw_set_transform(Vector2(0.0, bob), 0.0, Vector2(spin, spin))
+			PixelArt.draw_skin(self, "gem", Vector2(-30.0, -27.0), 6.0, Color(1.0, 1.0, 1.0, 1.0), DIAMOND_REMAP, "diamond")
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			for i in 5:
+				var angle: float = _time * 3.0 + float(i) * TAU / 5.0
+				var p: Vector2 = Vector2(cos(angle), sin(angle)) * 40.0 + Vector2(0.0, bob)
+				draw_rect(Rect2(snappedf(p.x, 4.0) - 3.0, snappedf(p.y, 4.0) - 3.0, 6.0, 6.0), Pal.CYAN if i % 2 == 0 else Pal.WHITE)
 		Kind.HEART:
 			var beat: float = 1.0 + 0.08 * sin(_time * 8.0)
 			draw_set_transform(Vector2(0.0, bob), 0.0, Vector2(beat, beat))

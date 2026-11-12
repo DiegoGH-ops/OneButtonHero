@@ -92,8 +92,8 @@ func _ready() -> void:
 	add_child(preview)
 	preview.position = Vector2(1066.0, 400.0)
 	_info_name = UI.label(self, "", Vector2(1050.0, 452.0), 3.0, Pal.YELLOW)
-	for i in 5:
-		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 500.0 + float(i) * 26.0), 2.0, Pal.WHITE)
+	for i in 7:
+		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 492.0 + float(i) * 24.0), 2.0, Pal.WHITE)
 		_info_lines.append(line)
 
 	_toaster = Toaster.new()
@@ -192,6 +192,11 @@ func _refresh_card(card: ShopCard) -> void:
 	var title: String = entry["name"]
 	if card.category == "upgrade":
 		var prices: Array = entry["prices"]
+		var branch: Dictionary = Catalog.BRANCHES.get(String(entry.get("branch", "")), {})
+		card.band_color = Color(String(branch.get("color", "f4f4f4")))
+		if GameData.upgrade_requirement(id) != "":
+			card.configure(title, "BLOQUEADA", "BLOQUEADA", Pal.SILVER, false, -1, 0, false)
+			return
 		var level: int = GameData.upgrade_level(id)
 		var price: int = GameData.upgrade_price(id)
 		if price < 0:
@@ -205,6 +210,11 @@ func _refresh_card(card: ShopCard) -> void:
 	else:
 		var gems: int = int(entry.get("gems", 0))
 		var rarity: String = String(entry.get("rarity", ""))
+		if entry.has("reward") and not GameData.is_owned(id):
+			# Recompensa de campana: no se vende.
+			var parts: PackedStringArray = String(entry["reward"]).split("_")
+			card.configure(title, rarity, "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1], Pal.SILVER, false, -1, 0, false)
+			return
 		card.currency_sprite = "gem" if gems > 0 else "coin_0"
 		var cost_c: int = gems if gems > 0 else int(entry["price"])
 		var cost_color: Color = _afford_color(cost_c)
@@ -251,7 +261,16 @@ func _show_info(card: ShopCard) -> void:
 		text = "AURA LUMINOSA ALREDEDOR DEL HÉROE"
 	if card.category == "consumable":
 		text += ". SE USA SOLO EN TU PRÓXIMA PARTIDA"
-	if entry.has("rarity"):
+	if card.category == "upgrade":
+		var branch: Dictionary = Catalog.BRANCHES.get(String(entry.get("branch", "")), {})
+		text = "RAMA %s. %s" % [String(branch.get("name", "")), text]
+		var needed: String = GameData.upgrade_requirement(String(entry["id"]))
+		if needed != "":
+			text += ". REQUIERE %s" % needed
+	if entry.has("reward"):
+		var parts: PackedStringArray = String(entry["reward"]).split("_")
+		text += ". RECOMPENSA DEL NIVEL %d-%d DE LA CAMPAÑA" % [int(parts[0]) + 1, int(parts[1]) + 1]
+	elif entry.has("rarity"):
 		text += ". RAREZA %s. SE PAGA CON DIAMANTES" % String(entry["rarity"])
 	var lines: Array = _wrap(text, 24)
 	for i in _info_lines.size():
@@ -283,6 +302,12 @@ func _on_card_pressed(card: ShopCard) -> void:
 	var message: String = "¡COMPRA REALIZADA!"
 	var sound: String = "buy"
 	if card.category == "upgrade":
+		var needed: String = GameData.upgrade_requirement(id)
+		if needed != "":
+			Sfx.play("error")
+			card.shake()
+			_toaster.show_toast("REQUIERE " + needed, Pal.SILVER)
+			return
 		if GameData.upgrade_price(id) < 0:
 			_toaster.show_toast("YA ESTÁ AL MÁXIMO", Pal.SILVER)
 			return
@@ -298,6 +323,11 @@ func _on_card_pressed(card: ShopCard) -> void:
 			Sfx.play("click")
 			card.pulse()
 			_refresh_all()
+		return
+	elif entry.has("reward"):
+		Sfx.play("error")
+		card.shake()
+		_toaster.show_toast("SE CONSIGUE EN LA CAMPAÑA", Pal.SILVER)
 		return
 	else:
 		bought = GameData.buy_cosmetic(card.category, id)

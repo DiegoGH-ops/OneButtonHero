@@ -23,6 +23,8 @@ var _world_buttons: Array = []
 var _level_buttons: Array = []
 var _play_button: PixelButton
 var _canvas: Control
+var _mode: int = 0
+var _mode_button: PixelButton
 
 
 func _ready() -> void:
@@ -50,6 +52,11 @@ func _ready() -> void:
 		_level_buttons.append(button)
 	_canvas = UI.layer(self, "Canvas")
 	_canvas.draw.connect(_draw_content)
+	# Modo de dominio (se desbloquea al superar el nivel).
+	_mode_button = UI.button(self, "", Rect2(900.0, 500.0, 300.0, 48.0), 2.0)
+	_mode_button.fill = Pal.PURPLE
+	_mode_button.fill_hot = Pal.RED
+	_mode_button.pressed.connect(_next_mode)
 	_play_button = UI.button(self, "JUGAR", Rect2(900.0, 560.0, 300.0, 88.0), 6.0)
 	_play_button.fill = Pal.GREEN
 	_play_button.fill_hot = Pal.LIME
@@ -122,6 +129,25 @@ func _select_level(level: int) -> void:
 		var button: PixelButton = _level_buttons[i]
 		button.selected = i == _level
 	_play_button.disabled = not GameData.is_level_unlocked(_world, _level)
+	_mode = 0
+	_refresh_mode()
+	_canvas.queue_redraw()
+
+
+func _next_mode() -> void:
+	if GameData.level_stars(_world, _level) == 0:
+		Sfx.play("error")
+		return
+	_mode = (_mode + 1) % Campaign.MODES.size()
+	_refresh_mode()
+
+
+func _refresh_mode() -> void:
+	var cleared: bool = GameData.level_stars(_world, _level) > 0
+	var mode: Dictionary = Campaign.MODES[_mode]
+	var done: bool = _mode > 0 and GameData.mode_done(_world, _level, String(mode["id"]))
+	_mode_button.caption = ("MODO: " + String(mode["name"]) + (" +" if done else "")) if cleared else "MODOS: SUPERA EL NIVEL"
+	_mode_button.disabled = not cleared
 	_canvas.queue_redraw()
 
 
@@ -129,7 +155,8 @@ func _on_play_pressed() -> void:
 	if not GameData.is_level_unlocked(_world, _level):
 		Sfx.play("error")
 		return
-	GameData.run = {"mode": "level", "world": _world, "level": _level}
+	var mode: Dictionary = Campaign.MODES[_mode]
+	GameData.run = {"mode": "level", "world": _world, "level": _level, "challenge": String(mode["id"])}
 	Transition.change_scene(GAME_SCENE)
 
 
@@ -182,6 +209,10 @@ func _draw_content() -> void:
 		_text("SALTA, DEVUELVE PROYECTILES Y GOLPEA", Vector2(88.0, 586.0), 2.0, Pal.WHITE)
 	else:
 		_text("RECORRIDO: %d M   VELOCIDAD: %d" % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+	if _mode > 0:
+		_text("RETO: " + Campaign.mode_text(_mode, _world, _level), Vector2(88.0, 476.0), 2.0, Pal.ORANGE)
+	elif GameData.level_stars(_world, _level) > 0 and not GameData.hidden_diamond_taken(_world, _level) and not bool(def["final"]):
+		_text("DIAMANTE OCULTO EN LA RUTA ALTA", Vector2(88.0, 476.0), 2.0, Pal.CYAN)
 	# Retos opcionales del nivel y cuales estan superados.
 	var challenge_list: Array = Campaign.challenges(_world, _level)
 	var done_list: Array = record.get("ch", [false, false, false])

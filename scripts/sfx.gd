@@ -55,6 +55,55 @@ const TRACKS := {
 		"bass": [0, -1, 2, -1, 1, -1, 2, -1, 0, -1, 2, -1, 1, -1, 2, -1],
 		"lead_len": 1, "lead_wave": Wave.SQUARE, "lead_vol": 0.09, "bass_vol": 0.24, "drums": 0.6, "octave": 12,
 	},
+	# --- Campana: un tema por mundo (con variante nocturna automatica) ---
+	"forest": {
+		"bpm": 118.0, "chords": [[55, 0], [52, 1], [60, 0], [62, 0]], "night": true,
+		"lead": [0, -1, 2, 3, -1, 2, 4, -1, 3, -1, 2, -1, 1, 2, -1, -1],
+		"bass": [0, -1, -1, 2, -1, -1, 1, -1, 0, -1, -1, 2, -1, 1, -1, -1],
+		"lead_len": 2, "lead_wave": Wave.TRIANGLE, "lead_vol": 0.22, "bass_vol": 0.26, "drums": 0.6, "octave": 12,
+	},
+	"inferno": {
+		"bpm": 152.0, "chords": [[52, 1], [52, 1], [48, 0], [50, 0]], "night": true,
+		"lead": [0, 0, 3, -1, 2, -1, 0, 4, -1, 3, 2, -1, 0, -1, 1, 2],
+		"bass": [0, 0, -1, 0, 2, -1, 0, -1, 0, 0, -1, 0, 1, -1, 2, -1],
+		"lead_len": 1, "lead_wave": Wave.SAW, "lead_vol": 0.10, "bass_vol": 0.32, "drums": 1.2, "octave": 0,
+	},
+	"crystal": {
+		"bpm": 96.0, "chords": [[61, 0], [58, 1], [54, 0], [56, 0]], "night": true,
+		"lead": [0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2, 3, 5, 3, 2, 1],
+		"bass": [0, -1, -1, -1, 1, -1, -1, -1, 0, -1, -1, -1, 2, -1, -1, -1],
+		"lead_len": 1, "lead_wave": Wave.TRIANGLE, "lead_vol": 0.20, "bass_vol": 0.24, "drums": 0.3, "octave": 12,
+	},
+	"frost": {
+		"bpm": 84.0, "chords": [[50, 1], [46, 0], [53, 0], [45, 1]], "night": true,
+		"lead": [4, -1, -1, 3, -1, -1, 2, -1, -1, -1, 3, -1, 1, -1, -1, -1],
+		"bass": [0, -1, -1, -1, -1, -1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1],
+		"lead_len": 3, "lead_wave": Wave.TRIANGLE, "lead_vol": 0.24, "bass_vol": 0.22, "drums": 0.25, "octave": 24,
+	},
+	"desert": {
+		"bpm": 128.0, "chords": [[50, 1], [51, 0], [50, 1], [48, 0]], "night": true,
+		"lead": [0, -1, 1, 2, -1, 1, 0, -1, 3, -1, 2, 1, 2, -1, 0, -1],
+		"bass": [0, -1, 0, -1, 1, -1, 0, -1, 0, -1, 0, -1, 2, -1, 1, -1],
+		"lead_len": 2, "lead_wave": Wave.SQUARE, "lead_vol": 0.09, "bass_vol": 0.28, "drums": 0.9, "octave": 12,
+	},
+	"boss": {
+		"bpm": 164.0, "chords": [[45, 1], [46, 0], [45, 1], [44, 0]],
+		"lead": [0, 3, 0, 4, 0, 3, 5, 4, 0, 3, 0, 4, 6, 5, 4, 3],
+		"bass": [0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 1, 1, 2, 2],
+		"lead_len": 1, "lead_wave": Wave.SAW, "lead_vol": 0.09, "bass_vol": 0.34, "drums": 1.3, "octave": 12,
+	},
+	"victory": {
+		"bpm": 140.0, "chords": [[60, 0], [65, 0], [67, 0], [72, 0]],
+		"lead": [0, -1, 2, -1, 4, -1, 2, 4, 5, -1, -1, 4, 5, -1, 6, -1],
+		"bass": [0, -1, 2, -1, 0, -1, 2, -1, 0, -1, 2, -1, 0, -1, 2, -1],
+		"lead_len": 2, "lead_wave": Wave.SQUARE, "lead_vol": 0.10, "bass_vol": 0.24, "drums": 0.8, "octave": 0,
+	},
+	"reward": {
+		"bpm": 104.0, "chords": [[65, 0], [69, 1], [70, 0], [72, 0]],
+		"lead": [2, -1, 3, -1, 4, -1, -1, 3, 2, -1, 1, -1, 2, -1, -1, -1],
+		"bass": [0, -1, -1, 2, -1, -1, 1, -1, 0, -1, -1, 2, -1, -1, 1, -1],
+		"lead_len": 2, "lead_wave": Wave.TRIANGLE, "lead_vol": 0.22, "bass_vol": 0.22, "drums": 0.35, "octave": 12,
+	},
 	"gameover": {
 		"bpm": 72.0, "chords": [[57, 1], [53, 0], [50, 1], [52, 1]],
 		"lead": [4, -1, -1, -1, 3, -1, -1, -1, 2, -1, -1, -1, 1, -1, -1, -1],
@@ -64,7 +113,7 @@ const TRACKS := {
 }
 
 ## Separacion minima (ms) entre dos reproducciones del mismo efecto.
-const MIN_GAP_MS := {"coin": 45, "hover": 70, "click": 60, "land": 90, "jump": 60, "kill": 50, "hit": 50}
+const MIN_GAP_MS := {"coin": 45, "hover": 70, "click": 60, "land": 90, "jump": 60, "kill": 50, "hit": 50, "step": 120, "combo": 300, "dodge": 120}
 
 var _streams: Dictionary = {}
 var _music_streams: Dictionary = {}
@@ -78,6 +127,7 @@ var _next: int = 0
 var _last_played: Dictionary = {}
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _thread: Thread
+var _intensity: int = 0
 
 
 func _ready() -> void:
@@ -128,6 +178,18 @@ func play_music(track: String) -> void:
 	_start_current()
 
 
+## Intensidad de la musica (0-3) segun el combo: acelera y sube un poco.
+func set_intensity(level: int) -> void:
+	if level == _intensity:
+		return
+	_intensity = level
+	var pitch: float = 1.0 + 0.03 * float(level)
+	_music_a.pitch_scale = pitch
+	_music_b.pitch_scale = pitch
+	if _active.playing and (_fade == null or not _fade.is_running()):
+		_active.volume_db = _music_db()
+
+
 func stop_music() -> void:
 	_current_track = ""
 	_music_a.stop()
@@ -135,7 +197,7 @@ func stop_music() -> void:
 
 
 func _music_db() -> float:
-	return linear_to_db(maxf(GameData.music_volume * 0.6, 0.0001))
+	return linear_to_db(maxf(GameData.music_volume * (0.6 + 0.05 * float(_intensity)), 0.0001))
 
 
 func _start_current() -> void:
@@ -201,6 +263,13 @@ func _build_sounds() -> void:
 	_add("upgrade", _melody([392.0, 523.0, 659.0, 784.0, 1047.0], 0.07, 0.35, Wave.SQUARE, 0.22))
 	_add("level", _melody([523.0, 659.0, 784.0, 1047.0], 0.07, 0.22, Wave.SQUARE, 0.22))
 	_add("mission", _melody([659.0, 659.0, 784.0, 1047.0, 1319.0], 0.08, 0.4, Wave.SQUARE, 0.22))
+	_add("step", _tone(0.03, 140.0, 90.0, Wave.TRIANGLE, 0.10, 0.85))
+	_add("dodge", _tone(0.18, 1800.0, 400.0, Wave.TRIANGLE, 0.18, 0.7))
+	_add("combo", _melody([784.0, 988.0, 1319.0], 0.05, 0.18, Wave.SQUARE, 0.18))
+	_add("diamond", _melody([1568.0, 2093.0, 2637.0, 3136.0, 2637.0, 3136.0], 0.05, 0.4, Wave.TRIANGLE, 0.35))
+	_add("unlock", _melody([523.0, 784.0, 1047.0, 1568.0], 0.08, 0.5, Wave.SQUARE, 0.20))
+	_add("slash_heavy", _tone(0.22, 2200.0, 180.0, Wave.SAW, 0.28, 0.6))
+	_add("boss_hit", _tone(0.3, 220.0, 40.0, Wave.SQUARE, 0.45, 0.45))
 	_add("revive", _melody([262.0, 330.0, 392.0, 523.0, 659.0, 784.0, 1047.0], 0.06, 0.4, Wave.TRIANGLE, 0.4))
 	_add("gameover", _melody([392.0, 330.0, 262.0, 196.0], 0.16, 0.45, Wave.TRIANGLE, 0.45))
 
@@ -270,6 +339,14 @@ func _render_all_tracks() -> void:
 	for track in TRACKS:
 		var def: Dictionary = TRACKS[track]
 		result[track] = _render_track(def)
+		# Variante nocturna: mas lenta, mas suave y sin apenas percusion.
+		if bool(def.get("night", false)):
+			var night: Dictionary = def.duplicate()
+			night["bpm"] = float(def["bpm"]) * 0.82
+			night["lead_wave"] = Wave.TRIANGLE
+			night["lead_vol"] = 0.22
+			night["drums"] = float(def["drums"]) * 0.35
+			result[String(track) + "_night"] = _render_track(night)
 	call_deferred("_on_tracks_ready", result)
 
 
@@ -341,6 +418,8 @@ func _render_track(def: Dictionary) -> PackedByteArray:
 			var s: float = 0.0
 			if wave == Wave.SQUARE:
 				s = 1.0 if phase < 0.5 else -1.0
+			elif wave == Wave.SAW:
+				s = 2.0 * phase - 1.0
 			else:
 				s = 4.0 * absf(phase - 0.5) - 1.0
 			buf[start_i + i] += s * vol * (1.0 - float(i) * inv_len)
