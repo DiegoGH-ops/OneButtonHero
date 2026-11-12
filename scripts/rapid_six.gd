@@ -27,7 +27,6 @@ const Fx = preload("res://scripts/fx.gd")
 
 enum Variant { NORMAL, PRESSURE, COMBO, EXTREME, DOUBLE, SURVIVAL }
 const NAMES := ["RAPID SIX", "RAPID SIX: BAJO PRESION", "RAPID SIX: COMBO", "RAPID SIX: EXTREMO", "RAPID SIX: DOBLE", "RAPID SIX: SUPERVIVENCIA"]
-const TAPS := 6
 const HEIGHT := 260.0
 ## Distancia a la que el portal empieza a temblar (aviso).
 const WARN_DISTANCE := 700.0
@@ -36,6 +35,12 @@ enum State { IDLE, ACTIVE, WAVE, DONE, FAILED }
 
 ## Ventana de tiempo (segundos reales) para las seis pulsaciones.
 var window: float = 2.5
+## Pulsaciones necesarias (6; los jefes piden mas en sus fases finales) y
+## nombre que se muestra (los jefes usan el suyo: ENREDADERA, CADENAS...).
+var taps_needed: int = 6
+var title: String = ""
+## Lo lanza un jefe: el exito le aturde y le hace dano.
+var from_boss: bool = false
 var variant: int = Variant.NORMAL
 ## Sprite y colores del bruto del mundo (variante PRESSURE).
 var threat_sprite: String = "brute"
@@ -75,7 +80,7 @@ func _process(delta: float) -> void:
 	match state:
 		State.ACTIVE:
 			time_left -= real
-			glow_color = Pal.RED.lerp(Pal.YELLOW, float(taps) / float(TAPS))
+			glow_color = Pal.RED.lerp(Pal.YELLOW, float(taps) / float(taps_needed))
 			if time_left <= 0.0:
 				_fail()
 		State.WAVE:
@@ -131,7 +136,7 @@ func tap() -> bool:
 		_wave_x = -40.0
 		time_left += 0.9
 		Sfx.play("boss_hit", 0.7)
-	elif taps >= TAPS:
+	elif taps >= taps_needed:
 		_break()
 	return true
 
@@ -148,7 +153,7 @@ func _check_wave() -> void:
 
 
 func _break() -> void:
-	Daylight.rapid_events.append({"event": "success", "variant": variant, "left": time_left, "window": window})
+	Daylight.rapid_events.append({"event": "success", "variant": variant, "left": time_left, "window": window, "boss": from_boss})
 	Sfx.play("boss_hit", 1.2)
 	Sfx.play("unlock")
 	_shatter(true)
@@ -157,7 +162,7 @@ func _break() -> void:
 
 
 func _fail() -> void:
-	Daylight.rapid_events.append({"event": "fail", "variant": variant})
+	Daylight.rapid_events.append({"event": "fail", "variant": variant, "boss": from_boss})
 	Sfx.play("boss_hit", 0.5)
 	if _player != null and is_instance_valid(_player):
 		_player.call("rapid_hit")
@@ -210,10 +215,11 @@ func _draw() -> void:
 	for k in taps:
 		var cy: float = -HEIGHT + 30.0 + float(k) * 38.0
 		draw_line(Vector2(x0 + 4.0, cy), Vector2(x0 + 28.0, cy + 18.0), Pal.WHITE, 2.0)
-	# Seis runas: se encienden con cada pulsacion.
-	for i in TAPS:
+	# Runas: se encienden con cada pulsacion.
+	var rune_step: float = (HEIGHT - 40.0) / float(taps_needed)
+	for i in taps_needed:
 		var lit: bool = i < taps
-		var ry: float = -HEIGHT + 24.0 + float(i) * 38.0
+		var ry: float = -HEIGHT + 24.0 + float(i) * rune_step
 		var c: Color = Pal.PURPLE
 		if lit:
 			c = Pal.YELLOW
@@ -228,21 +234,22 @@ func _draw() -> void:
 	if not near and state == State.IDLE:
 		return
 	# Contador de seis puntos y barra de tiempo sobre el portal.
-	var title: String = NAMES[variant]
-	PixelFont.draw_text_shadowed(self, title, Vector2(16.0 - PixelFont.text_width(title, 2.0) * 0.5, -HEIGHT - 76.0), 2.0, Pal.ORANGE, Pal.INK, true)
-	for i in TAPS:
+	var caption: String = title if title != "" else String(NAMES[variant])
+	PixelFont.draw_text_shadowed(self, caption, Vector2(16.0 - PixelFont.text_width(caption, 2.0) * 0.5, -HEIGHT - 76.0), 2.0, Pal.ORANGE, Pal.INK, true)
+	for i in taps_needed:
 		var lit2: bool = i < taps
-		var dot: Rect2 = Rect2(16.0 - 6.0 * 22.0 * 0.5 + float(i) * 22.0, -HEIGHT - 50.0, 16.0, 16.0)
+		var dot: Rect2 = Rect2(16.0 - float(taps_needed) * 22.0 * 0.5 + float(i) * 22.0, -HEIGHT - 50.0, 16.0, 16.0)
 		draw_rect(dot, Pal.INK)
 		draw_rect(dot.grow(-3.0), Pal.YELLOW if lit2 else Pal.SLATE)
 	if state == State.ACTIVE or state == State.WAVE:
 		var ratio: float = clampf(time_left / window, 0.0, 1.0)
 		draw_rect(Rect2(-50.0, -HEIGHT - 26.0, 132.0, 8.0), Pal.INK)
 		draw_rect(Rect2(-48.0, -HEIGHT - 24.0, 128.0 * ratio, 4.0), Pal.LIME.lerp(Pal.RED, 1.0 - ratio))
-		var msg: String = "¡SALTA LA ONDA!" if state == State.WAVE else "¡PULSA x%d!" % (TAPS - taps)
+		var msg: String = "¡SALTA LA ONDA!" if state == State.WAVE else "¡PULSA x%d!" % (taps_needed - taps)
 		PixelFont.draw_text_shadowed(self, msg, Vector2(-60.0 - PixelFont.text_width(msg, 3.0), -150.0), 3.0, Pal.YELLOW if int(_time * 10.0) % 2 == 0 else Pal.WHITE, Pal.INK, true)
 	elif state == State.IDLE:
-		PixelFont.draw_text_shadowed(self, "6 PULSACIONES", Vector2(16.0 - PixelFont.text_width("6 PULSACIONES", 2.0) * 0.5, -HEIGHT - 100.0), 2.0, Pal.WHITE, Pal.INK, true)
+		var need_text: String = "%d PULSACIONES" % taps_needed
+		PixelFont.draw_text_shadowed(self, need_text, Vector2(16.0 - PixelFont.text_width(need_text, 2.0) * 0.5, -HEIGHT - 100.0), 2.0, Pal.WHITE, Pal.INK, true)
 	# Onda de la variante SUPERVIVENCIA.
 	if state == State.WAVE:
 		for k in 3:

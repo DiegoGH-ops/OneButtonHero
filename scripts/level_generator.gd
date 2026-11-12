@@ -954,6 +954,45 @@ func spawn_obstacle(kind: int, x: float, count: int) -> void:
 	_add_obstacle(kind, x, count)
 
 
+## Acceso para los jefes: piezas tematicas (fuego, lanzas, ondas...).
+func spawn_piece(type: int, x: float, data: Dictionary) -> void:
+	var piece: Creature = Creature.new()
+	piece.position = Vector2(x, GROUND_Y)
+	_objects_root.add_child(piece)
+	piece.setup_special(type, data)
+
+
+## Acceso para los jefes: un portal de pulsaciones con sus reglas.
+func spawn_rapid(x: float, variant: int, window: float, taps: int, title: String) -> void:
+	var gate: RapidSix = RapidSix.new()
+	gate.position = Vector2(x, GROUND_Y)
+	gate.variant = variant
+	gate.window = window
+	gate.taps_needed = taps
+	gate.title = title
+	gate.from_boss = true
+	_objects_root.add_child(gate)
+
+
+## Acceso para los jefes: un paso de salto variable en la posicion dada.
+## Devuelve la X donde aterriza el heroe tras ese paso.
+func spawn_step(step: String, x: float) -> float:
+	var saved: float = _gen_x
+	_gen_x = x
+	_jump_step(step)
+	var landing: float = _gen_x
+	_gen_x = maxf(saved, _gen_x)
+	return landing
+
+
+## Acceso para los jefes: una criatura del bestiario.
+func spawn_creature(world: int, index: int, x: float) -> void:
+	var saved_world: int = _creature_world
+	_creature_world = world
+	_add_creature(index, x)
+	_creature_world = saved_world
+
+
 func spawn_enemy(kind: int, x: float) -> Node:
 	_add_enemy(kind, x)
 	return _objects_root.get_child(_objects_root.get_child_count() - 1)

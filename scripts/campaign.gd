@@ -71,20 +71,34 @@ const WORLDS := [
 	},
 ]
 
-## Jefes finales (nivel 20 de cada mundo). `wave` es el tipo de obstaculo
-## de sus oleadas (0 pinchos, 3 llamas) y `phases` los ataques de cada fase:
-## wave, double_wave, wall, boulder, orb, double_orb y feint (finta).
+## Jefes finales (nivel 20 de cada mundo). Cada uno lucha con ataques de
+## SU mundo (ver boss.gd): `phases` lista los ataques de cada fase (de 3 a
+## 4 fases segun el jefe; cambian por tramos de vida), `mash` las pruebas de
+## pulsaciones de cada fase [pulsaciones, segundos reales, variante] y
+## `mash_name` como se llaman en ese jefe. `wave` = obstaculo de sus
+## oleadas (0 pinchos, 3 llamas).
+## Ataques comunes: wave, double_wave, wall, boulder, orb, double_orb,
+## feint (finta), pillars (columnas de alturas mezcladas), tap (techo muy
+## bajo) y rapid (prueba de pulsaciones).
+## Ataques tematicos: roots, spores (Verdantia); fire_rain, geysers,
+## magma_wave (Infernus); shards, mirror (Amethystia); spears, avalanche,
+## quake (Frostfall); hands, burrow, sandstorm (Solaris).
 const BOSSES := [
-	{"name": "THE ANCIENT ROOT", "sprite": "boss_root", "hp": 10, "color": "38b764", "wave": 0,
-		"phases": [["wave", "orb"], ["wave", "orb", "double_wave"], ["double_wave", "orb", "feint", "boulder"]]},
-	{"name": "THE INFERNAL KING", "sprite": "boss_king", "hp": 13, "color": "ef7d57", "wave": 3,
-		"phases": [["wave", "orb"], ["wave", "double_orb", "boulder"], ["double_wave", "double_orb", "feint", "boulder"]]},
-	{"name": "THE CRYSTAL EMPRESS", "sprite": "boss_empress", "hp": 16, "color": "f29cb5", "wave": 0, "needs_reflect": true,
-		"phases": [["wall", "orb"], ["wall", "double_orb", "feint"], ["wall", "double_orb", "double_wave", "feint"]]},
-	{"name": "THE FROZEN TITAN", "sprite": "boss_titan", "hp": 19, "color": "73eff7", "wave": 0,
-		"phases": [["wave", "boulder", "orb"], ["double_wave", "orb", "boulder"], ["double_wave", "double_orb", "wall", "feint"]]},
-	{"name": "THE SAND DEVOURER", "sprite": "boss_worm", "hp": 22, "color": "ffcd75", "wave": 0,
-		"phases": [["wall", "orb", "wave"], ["wall", "double_orb", "double_wave"], ["wall", "double_orb", "double_wave", "boulder", "feint"]]},
+	{"name": "THE ANCIENT ROOT", "sprite": "boss_root", "hp": 12, "color": "38b764", "wave": 0, "mash_name": "ENREDADERA",
+		"phases": [["roots", "orb", "spores"], ["roots", "spores", "pillars", "rapid"], ["roots", "double_orb", "pillars", "tap", "rapid", "feint"]],
+		"mash": [[6, 2.6, 0], [6, 2.2, 2], [8, 2.4, 2]]},
+	{"name": "THE INFERNAL KING", "sprite": "boss_king", "hp": 15, "color": "ef7d57", "wave": 3, "mash_name": "CADENAS DE FUEGO",
+		"phases": [["fire_rain", "orb", "wave"], ["geysers", "fire_rain", "double_orb", "rapid"], ["magma_wave", "geysers", "fire_rain", "pillars", "rapid", "feint"]],
+		"mash": [[6, 2.3, 0], [6, 2.0, 1], [8, 2.2, 2]]},
+	{"name": "THE CRYSTAL EMPRESS", "sprite": "boss_empress", "hp": 18, "color": "f29cb5", "wave": 0, "needs_reflect": true, "mash_name": "ESPEJO ROTO",
+		"phases": [["mirror", "shards", "tap"], ["mirror", "shards", "pillars", "rapid"], ["double_orb", "shards", "tap", "pillars", "rapid"], ["mirror", "double_orb", "shards", "pillars", "tap", "rapid", "feint"]],
+		"mash": [[6, 2.2, 0], [6, 1.9, 2], [8, 2.0, 4], [8, 1.8, 2]]},
+	{"name": "THE FROZEN TITAN", "sprite": "boss_titan", "hp": 21, "color": "73eff7", "wave": 0, "mash_name": "HIELO PERPETUO",
+		"phases": [["spears", "quake", "orb"], ["avalanche", "spears", "quake", "rapid"], ["avalanche", "quake", "pillars", "double_orb", "rapid"], ["spears", "avalanche", "quake", "pillars", "tap", "rapid", "feint"]],
+		"mash": [[6, 2.1, 0], [6, 1.8, 5], [8, 1.9, 2], [10, 2.2, 5]]},
+	{"name": "THE SAND DEVOURER", "sprite": "boss_worm", "hp": 24, "color": "ffcd75", "wave": 0, "mash_name": "FAUCES DEL DESIERTO",
+		"phases": [["burrow", "hands", "orb"], ["sandstorm", "hands", "burrow", "rapid"], ["burrow", "hands", "double_orb", "pillars", "rapid"], ["sandstorm", "burrow", "hands", "pillars", "tap", "double_orb", "rapid", "feint"]],
+		"mash": [[6, 2.0, 1], [8, 2.0, 5], [8, 1.7, 2], [10, 2.0, 4]]},
 ]
 
 ## Economia por mundos (ver tools/simulacion_economia.py):
@@ -167,7 +181,7 @@ static func level_def(world: int, level: int) -> Dictionary:
 		"encounters": encounters(world, level),
 		"coins": first_clear_coins(world, level),
 		# Contrarreloj: tiempo objetivo (exige aprovechar hielo y rebotes).
-		"par_time": int(meters * PIXELS_PER_METER / (360.0 + float(world) * 80.0 + float(level) * 4.0) * 0.93) if not is_final else 60 + world * 12,
+		"par_time": int(meters * PIXELS_PER_METER / (360.0 + float(world) * 80.0 + float(level) * 4.0) * 0.93) if not is_final else 90 + world * 18,
 	}
 
 

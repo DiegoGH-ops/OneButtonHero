@@ -880,6 +880,10 @@ func _check_rapid() -> void:
 			_shake = maxf(_shake, 0.6)
 			_zoom_punch = 1.0
 			GameData.track("rapid_success")
+			if bool(info.get("boss", false)):
+				GameData.track("boss_rapid")
+				if _boss != null and is_instance_valid(_boss):
+					_boss.on_rapid_success()
 			GameData.track_max("rapid_streak", GameData.bump_streak("rapid", true))
 			if variant == 3:
 				GameData.track("rapid_extreme")

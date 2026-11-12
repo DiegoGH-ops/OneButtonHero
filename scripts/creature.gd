@@ -100,6 +100,8 @@ var _max_hp: int = 1
 var _origin_x: float = 0.0
 var _size: float = 1.0
 var _trigger: float = 650.0
+## Color de las piezas que lanzan los jefes (esporas, ondas, cristales).
+var _piece_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 var _setup_done: bool = false
 var _shape: RectangleShape2D
 var _collider: CollisionShape2D
@@ -144,6 +146,8 @@ func setup_special(type: int, data: Dictionary) -> void:
 	_y = float(data.get("y", 0.0))
 	_trigger = float(data.get("trigger", 650.0))
 	_count = int(data.get("phase", 0))
+	if data.has("color"):
+		_piece_color = Color(String(data["color"]))
 	match type:
 		SPORE:
 			_box(26.0, 20.0)
@@ -1118,8 +1122,9 @@ func _draw_piece() -> void:
 	match behavior:
 		SPORE:
 			draw_set_transform(Vector2(0.0, -12.0), _time * 10.0, Vector2.ONE)
-			draw_rect(Rect2(-10.0, -10.0, 20.0, 20.0), Pal.LIME.darkened(0.3))
-			draw_rect(Rect2(-6.0, -6.0, 12.0, 12.0), Pal.LIME)
+			var spore: Color = _piece_color if _piece_color.a > 0.0 else Pal.LIME
+			draw_rect(Rect2(-10.0, -10.0, 20.0, 20.0), spore.darkened(0.3))
+			draw_rect(Rect2(-6.0, -6.0, 12.0, 12.0), spore)
 			draw_rect(Rect2(-2.0, -10.0, 4.0, 4.0), Pal.YELLOW)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		SNOWBALL:
@@ -1153,7 +1158,8 @@ func _draw_piece() -> void:
 		SHOCKWAVE:
 			for k in 3:
 				var w: float = 44.0 - float(k) * 12.0
-				draw_rect(Rect2(-w * 0.5 + float(k) * 10.0, -8.0 - float(k) * 7.0, w, 8.0), Color(Pal.CYAN if k % 2 == 0 else Pal.WHITE, 0.9 - float(k) * 0.2))
+				var wave_color: Color = _piece_color if _piece_color.a > 0.0 else Pal.CYAN
+				draw_rect(Rect2(-w * 0.5 + float(k) * 10.0, -8.0 - float(k) * 7.0, w, 8.0), Color(wave_color if k % 2 == 0 else Pal.WHITE, 0.9 - float(k) * 0.2))
 		SHARD:
 			draw_rect(Rect2(-4.0, -4.0, 8.0, 4.0), Color(0.0, 0.0, 0.0, 0.3))
 			draw_set_transform(Vector2(0.0, _y - 11.0), _time * 4.0, Vector2.ONE)
