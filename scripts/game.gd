@@ -14,6 +14,8 @@ const Catalog = preload("res://scripts/catalog.gd")
 const Campaign = preload("res://scripts/campaign.gd")
 const Precision = preload("res://scripts/precision.gd")
 const Timing = preload("res://scripts/timing.gd")
+const Boss = preload("res://scripts/boss.gd")
+const Enemy = preload("res://scripts/enemy.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
 const Pal = preload("res://scripts/palette.gd")
@@ -65,6 +67,8 @@ var _goal_x: float = INF
 ## Soul Reaper activado: el proximo ataque perfecto sera letal.
 var _soul_ready: bool = false
 var precision: Precision
+## Jefe final (solo en el nivel 20 de cada mundo).
+var _boss: Boss
 var _shake: float = 0.0
 var _zoom_punch: float = 0.0
 var _next_milestone: int = MILESTONE_METERS
@@ -125,6 +129,14 @@ func _ready() -> void:
 		_level = 5
 		precision.window_scale = float(_def["window_scale"])
 		generator.configure(_def)
+		if bool(_def["final"]):
+			# Nivel de jefe: no hay meta; se gana derrotandolo.
+			_goal_x = INF
+			_boss = Boss.new()
+			objects_root.add_child(_boss)
+			_boss.setup(int(_def["world"]), generator)
+			_boss.struck.connect(_on_boss_struck)
+			_boss.defeated.connect(_level_complete)
 	ground.holes = generator.holes
 	Daylight.holes = generator.holes
 
@@ -148,7 +160,7 @@ func _ready() -> void:
 	hud.menu_requested.connect(_go_to_menu)
 	hud.power_pressed.connect(_use_power)
 	hud.next_requested.connect(_next_level)
-	if _level_mode:
+	if _level_mode and _boss == null:
 		hud.set_level_name("NIVEL " + String(_def["name"]))
 	hud.set_max_lives(MAX_LIVES)
 	hud.set_high_score(GameData.high_score)
@@ -395,7 +407,9 @@ func _update_hud() -> void:
 		var total: float = float(power["cooldown"]) * _cooldown_factor
 		hud.set_power(i, float(_power_cooldowns[i]) / total, i == 0 and player.is_turbo())
 	hud.set_combo(precision.perfects, precision.multiplier())
-	if _level_mode:
+	if _boss != null and is_instance_valid(_boss):
+		hud.set_boss(_boss.title(), float(_boss.hp) / float(maxi(_boss.max_hp, 1)))
+	elif _level_mode and _goal_x != INF:
 		hud.set_progress(clampf(player.position.x / _goal_x, 0.0, 1.0))
 
 
@@ -483,6 +497,8 @@ func _arm_soul_reaper() -> void:
 
 func _on_soul_strike(pos: Vector2) -> void:
 	_soul_ready = false
+	if _boss != null and is_instance_valid(_boss):
+		_boss.damage(4)
 	Sfx.play("soul")
 	_shake = maxf(_shake, 0.9)
 	_zoom_punch = 1.0
@@ -492,6 +508,25 @@ func _on_soul_strike(pos: Vector2) -> void:
 	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.RED, 18, 380.0, 0.5, 7.0, 0.0, 180.0, Vector2.UP)
 	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.WHITE, 12, 640.0, 0.3, 5.0, 0.0, 180.0, Vector2.UP)
 	Fx.popup(fx_root, pos + Vector2(0.0, -100.0), "SOUL REAPER +%d" % gained, Pal.PURPLE, 4.0)
+
+
+## Golpe al punto debil del jefe: el dano depende del timing.
+func _on_boss_struck() -> void:
+	var rating: int = precision.consume_attack()
+	var amount: int = 1
+	if rating == Timing.Rating.LEGENDARY:
+		amount = 3
+	elif rating == Timing.Rating.PERFECT:
+		amount = 2
+	if rating >= Timing.Rating.GOOD:
+		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
+		precision.register(rating, label, _boss.position)
+	_boss.damage(amount)
+	_add_points(60.0 * float(amount))
+	Sfx.play("hit")
+	_shake = maxf(_shake, 0.6)
+	Fx.burst(fx_root, _boss.position + Vector2(-80.0, 100.0), Pal.WHITE, 20, 420.0, 0.5, 8.0, 500.0, 180.0, Vector2.UP)
+	Fx.popup(fx_root, _boss.position + Vector2(0.0, -150.0), "-%d" % amount, Pal.RED, 5.0)
 
 
 ## Respuesta a una accion evaluada: puntos, texto, sonido y efectos propios
@@ -633,6 +668,10 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	if rating >= Timing.Rating.GOOD:
 		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
 		precision.register(rating, label, pos)
+	# Proyectil de jefe devuelto con un golpe perfecto: contraataque.
+	if kind == Enemy.Kind.ORB and _boss != null and is_instance_valid(_boss) and rating >= Timing.Rating.PERFECT:
+		_boss.reflect()
+		Fx.popup(fx_root, _boss.position + Vector2(0.0, -150.0), "¡CONTRAATAQUE! -1", Pal.LIME, 4.0)
 	var gained: int = _add_points(float(points))
 	if _bounty > 0:
 		_add_coins(float(_bounty))

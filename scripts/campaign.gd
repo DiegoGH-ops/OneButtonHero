@@ -16,6 +16,7 @@ const WORLDS := [
 		"name": "VERDANTIA", "subtitle": "THE ANCIENT FOREST", "color": "38b764",
 		"theme": {
 			"sky": ["3b5dc9", "41a6f6", "73eff7"], "far": "94b0c2", "mid": "566c86", "hill": "2e946e", "forest": "257179",
+			"swap": {1: [6, 0.5]}, "enemy_remap": {},
 			"ground": {}, "ground_key": "", "trees": 1.0, "tree_tint": "ffffff", "decor": true, "particles": "pollen", "ambient": "ffffff",
 		},
 	},
@@ -23,6 +24,7 @@ const WORLDS := [
 		"name": "INFERNUS", "subtitle": "THE BURNING DEPTHS", "color": "ef7d57",
 		"theme": {
 			"sky": ["1a1c2c", "5d275d", "ef7d57"], "far": "5d275d", "mid": "3a1a2e", "hill": "7a2a3a", "forest": "2a1420",
+			"swap": {2: [9, 1.0]}, "enemy_remap": {"G": "o", "L": "y", "t": "r"},
 			"ground": {"L": "o", "G": "r", "t": "p", "n": "k"}, "ground_key": "inferno", "trees": 0.0, "tree_tint": "ffffff", "decor": false, "particles": "embers", "ambient": "ffd2b8",
 		},
 	},
@@ -30,6 +32,7 @@ const WORLDS := [
 		"name": "AMETHYSTIA", "subtitle": "THE CRYSTAL VEIL", "color": "b13e53",
 		"theme": {
 			"sky": ["29366f", "5d275d", "f29cb5"], "far": "8a6fb0", "mid": "5d3a7a", "hill": "7a3f8c", "forest": "3a2a5e",
+			"swap": {3: [7, 1.0]}, "enemy_remap": {"G": "m", "L": "w", "t": "p"},
 			"ground": {"L": "m", "G": "p", "t": "n", "n": "k"}, "ground_key": "amethyst", "trees": 0.6, "tree_tint": "d0a0ff", "decor": false, "particles": "sparkles", "ambient": "f0d8ff",
 		},
 	},
@@ -37,6 +40,7 @@ const WORLDS := [
 		"name": "FROSTFALL", "subtitle": "THE FROZEN KINGDOM", "color": "73eff7",
 		"theme": {
 			"sky": ["3b5dc9", "94b0c2", "f4f4f4"], "far": "dfe9f0", "mid": "94b0c2", "hill": "b8d4e6", "forest": "6f8fb0",
+			"swap": {1: [6, 0.6], 4: [10, 1.0]}, "enemy_remap": {"G": "c", "L": "w", "t": "B", "g": "w", "d": "l"},
 			"ground": {"L": "w", "G": "c", "t": "B", "n": "b"}, "ground_key": "frost", "trees": 0.7, "tree_tint": "c8e8ff", "decor": false, "particles": "snow", "ambient": "e0f0ff",
 		},
 	},
@@ -44,9 +48,26 @@ const WORLDS := [
 		"name": "SOLARIS", "subtitle": "THE LOST DUNES", "color": "ffcd75",
 		"theme": {
 			"sky": ["41a6f6", "ffcd75", "ffe9b0"], "far": "d9a066", "mid": "b8763a", "hill": "e0b060", "forest": "a86a3a",
+			"swap": {3: [8, 1.0], 1: [8, 0.4]}, "enemy_remap": {"G": "u", "L": "y", "t": "e"},
 			"ground": {"L": "y", "G": "o", "t": "u", "n": "e"}, "ground_key": "desert", "trees": 0.0, "tree_tint": "ffffff", "decor": false, "particles": "sand", "ambient": "fff0d0",
 		},
 	},
+]
+
+## Jefes finales (nivel 20 de cada mundo). `wave` es el tipo de obstaculo
+## de sus oleadas (0 pinchos, 3 llamas) y `phases` los ataques de cada fase:
+## wave, double_wave, wall, boulder, orb, double_orb y feint (finta).
+const BOSSES := [
+	{"name": "THE ANCIENT ROOT", "sprite": "boss_root", "hp": 10, "color": "38b764", "wave": 0,
+		"phases": [["wave", "orb"], ["wave", "orb", "double_wave"], ["double_wave", "orb", "feint", "boulder"]]},
+	{"name": "THE INFERNAL KING", "sprite": "boss_king", "hp": 13, "color": "ef7d57", "wave": 3,
+		"phases": [["wave", "orb"], ["wave", "double_orb", "boulder"], ["double_wave", "double_orb", "feint", "boulder"]]},
+	{"name": "THE CRYSTAL EMPRESS", "sprite": "boss_empress", "hp": 16, "color": "f29cb5", "wave": 0, "needs_reflect": true,
+		"phases": [["wall", "orb"], ["wall", "double_orb", "feint"], ["wall", "double_orb", "double_wave", "feint"]]},
+	{"name": "THE FROZEN TITAN", "sprite": "boss_titan", "hp": 19, "color": "73eff7", "wave": 0,
+		"phases": [["wave", "boulder", "orb"], ["double_wave", "orb", "boulder"], ["double_wave", "double_orb", "wall", "feint"]]},
+	{"name": "THE SAND DEVOURER", "sprite": "boss_worm", "hp": 22, "color": "ffcd75", "wave": 0,
+		"phases": [["wall", "orb", "wave"], ["wall", "double_orb", "double_wave"], ["wall", "double_orb", "double_wave", "boulder", "feint"]]},
 ]
 
 ## Hora del dia de cada nivel (se repite cada cinco).

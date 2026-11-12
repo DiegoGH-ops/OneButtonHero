@@ -71,6 +71,8 @@ var goal_x: float = INF
 var _allowed: Array = []
 var _fixed_difficulty: float = -1.0
 var _goal_placed: bool = false
+## Nivel de jefe: suelo liso, sin patrones ni meta.
+var _arena: bool = false
 
 ## Huecos como Vector2(inicio, fin). ground_renderer.gd comparte esta lista.
 var holes: Array = []
@@ -111,6 +113,9 @@ func configure(def: Dictionary) -> void:
 	_rng.seed = int(def["seed"])
 	_fixed_difficulty = float(def["difficulty"])
 	goal_x = float(def["goal_px"])
+	if bool(def.get("final", false)):
+		_arena = true
+		goal_x = INF
 	_allowed = []
 	var unlocked: int = clampi(int(def["unlocked"]), 1, HARDNESS.size())
 	var focus: Array = def["focus"]
@@ -144,7 +149,9 @@ func update(player_x: float, speed: float, level: int, delta: float) -> void:
 		_difficulty = _fixed_difficulty
 	var guard: int = 0
 	while _gen_x < player_x + AHEAD and guard < 40:
-		if _gen_x > goal_x - GOAL_RUNWAY:
+		if _arena:
+			_gen_x += 600.0
+		elif _gen_x > goal_x - GOAL_RUNWAY:
 			_finish_track()
 		else:
 			_spawn_pattern()
@@ -297,7 +304,8 @@ func _pattern_totem() -> void:
 	_gen_x += 48.0
 
 
-func _pattern_enemy(kind: int) -> void:
+func _pattern_enemy(base_kind: int) -> void:
+	var kind: int = _themed(base_kind)
 	_gen_x += _enemy_gap(kind)
 	_add_enemy(kind, _gen_x)
 	_gen_x += 40.0
@@ -313,7 +321,7 @@ func _pattern_double_enemy() -> void:
 	_gen_x += _enemy_gap(Enemy.Kind.SLIME)
 	_add_enemy(Enemy.Kind.SLIME, _gen_x)
 	_gen_x += maxf(_speed * 0.75, _attack_reach() + 110.0)
-	var second: int = Enemy.Kind.BAT if _rng.randf() < 0.5 else Enemy.Kind.SLIME
+	var second: int = _themed(Enemy.Kind.BAT) if _rng.randf() < 0.5 else Enemy.Kind.SLIME
 	_add_enemy(second, _gen_x)
 	_gen_x += 40.0
 
@@ -355,14 +363,17 @@ func _pattern_spikes_hole() -> void:
 ## Escudero: necesita dos golpes y retrocede tras el primero, por eso se
 ## deja libre la zona a la que es empujado.
 func _pattern_knight() -> void:
-	_gen_x += _enemy_gap(Enemy.Kind.KNIGHT)
-	_add_enemy(Enemy.Kind.KNIGHT, _gen_x)
+	var kind: int = _themed(Enemy.Kind.KNIGHT)
+	_gen_x += _enemy_gap(kind)
+	_add_enemy(kind, _gen_x)
 	_gen_x += 240.0 + _speed * 0.35
 
 
 ## Espectro: solo aparece de noche (de dia lo sustituye un murcielago).
 func _pattern_ghost() -> void:
-	var kind: int = Enemy.Kind.GHOST if Daylight.darkness() > 0.5 else Enemy.Kind.BAT
+	var kind: int = _themed(Enemy.Kind.GHOST)
+	if kind == Enemy.Kind.GHOST and Daylight.darkness() <= 0.5:
+		kind = _themed(Enemy.Kind.BAT)
 	_gen_x += _enemy_gap(kind)
 	_add_enemy(kind, _gen_x)
 	_gen_x += 40.0
@@ -466,10 +477,32 @@ func _add_obstacle(kind: int, x: float, count: int) -> void:
 
 func _add_enemy(kind: int, x: float) -> void:
 	var enemy: Enemy = EnemyScene.instantiate()
-	var y: float = GROUND_Y - 52.0 if (kind == Enemy.Kind.BAT or kind == Enemy.Kind.GHOST) else GROUND_Y
+	var flying: bool = kind == Enemy.Kind.BAT or kind == Enemy.Kind.GHOST or kind == Enemy.Kind.ORB or kind == Enemy.Kind.FIREBAT or kind == Enemy.Kind.WRAITH
+	var y: float = GROUND_Y - 52.0 if flying else GROUND_Y
 	enemy.position = Vector2(x, y)
 	_objects_root.add_child(enemy)
 	enemy.setup(kind)
+
+
+## Criatura propia del mundo actual que sustituye a una basica
+## (lobos en el bosque, murcielagos de fuego en el infierno...).
+func _themed(kind: int) -> int:
+	var swaps: Dictionary = Daylight.theme.get("swap", {})
+	if swaps.has(kind):
+		var entry: Array = swaps[kind]
+		if _rng.randf() < float(entry[1]):
+			return int(entry[0])
+	return kind
+
+
+## Acceso para los jefes: colocan obstaculos y proyectiles en la pista.
+func spawn_obstacle(kind: int, x: float, count: int) -> void:
+	_add_obstacle(kind, x, count)
+
+
+func spawn_enemy(kind: int, x: float) -> Node:
+	_add_enemy(kind, x)
+	return _objects_root.get_child(_objects_root.get_child_count() - 1)
 
 
 func _add_platform(x: float, y: float, width: float) -> void:

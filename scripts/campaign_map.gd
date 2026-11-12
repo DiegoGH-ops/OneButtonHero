@@ -174,10 +174,14 @@ func _draw_content() -> void:
 	_canvas.draw_rect(Rect2(68.0, 504.0, 792.0, 160.0), Pal.NAVY.lerp(Pal.INK, 0.4))
 	var title: String = "NIVEL %s" % String(def["name"])
 	if bool(def["final"]):
-		title += " - PRUEBA FINAL"
+		var boss: Dictionary = Campaign.BOSSES[_world]
+		title = "JEFE: %s" % String(boss["name"])
 	_text(title, Vector2(88.0, 520.0), 4.0, Pal.YELLOW)
 	_text("DIFICULTAD: %s" % Campaign.difficulty_name(_world, _level), Vector2(88.0, 562.0), 2.0, Pal.ORANGE)
-	_text("RECORRIDO: %d M   VELOCIDAD: %d" % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+	if bool(def["final"]):
+		_text("SALTA SUS OLEADAS, DEVUELVE SUS PROYECTILES Y GOLPEA CUANDO SE ACERQUE", Vector2(88.0, 586.0), 2.0, Pal.WHITE)
+	else:
+		_text("RECORRIDO: %d M   VELOCIDAD: %d" % [int(def["meters"]), int(float(def["speed"]) / 48.0)], Vector2(88.0, 586.0), 2.0, Pal.WHITE)
 	if record.is_empty():
 		var prize: String = "PRIMERA VEZ: +%d MONEDAS" % int(def["coins"])
 		var gems: int = Campaign.first_clear_diamonds(_world, _level)

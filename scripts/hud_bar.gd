@@ -107,6 +107,14 @@ var progress: float = -1.0:
 			progress = value
 			queue_redraw()
 
+## Jefe: nombre y vida restante (0..1; negativo = sin jefe).
+var boss_name: String = ""
+var boss_ratio: float = -1.0:
+	set(value):
+		if absf(boss_ratio - value) > 0.001:
+			boss_ratio = value
+			queue_redraw()
+
 var level_name: String = "":
 	set(value):
 		level_name = value
@@ -202,6 +210,18 @@ func _draw() -> void:
 		draw_rect(Rect2(436.0 + 400.0 * clampf(progress, 0.0, 1.0), 698.0, 8.0, 18.0), Pal.YELLOW)
 		PixelFont.draw_text_shadowed(self, level_name, Vector2(424.0 - PixelFont.text_width(level_name, 2.0), 700.0), 2.0, Pal.WHITE, Pal.INK, true)
 		PixelFont.draw_text_shadowed(self, "META", Vector2(856.0, 700.0), 2.0, Pal.YELLOW, Pal.INK, true)
+
+	# --- Barra de vida del jefe ---
+	if boss_ratio >= 0.0:
+		var name_w: float = PixelFont.text_width(boss_name, 3.0)
+		PixelFont.draw_text_shadowed(self, boss_name, Vector2(roundf(700.0 - name_w * 0.5), 652.0), 3.0, Pal.RED, Pal.INK, true)
+		draw_rect(Rect2(396.0, 684.0, 608.0, 24.0), Pal.INK)
+		draw_rect(Rect2(400.0, 688.0, 600.0, 16.0), Pal.SLATE)
+		draw_rect(Rect2(400.0, 688.0, 600.0 * clampf(boss_ratio, 0.0, 1.0), 16.0), Pal.RED)
+		draw_rect(Rect2(400.0, 688.0, 600.0 * clampf(boss_ratio, 0.0, 1.0), 4.0), Pal.ORANGE)
+		for mark in [0.33, 0.66]:
+			var m: float = mark
+			draw_rect(Rect2(400.0 + 600.0 * m - 2.0, 684.0, 4.0, 24.0), Pal.INK)
 
 	# --- Velocidad ---
 	var right: float = 1176.0

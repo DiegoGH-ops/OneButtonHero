@@ -315,6 +315,13 @@ func set_progress(ratio: float) -> void:
 	_bar.progress = ratio
 
 
+## Barra de vida del jefe.
+func set_boss(boss_name: String, ratio: float) -> void:
+	_bar.boss_name = boss_name
+	_hint_layer.visible = false
+	_bar.boss_ratio = ratio
+
+
 func set_level_name(text: String) -> void:
 	_bar.level_name = text
 	_bar.progress = 0.0
