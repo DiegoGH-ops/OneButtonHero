@@ -51,7 +51,7 @@ func _ready() -> void:
 	for i in SLOTS.size():
 		override[SLOTS[i]] = _items[i]
 	_preview.override = override
-	_preview.hidden = {"sword": true, "trail": true, "aura": true}
+	_preview.hidden_slots = {"sword": true, "trail": true, "aura": true}
 	add_child(_preview)
 	Sfx.play_music("boss")
 	Sfx.set_intensity(0)
@@ -105,7 +105,7 @@ func _go(step: int) -> void:
 func _reveal(index: int) -> void:
 	_piece = index
 	_step_time = 0.0
-	_preview.hidden.erase(String(SLOTS[index]))
+	_preview.hidden_slots.erase(String(SLOTS[index]))
 	Sfx.play("unlock", 0.8 + 0.1 * float(index))
 	_burst(_preview.position + Vector2(0.0, -70.0), Pal.VIOLET, 26)
 

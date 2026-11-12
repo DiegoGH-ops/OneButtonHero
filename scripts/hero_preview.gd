@@ -13,7 +13,7 @@ var px: float = 8.0
 ## Objetos a mostrar en lugar de los equipados (ranura -> entrada del catalogo).
 var override: Dictionary = {}
 ## Ranuras que no se dibujan todavia (para presentaciones por partes).
-var hidden: Dictionary = {}
+var hidden_slots: Dictionary = {}
 var _time: float = 0.0
 
 
@@ -44,7 +44,7 @@ func _draw() -> void:
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
 
 	var aura_hex: String = aura["color"]
-	if aura_hex != "" and not hidden.has("aura"):
+	if aura_hex != "" and not hidden_slots.has("aura"):
 		var pulse: float = 0.8 + 0.2 * sin(_time * 5.0)
 		PixelArt.draw_glow(self, Vector2(0.0, -32.0 * s), 90.0 * s * pulse, Color(Color(aura_hex), 0.55))
 		if bool(aura.get("particles", false)):
@@ -57,7 +57,7 @@ func _draw() -> void:
 
 	# Estela: cuadraditos que salen de los pies hacia atras.
 	var colors: Array = trail["colors"]
-	var trail_count: int = 0 if hidden.has("trail") else 9
+	var trail_count: int = 0 if hidden_slots.has("trail") else 9
 	for i in trail_count:
 		var life: float = fposmod(_time * 1.6 + float(i) / 9.0, 1.0)
 		var c: Color = Color(String(colors[i % colors.size()]))
@@ -75,7 +75,7 @@ func _draw() -> void:
 	PixelArt.draw_skin(self, cape, Vector2(-38.0 * s, -36.0 * s + bob), px, white, color_map, skin_key)
 	PixelArt.draw_skin(self, legs, Vector2(-28.0 * s, -16.0 * s), px, white, color_map, skin_key)
 	PixelArt.draw_skin(self, String(skin.get("top", "hero_top")), Vector2(-28.0 * s, -68.0 * s + bob), px, white, color_map, skin_key)
-	if hidden.has("sword"):
+	if hidden_slots.has("sword"):
 		return
 	var sword_remap: Dictionary = sword["remap"]
 	var sword_key: String = sword["id"]

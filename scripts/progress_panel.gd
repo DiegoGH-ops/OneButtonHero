@@ -34,7 +34,7 @@ const ACH_ROW := 74.0
 var _tab: int = 0
 var _tab_buttons: Array = []
 var _canvas: Control
-var _input: Control
+var _list_input: Control
 var _mission_cat: int = 0
 var _ach_cat: int = 0
 var _scroll: float = 0.0
@@ -67,12 +67,12 @@ func _ready() -> void:
 	_canvas = UI.layer(self, "Canvas")
 	_canvas.draw.connect(_draw_content)
 	_canvas.clip_contents = false
-	_input = Control.new()
-	_input.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(_input)
-	_input.position = Vector2(64.0, 96.0)
-	_input.size = Vector2(1170.0, 580.0)
-	_input.gui_input.connect(_on_list_input)
+	_list_input = Control.new()
+	_list_input.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_list_input)
+	_list_input.position = Vector2(64.0, 96.0)
+	_list_input.size = Vector2(1170.0, 580.0)
+	_list_input.gui_input.connect(_on_list_input)
 	_claim_all = UI.button(self, "RECLAMAR TODO", Rect2(964.0, 100.0, 252.0, 44.0), 2.0)
 	_claim_all.fill = Pal.GREEN
 	_claim_all.fill_hot = Pal.LIME
@@ -163,13 +163,13 @@ func _on_list_input(event: InputEvent) -> void:
 		return
 	if mouse.button_index != MOUSE_BUTTON_LEFT:
 		return
-	var at: Vector2 = mouse.position + _input.position
+	var at: Vector2 = mouse.position + _list_input.position
 	for item in _hits:
 		var hit: Array = item
 		var rect: Rect2 = hit[0]
 		if rect.has_point(at):
 			_on_hit(String(hit[1]), String(hit[2]))
-			_input.accept_event()
+			_list_input.accept_event()
 			return
 
 

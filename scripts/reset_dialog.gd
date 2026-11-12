@@ -30,7 +30,7 @@ var _time: float = 0.0
 var _box: Control
 var _canvas: Control
 var _buttons: Array = []
-var _input: LineEdit
+var _field: LineEdit
 var _delete_button: PixelButton
 var _deleted: bool = false
 var _closing: bool = false
@@ -75,7 +75,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _matches() -> bool:
-	return _input != null and is_instance_valid(_input) and _input.text == CONFIRM_TEXT
+	return _field != null and is_instance_valid(_field) and _field.text == CONFIRM_TEXT
 
 
 # ------------------------------------------------------------------ pasos --
@@ -84,7 +84,7 @@ func _clear() -> void:
 	for child in _box.get_children():
 		child.queue_free()
 	_buttons = []
-	_input = null
+	_field = null
 	_delete_button = null
 
 
@@ -119,27 +119,27 @@ func _show(step: int) -> void:
 			Sfx.play("error", 0.8)
 		Step.FINAL:
 			_panel(Rect2(180.0, 80.0, 920.0, 560.0), Color("120208"), Pal.RED)
-			_input = LineEdit.new()
-			_input.placeholder_text = "ESCRIBE AQUÍ"
-			_input.max_length = 24
-			_input.context_menu_enabled = false
-			_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
-			_input.add_theme_font_size_override("font_size", 30)
-			_input.add_theme_color_override("font_color", Pal.WHITE)
-			_input.add_theme_color_override("font_placeholder_color", Pal.STEEL)
-			_input.add_theme_color_override("caret_color", Pal.RED)
+			_field = LineEdit.new()
+			_field.placeholder_text = "ESCRIBE AQUÍ"
+			_field.max_length = 24
+			_field.context_menu_enabled = false
+			_field.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_field.add_theme_font_size_override("font_size", 30)
+			_field.add_theme_color_override("font_color", Pal.WHITE)
+			_field.add_theme_color_override("font_placeholder_color", Pal.STEEL)
+			_field.add_theme_color_override("caret_color", Pal.RED)
 			var style: StyleBoxFlat = StyleBoxFlat.new()
 			style.bg_color = Pal.INK
 			style.border_color = Pal.RED
 			style.set_border_width_all(4)
 			style.set_content_margin_all(10)
-			_input.add_theme_stylebox_override("normal", style)
-			_input.add_theme_stylebox_override("focus", style)
-			_box.add_child(_input)
-			_input.position = Vector2(390.0, 380.0)
-			_input.size = Vector2(500.0, 64.0)
+			_field.add_theme_stylebox_override("normal", style)
+			_field.add_theme_stylebox_override("focus", style)
+			_box.add_child(_field)
+			_field.position = Vector2(390.0, 380.0)
+			_field.size = Vector2(500.0, 64.0)
 			# Intro dentro del campo no hace nada: solo el clic en el boton borra.
-			_input.text_submitted.connect(_on_submitted)
+			_field.text_submitted.connect(_on_submitted)
 			cancel = _button("CANCELAR", Rect2(240.0, 544.0, 360.0, 64.0), Pal.GREEN, Pal.LIME, _cancel, false)
 			_delete_button = _button("BORRAR TODO", Rect2(680.0, 544.0, 360.0, 64.0), Pal.RED.darkened(0.2), Pal.RED, _confirm_delete, true)
 			_delete_button.focus_mode = Control.FOCUS_NONE
@@ -151,8 +151,8 @@ func _show(step: int) -> void:
 			ok.grab_focus.call_deferred()
 	if cancel != null:
 		cancel.grab_focus.call_deferred()
-	if _input != null:
-		_input.grab_focus.call_deferred()
+	if _field != null:
+		_field.grab_focus.call_deferred()
 
 
 func _panel(rect: Rect2, fill: Color, accent: Color) -> void:
