@@ -216,6 +216,8 @@ func _ready() -> void:
 	_announce_new_content()
 	if Buffs.has("phoenix"):
 		hud.toast("PLUMA DE FÉNIX ACTIVA", Pal.ORANGE)
+	if not GameData.trial.is_empty():
+		hud.toast("ASPECTO DE PRUEBA (ADMIN) ACTIVO", Pal.ORANGE)
 	if _level_mode and not is_equal_approx(_coin_factor, 1.0):
 		var conquered: bool = int(_def["world"]) < GameData.highest_world()
 		hud.toast(("MUNDO SUPERADO: MONEDAS X%.1f" if conquered else "MONEDAS DEL MUNDO X%.1f") % _coin_factor, Pal.YELLOW)
