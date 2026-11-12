@@ -3,7 +3,8 @@ extends CharacterBody2D
 ##   - Pulsar en el suelo: salto. Mantener: salto mas alto; soltar pronto:
 ##     salto corto (techos bajos).
 ##   - Pulsar con un enemigo delante: ataque. Contra enemigos acorazados
-##     (barricadas, brutos) cada pulsacion es un golpe: pulsacion rapida.
+##     (brutos, golems...) cada pulsacion es un golpe: pulsacion rapida.
+##   - Portal RAPID SIX: el heroe se detiene y hay que pulsar seis veces.
 ##   - Pulsar cayendo desde lo alto: pisoton (caida rapida que aplasta).
 ##   - Pisar un trampolin: rebote; pulsar justo al pisarlo: super rebote.
 ## Un solo golpe mata. Los buffs (cosmeticos, mejoras) se leen de buffs.gd.
@@ -102,6 +103,8 @@ var _jump_velocity: float = JUMP_VELOCITY
 var _release: float = JUMP_RELEASE
 ## Tiempo que lleva pulsado el salto en curso (para el medidor de altura).
 var _hold_shown: float = 0.0
+## Portal RAPID SIX en curso (el heroe esta detenido delante).
+var _rapid: Node2D = null
 var _coyote_time: float = COYOTE_TIME
 var _buffer_time: float = JUMP_BUFFER_TIME
 var _ice_grip: float = 0.0
@@ -224,6 +227,15 @@ func refresh_cosmetics() -> void:
 ## Pulsacion del unico boton.
 func press() -> void:
 	if not active or not alive:
+		return
+	# Portal RAPID SIX: cada pulsacion (con su liberacion) cuenta como golpe;
+	# durante la onda de la variante Supervivencia, la pulsacion es un salto.
+	if _rapid != null:
+		if is_instance_valid(_rapid) and bool(_rapid.call("tap")):
+			_squash = Vector2(1.15, 0.9)
+			return
+		if is_on_floor():
+			_do_jump(_jump_velocity)
 		return
 	var target: Node2D = _nearest_enemy_in_reach()
 	if target != null:
@@ -398,7 +410,8 @@ func _physics_process(delta: float) -> void:
 	if on_floor:
 		var target_ice: float = 1.0 if Daylight.is_ice(global_position.x) else 0.0
 		_ice = move_toward(_ice, target_ice, delta * (0.9 if target_ice > _ice else 2.5))
-	velocity.x = get_speed()
+	_check_rapid_gate(delta)
+	velocity.x = 0.0 if _rapid != null else get_speed()
 	move_and_slide()
 
 	# Ayuda en cornisas: si roza el borde de un hueco por muy poco, sube.
@@ -428,6 +441,36 @@ func _physics_process(delta: float) -> void:
 	if position.y > FALL_LIMIT_Y and not _fell_reported:
 		_fell_reported = true
 		fell.emit()
+
+
+## Portal RAPID SIX que esta a punto de alcanzar: el heroe se detiene
+## delante y el portal empieza su cuenta atras.
+func _check_rapid_gate(delta: float) -> void:
+	if _rapid != null:
+		if not is_instance_valid(_rapid):
+			_rapid = null
+		return
+	for node in get_tree().get_nodes_in_group("rapid_six"):
+		var gate: Node2D = node as Node2D
+		if gate == null or int(gate.get("state")) != 0:
+			continue
+		var stop_x: float = gate.global_position.x - 60.0
+		if global_position.x <= stop_x and global_position.x + get_speed() * delta >= stop_x:
+			global_position.x = stop_x
+			_rapid = gate
+			gate.call("engage", self)
+			return
+
+
+## El portal se ha roto (o ha caido): el heroe vuelve a correr.
+func release_rapid() -> void:
+	_rapid = null
+
+
+## El portal ha caido sobre el heroe (o la onda le ha alcanzado).
+func rapid_hit() -> void:
+	if alive and _invulnerable <= 0.0:
+		damaged.emit()
 
 
 func _pad_under() -> Node2D:
@@ -525,14 +568,18 @@ func _process(delta: float) -> void:
 
 
 ## Medidor del salto variable: cinco marcas que se encienden mientras se
-## mantiene el boton (toque, corto, medio, largo y maximo).
+## mantiene el boton. Cada marca coincide con el color de la columna de
+## salto (obstacle.gd, PILLAR) que permite superar: cian, lima, amarillo,
+## naranja y rojo. Un toque sin marcas solo salta obstaculos bajos.
+const METER_STEPS := [0.32, 0.5, 0.69, 0.88, 1.0]
+
 func _draw_jump_meter() -> void:
 	if not active or not alive or is_on_floor() or _hold_shown <= 0.0:
 		return
 	var ratio: float = clampf(_hold_shown / MAX_HOLD_TIME, 0.0, 1.0)
 	var colors: Array = [Pal.CYAN, Pal.LIME, Pal.YELLOW, Pal.ORANGE, Pal.RED]
 	for i in 5:
-		var lit: bool = ratio >= float(i) / 5.0
+		var lit: bool = ratio >= float(METER_STEPS[i]) - 0.001
 		var c: Color = colors[i] if lit else Color(Pal.INK, 0.5)
 		draw_rect(Rect2(-26.0, -18.0 - float(i) * 9.0, 6.0, 7.0), c)
 

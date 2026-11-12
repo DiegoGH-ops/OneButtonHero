@@ -9,13 +9,21 @@ const Pal = preload("res://scripts/palette.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const PixelFont = preload("res://scripts/pixel_font.gd")
 
-enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER, TRAP, CEILING, WALL, BOUNCE }
+enum Kind { SPIKES, ROCK, TOTEM, FLAMES, BOULDER, TRAP, CEILING, WALL, BOUNCE, PILLAR, LOW_CEILING }
+
+## Columna de salto variable: su altura depende de `count` (1 a 5) y su
+## remate tiene el MISMO color que la marca del medidor de salto del heroe
+## que hace falta alcanzar (cian = toque ... rojo = pulsacion maxima).
+const PILLAR_COLORS := ["73eff7", "a7f070", "ffcd75", "ef7d57", "b13e53"]
+## Techo muy bajo: solo se pasa por debajo con un toque rapido.
+const LOW_CEILING_GAP := 120.0
 
 ## Techo bajo: su borde inferior queda a esta altura sobre el suelo. Un
 ## salto corto pasa por debajo; uno largo choca (hay que soltar a tiempo).
 const CEILING_GAP := 175.0
-## Muro: mas alto que cualquier salto normal; solo se supera con trampolin.
-const WALL_HEIGHT := 200.0
+## Muro: mas alto que cualquier salto normal (maximo 235 px); solo se
+## supera con trampolin.
+const WALL_HEIGHT := 260.0
 
 ## Trampa ritmica: los pinchos suben y bajan con este periodo (segundos).
 const TRAP_PERIOD := 1.5
@@ -56,6 +64,13 @@ func setup(p_kind: int, p_count: int = 1) -> void:
 	elif kind == Kind.CEILING:
 		shape.size = Vector2(float(count) * TILE, 300.0)
 		_collider.position = Vector2(float(count) * TILE * 0.5, -CEILING_GAP - 150.0)
+	elif kind == Kind.LOW_CEILING:
+		shape.size = Vector2(float(count) * TILE, 300.0)
+		_collider.position = Vector2(float(count) * TILE * 0.5, -LOW_CEILING_GAP - 150.0)
+	elif kind == Kind.PILLAR:
+		count = clampi(count, 1, 5)
+		shape.size = Vector2(28.0, pillar_height())
+		_collider.position = Vector2(16.0, -pillar_height() * 0.5)
 	elif kind == Kind.WALL:
 		shape.size = Vector2(40.0, WALL_HEIGHT)
 		_collider.position = Vector2(24.0, -WALL_HEIGHT * 0.5)
@@ -91,8 +106,18 @@ func get_center() -> Vector2:
 
 ## Zona de peligro para el sistema de timing: Vector3(izquierda, derecha,
 ## altura) en coordenadas del mundo.
+## Altura de la columna de salto variable.
+func pillar_height() -> float:
+	return 30.0 + 35.0 * float(count)
+
+
 func get_danger() -> Vector3:
 	var x: float = global_position.x
+	if kind == Kind.PILLAR:
+		return Vector3(x + 2.0, x + 30.0, pillar_height())
+	if kind == Kind.LOW_CEILING or kind == Kind.CEILING:
+		# Los techos no se saltan: no cuentan para puntuar saltos.
+		return Vector3(INF, INF, 0.0)
 	if kind == Kind.SPIKES or kind == Kind.FLAMES or kind == Kind.TRAP:
 		return Vector3(x + 6.0, x + float(count) * TILE - 6.0, 18.0)
 	if kind == Kind.ROCK:
@@ -175,6 +200,30 @@ func _draw() -> void:
 			PixelArt.draw_skin(self, "spike", Vector2(0.0, -28.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), spike_remap, spike_key)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		PixelFont.draw_text_shadowed(self, "SALTO CORTO", Vector2(w * 0.5 - 64.0, -CEILING_GAP - 70.0), 2.0, Pal.YELLOW, Pal.INK, true)
+	elif kind == Kind.LOW_CEILING:
+		var lw: float = float(count) * TILE
+		draw_rect(Rect2(0.0, -560.0, lw, 560.0 - LOW_CEILING_GAP - 24.0), Pal.NAVY)
+		draw_rect(Rect2(0.0, -LOW_CEILING_GAP - 28.0, lw, 8.0), Pal.CYAN)
+		for i in count:
+			draw_set_transform(Vector2(float(i) * TILE + TILE, -LOW_CEILING_GAP - 28.0), PI, Vector2.ONE)
+			PixelArt.draw_skin(self, "spike", Vector2(0.0, -28.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), spike_remap, spike_key)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		PixelFont.draw_text_shadowed(self, "TOQUE", Vector2(lw * 0.5 - 30.0, -LOW_CEILING_GAP - 66.0), 2.0, Pal.CYAN, Pal.INK, true)
+	elif kind == Kind.PILLAR:
+		var h: float = pillar_height()
+		var cap: Color = Color(String(PILLAR_COLORS[clampi(count - 1, 0, 4)]))
+		PixelArt.draw_shadow(self, "totem", Vector2(16.0, 0.0), 3.0, shadow_skew, alpha * 0.8)
+		var blocks: int = int(ceilf(h / 24.0))
+		for b in blocks:
+			var by: float = -float(b + 1) * 24.0
+			var bh: float = 24.0 if b < blocks - 1 else h - float(b) * 24.0
+			draw_rect(Rect2(2.0, maxf(by, -h), 28.0, bh), Pal.STEEL if b % 2 == 0 else Pal.SLATE)
+			draw_rect(Rect2(2.0, maxf(by, -h), 28.0, 3.0), Pal.SILVER)
+		draw_rect(Rect2(0.0, -h - 8.0, 32.0, 10.0), cap)
+		draw_rect(Rect2(4.0, -h - 6.0, 24.0, 3.0), cap.lightened(0.4))
+		# Marcas de altura: tantas como la columna exige.
+		for m in count:
+			draw_rect(Rect2(-8.0, -12.0 - float(m) * 9.0, 5.0, 6.0), cap)
 	elif kind == Kind.WALL:
 		var rows: int = int(WALL_HEIGHT / 32.0)
 		for r in rows:

@@ -21,7 +21,10 @@ enum Behavior {
 	DUNE_SERPENT, STALKER_SCORPION, GIANT_BEETLE, MUMMY_SUMMONER, LIVING_SAND,
 }
 
-const INTRO_LEVELS := [0, 4, 8, 12, 15]
+## Nivel (indice) en que se presenta cada enemigo: los cinco se conocen en
+## los niveles 1-5 de su mundo (1: los dos primeros, 2, 3 y 4: uno nuevo
+## cada uno; el nivel 5 los combina todos).
+const INTRO_LEVELS := [0, 0, 1, 2, 3]
 
 ## [nombre, comportamiento, sprite, remapeo de color, ajuste de dificultad,
 ##  espacio que necesita en el nivel, consejo de la primera aparicion]
@@ -90,3 +93,12 @@ static func unlocked(_world: int, level: int) -> Array:
 ## Enemigo que se estrena en este nivel (-1 si ninguno).
 static func introduced(level: int) -> int:
 	return INTRO_LEVELS.find(level)
+
+
+## Todos los enemigos que se estrenan en este nivel.
+static func introduced_list(level: int) -> Array:
+	var result: Array = []
+	for i in INTRO_LEVELS.size():
+		if int(INTRO_LEVELS[i]) == level:
+			result.append(i)
+	return result

@@ -95,7 +95,7 @@ const POWERUPS := [
 		"cost": "PIERDES EL COMBO Y EL RANGO MÁXIMO BAJA A A",
 		"buff": {"phoenix": 1.0}},
 	{"id": "pu_magma", "world": 1, "name": "CORAZÓN DE MAGMA", "price": 14000, "icon": "flame_a", "color": "b13e53",
-		"desc": "TUS PULSACIONES ARDEN: BRUTOS Y BARRICADAS CEDEN UN 40% ANTES Y EL MAGMA DIVISIBLE YA NO SE DIVIDE",
+		"desc": "TUS PULSACIONES ARDEN: LOS BRUTOS CEDEN UN 40% ANTES Y EL MAGMA DIVISIBLE YA NO SE DIVIDE",
 		"cost": "-12% DE PUNTOS",
 		"buff": {"mash": 40.0, "no_split": 1.0, "points": -12.0}},
 	{"id": "pu_prism", "world": 2, "name": "PRISMA REFRACTOR", "price": 24000, "icon": "gem", "color": "f29cb5",
@@ -188,7 +188,7 @@ const TREE := [
 	{"id": "p_perfect", "cat": "precision", "pos": [1, 0], "tier": "advanced", "lv": 3, "w": 0, "req": ["p_window"], "name": "PERFECT TIMING", "desc": "LA VENTANA PERFECT ES UN POCO MÁS AMPLIA", "buff": {"perfect": 2.5}},
 	{"id": "p_reaction", "cat": "precision", "pos": [1, 2], "tier": "normal", "lv": 3, "w": 0, "req": ["p_window"], "name": "REACCIÓN MEJORADA", "desc": "LOS AVISOS DE PELIGRO LLEGAN ANTES", "buff": {"warn": 5.0}},
 	{"id": "p_legend", "cat": "precision", "pos": [2, 0], "tier": "epic", "lv": 2, "w": 1, "req": ["p_perfect"], "name": "PULSO LEGENDARIO", "desc": "LA VENTANA LEGENDARY ES UN POCO MÁS AMPLIA", "buff": {"legend": 3.0}},
-	{"id": "p_mash", "cat": "precision", "pos": [2, 2], "tier": "normal", "lv": 3, "w": 0, "req": ["p_reaction"], "name": "PULSACIÓN FIRME", "desc": "CADA PULSACIÓN EMPUJA MÁS A BARRICADAS Y BRUTOS", "buff": {"mash": 8.0}},
+	{"id": "p_mash", "cat": "precision", "pos": [2, 2], "tier": "normal", "lv": 3, "w": 0, "req": ["p_reaction"], "name": "PULSACIÓN FIRME", "desc": "CADA PULSACIÓN EMPUJA MÁS A LOS BRUTOS Y ACORAZADOS", "buff": {"mash": 8.0}},
 	{"id": "p_advanced", "cat": "precision", "pos": [3, 0], "tier": "epic", "lv": 3, "w": 1, "req": ["p_legend"], "name": "PRECISIÓN AVANZADA", "desc": "AMPLÍA A LA VEZ LAS VENTANAS PERFECT Y GOOD", "buff": {"perfect": 1.5, "good": 1.5}},
 	{"id": "p_rank", "cat": "precision", "pos": [3, 2], "tier": "advanced", "lv": 3, "w": 1, "req": ["p_mash"], "name": "OJO CRÍTICO", "desc": "SUMA PUNTOS A LA NOTA CON LA QUE SE CALCULA EL RANGO DEL NIVEL", "buff": {"rank_bonus": 1.5}},
 	{"id": "p_pulse", "cat": "precision", "pos": [4, 1], "tier": "special", "lv": 2, "w": 2, "req": ["p_advanced", "p_rank"], "name": "MAESTRÍA DE PULSACIÓN", "desc": "PULSACIONES RÁPIDAS DEMOLEDORAS: MÁS EMPUJE Y GOLPES DOBLES", "buff": {"mash": 10.0, "crit": 8.0}},
@@ -251,7 +251,7 @@ const TREE := [
 	{"id": "s_slow_proj", "cat": "supervivencia", "pos": [3, 0], "tier": "epic", "lv": 3, "w": 1, "req": ["s_quick"], "name": "REFLEJOS", "desc": "LOS PROYECTILES ENEMIGOS VUELAN MÁS DESPACIO", "buff": {"projectile_slow": 8.0}},
 	{"id": "s_storm", "cat": "supervivencia", "pos": [3, 2], "tier": "advanced", "lv": 2, "w": 1, "req": ["s_abyss"], "name": "VISTA CLARA", "desc": "VENTISCAS Y TORMENTAS DE ARENA TAPAN MENOS", "buff": {"storm_clear": 35.0}},
 	{"id": "s_chaser", "cat": "supervivencia", "pos": [4, 0], "tier": "epic", "lv": 2, "w": 2, "req": ["s_slow_proj"], "name": "SEXTO SENTIDO", "desc": "LOS ENEMIGOS QUE TE PERSIGUEN O TE EMBISTEN VAN MÁS DESPACIO", "buff": {"chaser_slow": 10.0}},
-	{"id": "s_brute", "cat": "supervivencia", "pos": [4, 2], "tier": "epic", "lv": 2, "w": 2, "req": ["s_storm"], "name": "PIES DE PLOMO", "desc": "BRUTOS Y BARRICADAS AVANZAN MÁS DESPACIO HACIA TI", "buff": {"brute_slow": 12.0}},
+	{"id": "s_brute", "cat": "supervivencia", "pos": [4, 2], "tier": "epic", "lv": 2, "w": 2, "req": ["s_storm"], "name": "PIES DE PLOMO", "desc": "LOS BRUTOS AVANZAN MÁS DESPACIO HACIA TI", "buff": {"brute_slow": 12.0}},
 
 	# ------------------------------------------------------- ESPECIALIZACION
 	{"id": "x_daredevil", "cat": "especializacion", "pos": [0, 0], "tier": "special", "lv": 1, "w": 0, "req": ["p_perfect", "m_long"], "ex": "x_method", "name": "TEMERARIO", "desc": "LAST SECOND Y LEGENDARY X2 PUNTOS. GOOD NO DA PUNTOS", "buff": {"daredevil": 1.0}},

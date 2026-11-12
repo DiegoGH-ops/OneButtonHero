@@ -788,6 +788,45 @@ func add_stat(stat: String, amount: int) -> void:
 	stats[stat] = int(stats.get(stat, 0)) + amount
 
 
+## Partida de prueba del panel de administrador: no cuenta para nada.
+func is_test_run() -> bool:
+	return String(run.get("mode", "")) == "test"
+
+
+## Registro de sucesos reales del juego (estadisticas, misiones y logros).
+## Lo llaman game.gd y los sistemas de juego cuando el suceso ocurre de
+## verdad (un salto PERFECT lo decide el sistema de timing, no la pulsacion).
+func track(event: String, amount: int = 1) -> void:
+	if amount == 0 or is_test_run():
+		return
+	stats[event] = int(stats.get(event, 0)) + amount
+	_on_tracked(event, amount)
+
+
+## Guarda el maximo alcanzado de una estadistica (mejor racha, etc.).
+func track_max(event: String, value: int) -> void:
+	if is_test_run():
+		return
+	if value > int(stats.get(event, 0)):
+		stats[event] = value
+		_on_tracked(event, 0)
+
+
+## Rachas (portales seguidos, niveles sin morir...). Devuelve la racha.
+func bump_streak(streak: String, success: bool) -> int:
+	if is_test_run():
+		return 0
+	var key: String = "streak_" + streak
+	var value: int = int(stats.get(key, 0)) + 1 if success else 0
+	stats[key] = value
+	return value
+
+
+## Gancho para misiones y logros (ver missions.gd).
+func _on_tracked(_event: String, _amount: int) -> void:
+	pass
+
+
 ## Comprueba los logros y entrega sus recompensas.
 func check_achievements() -> void:
 	stats["total_stars"] = total_stars()

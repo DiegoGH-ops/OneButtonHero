@@ -20,6 +20,7 @@ const Daylight = preload("res://scripts/daylight.gd")
 const Goal = preload("res://scripts/goal.gd")
 const Creature = preload("res://scripts/creature.gd")
 const Bestiary = preload("res://scripts/bestiary.gd")
+const RapidSix = preload("res://scripts/rapid_six.gd")
 const ObstacleScene: PackedScene = preload("res://scenes/obstacle.tscn")
 const EnemyScene: PackedScene = preload("res://scenes/enemy.tscn")
 const CoinScene: PackedScene = preload("res://scenes/coin.tscn")
@@ -35,7 +36,8 @@ enum Pattern {
 	COINS, SPIKES, ROCK, SLIME, HOLE, GOBLIN, TOTEM, PLATFORM,
 	BAT, DOUBLE_SPIKES, DOUBLE_ENEMY, SPIKES_HOLE, WIDE_HOLE,
 	KNIGHT, GHOST, BOULDER, COINS_RICH, ROUTE, TRAP,
-	CHAIN, CEILING, BARRICADE, BOUNCE, CREATURE,
+	CHAIN, CEILING, RAPID_SIX, BOUNCE, CREATURE,
+	JUMP_DRILL, ENCOUNTER,
 }
 
 ## [patron, peso, nivel minimo]
@@ -60,7 +62,9 @@ const TABLE := [
 	[Pattern.TRAP, 2, 4],
 	[Pattern.CHAIN, 2, 1],
 	[Pattern.CEILING, 2, 2],
-	[Pattern.BARRICADE, 2, 3],
+	[Pattern.RAPID_SIX, 1, 3],
+	[Pattern.JUMP_DRILL, 4, 1],
+	[Pattern.ENCOUNTER, 2, 5],
 	[Pattern.BOUNCE, 2, 4],
 	[Pattern.CREATURE, 4, 0],
 ]
@@ -78,7 +82,7 @@ const HARDNESS := [
 const MECHANICS := [
 	[Pattern.CHAIN, 1, "SALTOS ENCADENADOS", "TRES SALTOS PERFECTOS SEGUIDOS DAN PREMIO"],
 	[Pattern.CEILING, 3, "TECHO BAJO", "TOCA Y SUELTA RÁPIDO: SALTO CORTO"],
-	[Pattern.BARRICADE, 6, "BARRICADA", "PULSA MUY RÁPIDO PARA ROMPERLA"],
+	[Pattern.RAPID_SIX, 6, "RAPID SIX", "TE DETIENES: SEIS PULSACIONES ANTES DE QUE SE ACABE EL TIEMPO"],
 	[Pattern.BOUNCE, 10, "TRAMPOLÍN", "NO SALTES: PÍSALO. PULSA AL PISARLO PARA SUPER REBOTE"],
 ]
 
@@ -112,11 +116,14 @@ var _forced: Array = []
 ## Mundo cuyas criaturas aparecen y cuales estan desbloqueadas.
 var _creature_world: int = 0
 var _creatures: Array = []
-var _newest_creature: int = -1
+## Criaturas que se estrenan en este nivel (salen mas a menudo).
+var _newest: Array = []
 ## Mejora "Fortuna": probabilidad extra de que una moneda sea un rubi.
 var gem_bonus: float = 0.0
 ## Contadores para el rango: enemigos y recompensas generados.
 var enemies_spawned: int = 0
+## Encuentros multiples generados (estadistica para misiones).
+var enemies_encounters: int = 0
 var pickups_spawned: int = 0
 ## Diamante oculto de la ruta arriesgada (solo campana, una vez por nivel).
 var diamond_available: bool = false
@@ -194,7 +201,11 @@ func configure(def: Dictionary) -> void:
 	# Criaturas del mundo: cada una se estrena en su nivel y despues se mezclan.
 	_creature_world = world
 	_creatures = Bestiary.unlocked(world, level)
-	_newest_creature = Bestiary.introduced(level)
+	_newest = Bestiary.introduced_list(level)
+	# Secuencias de salto variable: cada vez mas presentes.
+	for n in 3 + int(def.get("band", 0)):
+		_allowed.append(Pattern.JUMP_DRILL)
+	configure_encounters(def.get("encounters", {}))
 	for n in 2 + _creatures.size() * 2:
 		_allowed.append(Pattern.CREATURE)
 	# Solaris: las trampas antiguas son su seña de identidad.
@@ -229,6 +240,12 @@ func update(player_x: float, speed: float, level: int, delta: float) -> void:
 		else:
 			# Frostfall: algunos tramos son de hielo (el heroe acelera).
 			var ice_from: float = _gen_x
+			# Director de encuentros: reparte los encuentros multiples del
+			# nivel a lo largo del recorrido.
+			if _enc_left > 0 and _gen_x >= _enc_next:
+				_enc_left -= 1
+				_enc_next += _enc_interval
+				_forced.append(Pattern.ENCOUNTER)
 			_spawn_pattern()
 			if bool(Daylight.theme.get("ice", false)) and _rng.randf() < 0.4:
 				Daylight.ice.append(Vector2(ice_from, _gen_x))
@@ -327,8 +344,12 @@ func _spawn_pattern() -> void:
 			_pattern_chain()
 		Pattern.CEILING:
 			_pattern_ceiling()
-		Pattern.BARRICADE:
-			_pattern_barricade()
+		Pattern.RAPID_SIX:
+			_pattern_rapid_six()
+		Pattern.JUMP_DRILL:
+			_pattern_jump_drill()
+		Pattern.ENCOUNTER:
+			_pattern_encounter()
 		Pattern.BOUNCE:
 			_pattern_bounce()
 		Pattern.CREATURE:
@@ -575,11 +596,191 @@ func _pattern_ceiling() -> void:
 	_gen_x = x + TILE * 6.0
 
 
-## Barricada: muro que no se puede saltar; hay que romperlo pulsando rapido.
-func _pattern_barricade() -> void:
-	_gen_x += maxf(_gap(), _attack_reach() + 200.0)
-	_add_creature(-1, _gen_x)
-	_gen_x += _speed * 2.6 + 260.0
+## RAPID SIX: portal que detiene al heroe hasta que pulsa seis veces.
+## Las variantes se desbloquean poco a poco y la ventana se acorta con la
+## dificultad (2.5 s al principio, 1.3 s al final; 1.0 s la extrema).
+func _pattern_rapid_six() -> void:
+	_gen_x += maxf(_gap(), _attack_reach() + 220.0)
+	var variants: Array = [RapidSix.Variant.NORMAL]
+	var progress: float = _difficulty
+	if progress >= 0.30:
+		variants.append(RapidSix.Variant.PRESSURE)
+	if progress >= 0.38:
+		variants.append(RapidSix.Variant.COMBO)
+	if progress >= 0.55:
+		variants.append(RapidSix.Variant.DOUBLE)
+	if progress >= 0.70:
+		variants.append(RapidSix.Variant.EXTREME)
+	if progress >= 0.80:
+		variants.append(RapidSix.Variant.SURVIVAL)
+	var variant: int = variants[_rng.randi() % variants.size()]
+	if forced_rapid_variant >= 0:
+		variant = forced_rapid_variant
+	var window: float = lerpf(2.5, 1.3, clampf((_difficulty - 0.2) / 0.75, 0.0, 1.0))
+	if variant == RapidSix.Variant.EXTREME:
+		window = 1.0
+	elif variant == RapidSix.Variant.SURVIVAL or variant == RapidSix.Variant.DOUBLE:
+		window += 0.2
+	_add_rapid(_gen_x, variant, window)
+	if variant == RapidSix.Variant.COMBO:
+		# Pinchos justo detras: hay que saltar nada mas romper el portal.
+		_add_obstacle(Obstacle.Kind.SPIKES, _gen_x + 90.0, 2)
+		_gen_x += 90.0 + TILE * 2.0
+	elif variant == RapidSix.Variant.DOUBLE:
+		_gen_x += 380.0
+		_add_rapid(_gen_x, variant, window)
+	_gen_x += 240.0 + _speed * 0.3
+
+
+func _add_rapid(x: float, variant: int, window: float) -> void:
+	var gate: RapidSix = RapidSix.new()
+	gate.position = Vector2(x, GROUND_Y)
+	gate.variant = variant
+	gate.window = window
+	# Variante bajo presion: la amenaza es el bruto de este mundo.
+	for i in 5:
+		var data: Array = Bestiary.entry(_creature_world, i)
+		if String(data[5]) == "mash":
+			gate.threat_sprite = String(data[2])
+			gate.threat_remap = data[3]
+			gate.threat_key = "%d_%d" % [_creature_world, i]
+			break
+	_objects_root.add_child(gate)
+
+
+# --------------------------------------------------- salto variable --
+
+## Pasos de salto: cada uno exige una altura de salto concreta.
+##   tap      techo muy bajo sobre un pincho: solo un toque.
+##   low      roca o pincho: cualquier salto.
+##   mid      columna de altura 2 (pulsacion media).
+##   high     columna de altura 3-4 (pulsacion larga).
+##   max      columna de altura 5 (pulsacion maxima).
+##   ceiling  techo normal sobre pinchos: corto o medio, nunca largo.
+##   long     hueco ancho: hay que mantener casi al maximo.
+##   landing  pinchos justo donde se aterriza: saltar al tocar el suelo.
+## Tiempos de vuelo aproximados (s) segun la pulsacion necesaria.
+const STEP_AIR := {"tap": 0.34, "low": 0.40, "mid": 0.55, "high": 0.66, "max": 0.80, "ceiling": 0.48, "long": 0.80, "landing": 0.40}
+
+## Secuencias por dificultad. Mezclan saltos pequenos y grandes para que
+## mantener el boton todo el rato no sirva.
+const DRILLS := [
+	[["low", "mid", "low"], ["tap", "low"], ["mid", "mid"], ["low", "ceiling"]],
+	[["tap", "high", "tap"], ["long", "tap"], ["low", "ceiling", "high"], ["mid", "landing", "low"], ["high", "low", "mid"]],
+	[["tap", "high", "tap", "long", "low"], ["high", "tap", "high"], ["long", "landing", "tap"], ["ceiling", "max"], ["mid", "high", "max"]],
+	[["max", "tap", "long", "tap", "high"], ["tap", "tap", "high", "long", "ceiling"], ["long", "landing", "max", "tap"], ["high", "ceiling", "high", "tap"]],
+]
+
+
+## Tiempo de reaccion (s de juego) entre aterrizar y el siguiente paso.
+func _reaction() -> float:
+	return lerpf(0.55, 0.30, _difficulty)
+
+
+func _pattern_jump_drill() -> void:
+	var tier: int = clampi(int(_difficulty * 4.0), 0, DRILLS.size() - 1)
+	# A veces una secuencia del nivel anterior, para variar.
+	if tier > 0 and _rng.randf() < 0.3:
+		tier -= 1
+	var options: Array = DRILLS[tier]
+	var drill: Array = options[_rng.randi() % options.size()]
+	_gen_x += _gap()
+	for i in drill.size():
+		_jump_step(String(drill[i]))
+		if i < drill.size() - 1:
+			_gen_x += _speed * _reaction()
+
+
+## Coloca un paso de salto en _gen_x y avanza hasta donde aterriza el heroe.
+func _jump_step(step: String) -> void:
+	var air: float = float(STEP_AIR.get(step, 0.5))
+	var x: float = snappedf(_gen_x, TILE)
+	var width: float = TILE
+	match step:
+		"tap":
+			_add_obstacle(Obstacle.Kind.SPIKES, x + TILE, 1)
+			_add_obstacle(Obstacle.Kind.LOW_CEILING, x - TILE, 4)
+			width = TILE * 3.0
+		"low":
+			if _rng.randf() < 0.5:
+				_add_obstacle(Obstacle.Kind.ROCK, x, 1)
+				width = 56.0
+			else:
+				_add_obstacle(Obstacle.Kind.SPIKES, x, 1)
+		"mid":
+			_add_obstacle(Obstacle.Kind.PILLAR, x, 2)
+			_add_coin(Vector2(x + 16.0, GROUND_Y - 140.0), false)
+		"high":
+			_add_obstacle(Obstacle.Kind.PILLAR, x, 3 if _rng.randf() < 0.6 else 4)
+			_add_coin(Vector2(x + 16.0, GROUND_Y - 210.0), true)
+		"max":
+			_add_obstacle(Obstacle.Kind.PILLAR, x, 5)
+			_add_coin(Vector2(x + 16.0, GROUND_Y - 250.0), true)
+		"ceiling":
+			_add_obstacle(Obstacle.Kind.SPIKES, x + TILE, 2)
+			_add_obstacle(Obstacle.Kind.CEILING, x - TILE, 5)
+			width = TILE * 4.0
+		"long":
+			var hole: float = clampf(snappedf(_speed * 0.55, TILE), TILE * 5.0, TILE * 15.0)
+			_coin_arc(x + hole * 0.5, 5, true)
+			_add_hole(x, hole)
+			width = hole
+		"landing":
+			# Un hueco corto y pinchos justo donde se aterriza.
+			var short_hole: float = clampf(snappedf(_speed * 0.3, TILE), TILE * 3.0, TILE * 8.0)
+			_add_hole(x, short_hole)
+			_add_obstacle(Obstacle.Kind.SPIKES, x + short_hole + _speed * 0.20, 1)
+			width = short_hole + _speed * 0.20 + TILE
+	# El heroe aterriza mas o menos a medio vuelo pasado el obstaculo.
+	_gen_x = x + width + _speed * air * 0.5
+
+
+# ------------------------------------------------- director de encuentros --
+
+## Encuentros especiales del nivel (ver Campaign.encounters): varias
+## criaturas del mundo UNA DETRAS DE OTRA (nunca todas a la vez en
+## pantalla), a veces con un salto o un portal entre medias.
+var _enc_count: int = 0
+var _enc_left: int = 0
+var _enc_interval: float = INF
+var _enc_next: float = INF
+var _enc_len: Vector2i = Vector2i(2, 2)
+var _enc_gap: float = 1.0
+var _enc_combo: float = 0.3
+## Admin: variante de RAPID SIX forzada en las pruebas (-1 = al azar).
+var forced_rapid_variant: int = -1
+
+
+func configure_encounters(config: Dictionary) -> void:
+	_enc_count = int(config.get("count", 0))
+	_enc_left = _enc_count
+	_enc_len = Vector2i(int(config.get("min", 2)), int(config.get("max", 2)))
+	_enc_gap = float(config.get("gap", 1.0))
+	_enc_combo = float(config.get("combo", 0.3))
+	if _enc_count > 0 and goal_x != INF:
+		_enc_interval = (goal_x - GOAL_RUNWAY) / float(_enc_count + 1)
+		_enc_next = _enc_interval
+
+
+func _pattern_encounter() -> void:
+	if _creatures.is_empty():
+		_creatures = [0]
+	var pool: Array = _creatures.duplicate()
+	# Mezcla con la semilla del nivel (recorrido siempre igual).
+	for i in range(pool.size() - 1, 0, -1):
+		var j: int = _rng.randi_range(0, i)
+		var tmp: Variant = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	var length: int = _rng.randi_range(_enc_len.x, maxi(_enc_len.x, _enc_len.y))
+	for i in length:
+		if i > 0 and _rng.randf() < _enc_combo:
+			# Entre dos criaturas, un salto que exige otra altura.
+			_gen_x += _speed * _reaction()
+			var steps: Array = ["tap", "mid", "high", "low", "ceiling"]
+			_jump_step(String(steps[_rng.randi() % steps.size()]))
+		_place_creature(int(pool[i % pool.size()]), _enc_gap if i > 0 else 1.0)
+	enemies_encounters += 1
 
 
 ## Trampolin y muro: hay que pisar el trampolin (y no saltar antes).
@@ -597,38 +798,45 @@ func _pattern_creature() -> void:
 		_creatures = [0]
 	var index: int = _creatures[_rng.randi() % _creatures.size()]
 	# La recien estrenada sale mas a menudo en su nivel de presentacion.
-	if _newest_creature >= 0 and _rng.randf() < 0.5:
-		index = _newest_creature
+	if not _newest.is_empty() and _rng.randf() < 0.6:
+		index = int(_newest[_rng.randi() % _newest.size()])
 	if test_creature >= 0:
 		index = test_creature
+	_place_creature(index, 1.0)
+
+
+## Coloca una criatura con el espacio que necesita su comportamiento.
+## `pressure` < 1 acerca la criatura a lo anterior (encuentros seguidos),
+## sin bajar nunca del margen minimo de su ataque.
+func _place_creature(index: int, pressure: float) -> void:
 	var data: Array = Bestiary.entry(_creature_world, index)
 	var space: String = data[5]
 	if space == "chase":
-		_gen_x += _gap()
+		_gen_x += _gap() * pressure
 		_add_creature(index, _gen_x)
 		_gen_x += _speed * 3.6
 	elif space == "mash":
-		_gen_x += maxf(_gap(), _attack_reach() + 200.0)
+		_gen_x += maxf(_gap() * pressure, _attack_reach() + 200.0)
 		_add_creature(index, _gen_x)
 		_gen_x += _speed * 2.6 + 260.0
 	elif space == "ranged":
-		_gen_x += _speed * 2.0 + 300.0
+		_gen_x += _speed * 2.0 * maxf(pressure, 0.8) + 300.0
 		_add_creature(index, _gen_x)
 		_gen_x += 120.0
 	elif space == "split":
-		_gen_x += maxf(_gap(), _attack_reach() + 90.0)
+		_gen_x += maxf(_gap() * pressure, _attack_reach() + 90.0)
 		_add_creature(index, _gen_x)
 		_gen_x += 460.0
 	elif space == "wide":
-		_gen_x += maxf(_gap(), _attack_reach() + 260.0)
+		_gen_x += maxf(_gap() * pressure, _attack_reach() + 260.0)
 		_add_creature(index, _gen_x)
 		_gen_x += _speed * 1.5 + 520.0
 	elif space == "mover":
-		_gen_x += maxf(_gap(), _attack_reach() + 340.0)
+		_gen_x += maxf(_gap() * pressure, _attack_reach() + 340.0)
 		_add_creature(index, _gen_x)
 		_gen_x += 160.0
 	else:
-		_gen_x += maxf(_gap(), _attack_reach() + 120.0)
+		_gen_x += maxf(_gap() * pressure, _attack_reach() + 120.0)
 		_add_creature(index, _gen_x)
 		_gen_x += 120.0
 

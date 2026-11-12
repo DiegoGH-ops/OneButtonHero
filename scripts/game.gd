@@ -49,7 +49,7 @@ const COMBO_REWARDS := [10, 20, 30, 50]
 const NEW_HAZARDS := {
 	1: "NUEVO: HUECOS, LLAMAS Y SALTOS ENCADENADOS",
 	2: "NUEVO: TECHOS BAJOS Y PLATAFORMAS",
-	3: "NUEVO: BARRICADAS Y ESCUDEROS",
+	3: "NUEVO: PORTALES RAPID SIX Y ESCUDEROS",
 	4: "NUEVO: TRAMPOLINES Y TRAMPAS",
 	5: "NUEVO: ABISMOS ANCHOS",
 }
@@ -96,6 +96,8 @@ var _storm_timer: float = 20.0
 var _storm: float = 0.0
 var _death_time: float = 0.0
 var _endless_creatures: int = 0
+## Portales RAPID SIX superados en esta partida.
+var _run_rapid: int = 0
 ## Multiplicador de las monedas de esta partida (economia por mundos).
 var _coin_factor: float = 1.0
 ## Tiempo bala (mejora del arbol): segundos reales que quedan.
@@ -151,6 +153,7 @@ func _ready() -> void:
 	Daylight.attack_rating = 0
 	Daylight.reflected = 0
 	Daylight.invincible = false
+	Daylight.rapid_events = []
 	generator.setup(spans_root, objects_root)
 	precision = Precision.new()
 	add_child(precision)
@@ -336,6 +339,7 @@ func _process(delta: float) -> void:
 		_run_time += delta
 		_update_feel(delta)
 		_check_dodges()
+		_check_rapid()
 		player.hawk_x = precision.perfect_jump_x(player.position, player.get_speed()) if Buffs.has("hawk") else INF
 		generator.update(player.position.x, _speed, _level, delta)
 		_update_camera()
@@ -857,6 +861,40 @@ func _on_bounced(pos: Vector2, perfect: bool) -> void:
 		precision.register(Timing.Rating.PERFECT, "SUPER REBOTE", pos, "jump")
 
 
+## Portales RAPID SIX: puntos, efectos y estadisticas de cada intento.
+func _check_rapid() -> void:
+	while not Daylight.rapid_events.is_empty():
+		var info: Dictionary = Daylight.rapid_events.pop_front()
+		var event: String = String(info.get("event", ""))
+		var variant: int = int(info.get("variant", 0))
+		if event == "start":
+			hud.toast("¡RAPID SIX! PULSA SEIS VECES", Pal.ORANGE)
+			_shake = maxf(_shake, 0.3)
+		elif event == "success":
+			var left: float = float(info.get("left", 0.0))
+			var window: float = float(info.get("window", 1.0))
+			var gained: int = _add_points(150.0 * (1.0 + left / maxf(window, 0.1)))
+			precision.register(Timing.Rating.PERFECT, "RAPID SIX", player.position, "attack")
+			Fx.popup(fx_root, player.position + Vector2(60.0, -150.0), "RAPID SIX +%d" % gained, Pal.YELLOW, 4.0)
+			lights.flash(Pal.YELLOW, 0.3, 0.3)
+			_shake = maxf(_shake, 0.6)
+			_zoom_punch = 1.0
+			GameData.track("rapid_success")
+			GameData.track_max("rapid_streak", GameData.bump_streak("rapid", true))
+			if variant == 3:
+				GameData.track("rapid_extreme")
+			if left <= 0.15:
+				GameData.track("rapid_last_click")
+				hud.toast("¡EL ÚLTIMO CLIC!", Pal.RED)
+			if window - left <= 0.6:
+				GameData.track("rapid_lightning")
+				hud.toast("¡VELOCIDAD DE LEYENDA!", Pal.CYAN)
+			_run_rapid += 1
+		elif event == "fail":
+			GameData.bump_streak("rapid", false)
+			GameData.track("rapid_fail")
+
+
 ## Perseguidores que te han adelantado sin tocarte: esquiva premiada.
 func _check_dodges() -> void:
 	while Daylight.dodges > 0:
@@ -876,10 +914,15 @@ func _announce_new_content() -> void:
 		return
 	var world_index: int = int(_def["world"])
 	var level: int = int(_def["level"])
-	var creature: int = Bestiary.introduced(level)
-	if creature >= 0:
-		var data: Array = Bestiary.entry(world_index, creature)
-		hud.show_banner("NUEVO: " + String(data[0]), String(data[6]))
+	var newcomers: Array = Bestiary.introduced_list(level)
+	if not newcomers.is_empty():
+		var first_data: Array = Bestiary.entry(world_index, int(newcomers[0]))
+		hud.show_banner("NUEVO: " + String(first_data[0]), String(first_data[6]))
+		for i in range(1, newcomers.size()):
+			var data: Array = Bestiary.entry(world_index, int(newcomers[i]))
+			hud.toast("TAMBIÉN: %s. %s" % [String(data[0]), String(data[6])], Pal.ORANGE)
+	elif level == 4:
+		hud.show_banner("TODOS A LA VEZ", "LOS CINCO ENEMIGOS DEL MUNDO SE COMBINAN")
 	if world_index == 0:
 		for item in LevelGenerator.MECHANICS:
 			var mechanic: Array = item

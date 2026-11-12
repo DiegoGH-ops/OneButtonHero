@@ -50,6 +50,9 @@ static var reflected: int = 0
 ## Velocidad del juego respecto al original: 1.5 normal, 3.0 con el boton
 ## 2X. game.gd la aplica con Engine.time_scale y mas pasos de fisica.
 static var game_speed: float = 1.5
+## Sucesos de los portales RAPID SIX desde el ultimo fotograma (los lee
+## game.gd): {"event": "start" | "success" | "fail", "variant", ...}.
+static var rapid_events: Array = []
 ## Modo de prueba del panel de administrador: el heroe no muere.
 static var invincible: bool = false
 

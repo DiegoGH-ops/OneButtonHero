@@ -163,9 +163,48 @@ static func level_def(world: int, level: int) -> Dictionary:
 		"unlocked": unlocked, "focus": [focus_a, focus_b],
 		"seed": 1000 + world * 100 + level,
 		"time": LEVEL_TIMES[level % LEVEL_TIMES.size()],
+		"band": band(level),
+		"encounters": encounters(world, level),
 		"coins": first_clear_coins(world, level),
 		# Contrarreloj: tiempo objetivo (exige aprovechar hielo y rebotes).
 		"par_time": int(meters * PIXELS_PER_METER / (360.0 + float(world) * 80.0 + float(level) * 4.0) * 0.93) if not is_final else 60 + world * 12,
+	}
+
+
+## DIRECTOR DE ENCUENTROS (configurable). Encuentros multiples por nivel:
+## varias criaturas del mundo seguidas, nunca todas a la vez.
+##   ENCOUNTER_BASE    encuentros en el nivel 6 de cada mundo
+##   ENCOUNTER_STEP    encuentros extra por tramo (6-8, 9-12, 13-16, 17-19)
+##   ENCOUNTER_MAX     tope por nivel
+##   ENCOUNTER_LENGTH  criaturas por encuentro [minimo, maximo] por tramo
+##   ENCOUNTER_GAP     separacion entre criaturas (1 = normal; menos = mas
+##                     seguidas, nunca por debajo del margen de su ataque)
+##   ENCOUNTER_COMBO   probabilidad de un salto de otra altura entre dos
+## Los niveles 1-4 presentan a los enemigos (sin encuentros multiples) y el
+## nivel 5 los combina a todos.
+const ENCOUNTER_BASE := 2
+const ENCOUNTER_STEP := 1
+const ENCOUNTER_MAX := 6
+const ENCOUNTER_LENGTH := [[2, 2], [2, 3], [2, 3], [3, 4], [3, 4]]
+const ENCOUNTER_GAP := [1.0, 0.95, 0.88, 0.8, 0.72]
+const ENCOUNTER_COMBO := [0.15, 0.25, 0.32, 0.4, 0.5]
+
+
+static func encounters(world: int, level: int) -> Dictionary:
+	if level < 4 or level >= LEVELS_PER_WORLD - 1:
+		return {"count": 0}
+	if level == 4:
+		return {"count": 2, "min": 3, "max": 5, "gap": 1.0, "combo": 0.2}
+	var b: int = band(level)
+	var count: int = mini(ENCOUNTER_BASE + ENCOUNTER_STEP * (b - 1) + int(float(world) / 2.0), ENCOUNTER_MAX)
+	var length: Array = ENCOUNTER_LENGTH[b]
+	var extra: int = 1 if world >= 3 else 0
+	return {
+		"count": count,
+		"min": int(length[0]),
+		"max": mini(int(length[1]) + extra, 5),
+		"gap": maxf(float(ENCOUNTER_GAP[b]) - 0.03 * float(world), 0.62),
+		"combo": float(ENCOUNTER_COMBO[b]),
 	}
 
 

@@ -43,7 +43,6 @@ const GIANT_BEETLE := 22
 const MUMMY_SUMMONER := 23
 const LIVING_SAND := 24
 # Piezas y elementos especiales.
-const BARRICADE := 40
 const SPORE := 41
 const FIREBALL := 42
 const FLAME := 43
@@ -60,7 +59,7 @@ const GROUND_Y := 560.0
 ## Proyectiles que se pueden cortar: game.gd los reconoce por este `kind`.
 const PROJECTILE_KIND := 109
 const POINTS := [70, 90, 70, 70, 60, 90, 130, 80, 110, 60, 140, 110, 180, 110, 90, 70, 130, 170, 100, 120, 120, 140, 160, 150, 160]
-const SPECIAL_POINTS := {BARRICADE: 150, SPORE: 20, SNOWBALL: 25, SHARD: 30, PACK_WOLF: 70, MINI: 40}
+const SPECIAL_POINTS := {SPORE: 20, SNOWBALL: 25, SHARD: 30, PACK_WOLF: 70, MINI: 40}
 const PERFECT := 3
 
 ## Para game.gd: 200 + comportamiento (no se confunde con los enemigos
@@ -118,27 +117,17 @@ func _init() -> void:
 
 # ------------------------------------------------------------ configuracion --
 
-## Configura la criatura `index` (0-4) del mundo `world`, o una barricada
-## (index = -1). `position` es su base en el suelo.
+## Configura la criatura `index` (0-4) del mundo `world`. `position` es su
+## base en el suelo.
 func setup(world: int, index: int) -> void:
-	if index == -1:
-		_begin(BARRICADE)
-		creature_name = "BARRICADA"
-		_sprite = "crate"
-		_adj = 1.0 + 0.12 * float(world)
-		hp = int(roundf(6.0 * _adj))
-		mash = true
-		_box(44.0, 200.0)
-		_set_active(true)
-	else:
-		var data: Array = Bestiary.entry(world, index)
-		creature_name = data[0]
-		_sprite = data[2]
-		_remap = data[3]
-		_adj = data[4]
-		_remap_key = "%d_%d" % [world, index]
-		_begin(int(data[1]))
-		_configure()
+	var data: Array = Bestiary.entry(world, index)
+	creature_name = data[0]
+	_sprite = data[2]
+	_remap = data[3]
+	_adj = data[4]
+	_remap_key = "%d_%d" % [world, index]
+	_begin(int(data[1]))
+	_configure()
 	_max_hp = hp
 	_place()
 
@@ -542,9 +531,6 @@ func _process(delta: float) -> void:
 			_tick_mummy(dx, hero, speed, delta, warn)
 		LIVING_SAND:
 			_tick_sand(dx, delta)
-		BARRICADE:
-			if dx < 260.0 and hp > 0:
-				position.x += (speed - 70.0 * _adj * Daylight.brute_factor) * delta
 		SPORE:
 			position.x -= 280.0 * Daylight.projectile_factor * delta
 		SNOWBALL:
@@ -1118,10 +1104,6 @@ func _draw() -> void:
 			_draw_mummy()
 		LIVING_SAND:
 			_draw_sand()
-		BARRICADE:
-			for k in 4:
-				PixelArt.draw(self, "crate", Vector2(-24.0, -48.0 * float(k + 1)), 4.0, _tint())
-			_draw_hp_bar(top, "¡PULSA RÁPIDO! x%d" % hp)
 		_:
 			_draw_piece()
 	# Aviso "!" cuando el boton atacara a esta criatura.
