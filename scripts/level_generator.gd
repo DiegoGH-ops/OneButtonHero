@@ -17,6 +17,7 @@ const Coin = preload("res://scripts/coin.gd")
 const GroundSpan = preload("res://scripts/ground_span.gd")
 const Platform = preload("res://scripts/platform.gd")
 const Daylight = preload("res://scripts/daylight.gd")
+const Goal = preload("res://scripts/goal.gd")
 const ObstacleScene: PackedScene = preload("res://scenes/obstacle.tscn")
 const EnemyScene: PackedScene = preload("res://scenes/enemy.tscn")
 const CoinScene: PackedScene = preload("res://scenes/coin.tscn")
@@ -54,6 +55,23 @@ const TABLE := [
 	[Pattern.BOULDER, 2, 3],
 ]
 
+## Patrones de menor a mayor dureza: los niveles de campana los desbloquean
+## en este orden (ver campaign.gd).
+const HARDNESS := [
+	Pattern.COINS, Pattern.SPIKES, Pattern.ROCK, Pattern.SLIME, Pattern.HOLE,
+	Pattern.GOBLIN, Pattern.TOTEM, Pattern.PLATFORM, Pattern.BAT, Pattern.DOUBLE_SPIKES,
+	Pattern.KNIGHT, Pattern.BOULDER, Pattern.DOUBLE_ENEMY, Pattern.SPIKES_HOLE,
+	Pattern.WIDE_HOLE, Pattern.GHOST,
+]
+## Pista libre que se deja antes de la meta.
+const GOAL_RUNWAY := 1500.0
+
+## Posicion de la meta (INF en el modo infinito).
+var goal_x: float = INF
+var _allowed: Array = []
+var _fixed_difficulty: float = -1.0
+var _goal_placed: bool = false
+
 ## Huecos como Vector2(inicio, fin). ground_renderer.gd comparte esta lista.
 var holes: Array = []
 
@@ -87,14 +105,49 @@ func setup(spans_root: Node2D, objects_root: Node2D) -> void:
 		_add_coin(Vector2(330.0 + float(i) * 48.0, GROUND_Y - 36.0), false)
 
 
+## Configura un nivel de campana (llamar despues de setup). La semilla fija
+## hace que el recorrido sea siempre el mismo y se pueda aprender.
+func configure(def: Dictionary) -> void:
+	_rng.seed = int(def["seed"])
+	_fixed_difficulty = float(def["difficulty"])
+	goal_x = float(def["goal_px"])
+	_allowed = []
+	var unlocked: int = clampi(int(def["unlocked"]), 1, HARDNESS.size())
+	var focus: Array = def["focus"]
+	for i in unlocked:
+		# Los patrones protagonistas del nivel salen mucho mas a menudo.
+		var weight: int = 2
+		if i == 0:
+			weight = 1
+		elif focus.has(i):
+			weight = 6
+		for n in weight:
+			_allowed.append(HARDNESS[i])
+
+
+## Tramo final: suelo despejado y la bandera de meta.
+func _finish_track() -> void:
+	if not _goal_placed:
+		_goal_placed = true
+		var goal: Goal = Goal.new()
+		goal.position = Vector2(goal_x, GROUND_Y)
+		_objects_root.add_child(goal)
+	_gen_x += 600.0
+
+
 ## Llamar cada fotograma: genera por delante y limpia por detras.
 func update(player_x: float, speed: float, level: int, delta: float) -> void:
 	_speed = speed
 	_level = level
 	_difficulty = clampf(float(level) / 9.0, 0.0, 1.0)
+	if _fixed_difficulty >= 0.0:
+		_difficulty = _fixed_difficulty
 	var guard: int = 0
 	while _gen_x < player_x + AHEAD and guard < 40:
-		_spawn_pattern()
+		if _gen_x > goal_x - GOAL_RUNWAY:
+			_finish_track()
+		else:
+			_spawn_pattern()
 		_current_span.set_range(_current_span.start_x, _gen_x)
 		guard += 1
 	_cleanup_timer -= delta
@@ -123,7 +176,11 @@ func _pick_pattern() -> int:
 		var forced: int = _forced.pop_front()
 		return forced
 	var pool: Array = []
+	if not _allowed.is_empty():
+		pool = _allowed
 	for entry in TABLE:
+		if not _allowed.is_empty():
+			break
 		var pattern: int = entry[0]
 		var weight: int = entry[1]
 		var min_level: int = entry[2]

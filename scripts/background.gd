@@ -27,9 +27,9 @@ func _draw() -> void:
 	_draw_sky()
 	_draw_celestial()
 	_draw_clouds()
-	_draw_ridge(0.04, 170.0, 220.0, 0.0045, 0.0117, 0.0, _tint(Pal.SILVER.lerp(Pal.CYAN, 0.3)), 300.0)
+	_draw_ridge(0.04, 170.0, 220.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.SILVER.lerp(Pal.CYAN, 0.3))), 300.0)
 	_draw_castles()
-	_draw_ridge(0.10, 110.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Pal.STEEL.lerp(Pal.SKY, 0.12)), 0.0)
+	_draw_ridge(0.10, 110.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.STEEL.lerp(Pal.SKY, 0.12))), 0.0)
 	_draw_hills()
 	_draw_ruins()
 	_draw_forest()
@@ -42,7 +42,8 @@ func _draw() -> void:
 func _sky_color(t: float) -> Color:
 	var a: float = minf(t * 2.0, 1.0)
 	var b: float = clampf(t * 2.0 - 1.0, 0.0, 1.0)
-	var day: Color = Pal.BLUE.lerp(Pal.SKY, a).lerp(Pal.CYAN, b)
+	var sky: Array = Daylight.theme.get("sky", ["3b5dc9", "41a6f6", "73eff7"])
+	var day: Color = Color(String(sky[0])).lerp(Color(String(sky[1])), a).lerp(Color(String(sky[2])), b)
 	var warm: Color
 	if fposmod(Daylight.time, 1.0) < 0.3:
 		warm = Pal.BLUE.lerp(Pal.PINK, a).lerp(Pal.YELLOW, b)
@@ -184,7 +185,7 @@ func _draw_hills() -> void:
 	var first: int = int(floor(scroll / COLUMN))
 	var offset: float = roundf(scroll - float(first) * COLUMN)
 	var count: int = int(W / COLUMN) + 2
-	var color: Color = _tint(Pal.TEAL.lerp(Pal.GREEN, 0.45))
+	var color: Color = _tint(Daylight.theme_color("hill", Pal.TEAL.lerp(Pal.GREEN, 0.45)))
 	var rim: Color = color.lightened(0.18)
 	for i in count:
 		var wx: float = float(first + i) * COLUMN
@@ -219,7 +220,7 @@ func _draw_forest() -> void:
 	var first: int = int(floor(scroll / COLUMN))
 	var offset: float = roundf(scroll - float(first) * COLUMN)
 	var count: int = int(W / COLUMN) + 2
-	var color: Color = _tint(Pal.TEAL.lerp(Pal.NAVY, 0.2))
+	var color: Color = _tint(Daylight.theme_color("forest", Pal.TEAL.lerp(Pal.NAVY, 0.2)))
 	var rim: Color = color.lightened(0.12)
 	for i in count:
 		var wx: float = float(first + i) * COLUMN
@@ -230,10 +231,11 @@ func _draw_forest() -> void:
 	var cell: float = 120.0
 	var first_cell: int = int(floor((scroll - 120.0) / cell))
 	var cells: int = int(W / cell) + 4
-	var tree_tint: Color = _sprite_tint().darkened(0.12)
+	var tree_tint: Color = _sprite_tint().darkened(0.12) * Daylight.theme_color("tree_tint", Color(1.0, 1.0, 1.0))
+	var density: float = float(Daylight.theme.get("trees", 1.0))
 	for n in cells:
 		var c: int = first_cell + n
-		if PixelArt.hash01(c, 21) < 0.28:
+		if PixelArt.hash01(c, 21) < 1.0 - 0.72 * density:
 			continue
 		var wx: float = float(c) * cell + PixelArt.hash01(c, 22) * 70.0
 		var sx: float = wx - scroll
@@ -260,3 +262,31 @@ func _draw_particles() -> void:
 			var ly: float = fposmod(h2 * 560.0 + _time * (30.0 + h1 * 25.0), 560.0)
 			var leaf: Color = Pal.ORANGE if i % 4 == 1 else Pal.RED
 			draw_rect(Rect2(snappedf(lx + sin(_time * 2.0 + float(i)) * 14.0, 2.0), snappedf(ly, 2.0), 6.0, 4.0), Color(leaf, leaves))
+	_draw_world_particles()
+
+
+## Particulas propias de cada mundo: ascuas, destellos, nieve o arena.
+func _draw_world_particles() -> void:
+	var kind: String = String(Daylight.theme.get("particles", "pollen"))
+	if kind == "pollen":
+		return
+	for i in 34:
+		var h1: float = PixelArt.hash01(i, 61)
+		var h2: float = PixelArt.hash01(i, 62)
+		if kind == "embers":
+			var ex: float = fposmod(h1 * W + sin(_time + float(i)) * 24.0 - scroll_x * 0.5, W)
+			var ey: float = fposmod(h2 * 600.0 - _time * (40.0 + h1 * 50.0), 600.0)
+			draw_rect(Rect2(snappedf(ex, 2.0), snappedf(ey, 2.0), 4.0, 4.0), Color(Pal.ORANGE if i % 2 == 0 else Pal.YELLOW, 0.85))
+		elif kind == "snow":
+			var nx: float = fposmod(h1 * W - _time * 30.0 - scroll_x * 0.5 + sin(_time * 1.5 + float(i)) * 16.0, W)
+			var ny: float = fposmod(h2 * 600.0 + _time * (50.0 + h1 * 40.0), 600.0)
+			draw_rect(Rect2(snappedf(nx, 2.0), snappedf(ny, 2.0), 4.0, 4.0), Color(Pal.WHITE, 0.85))
+		elif kind == "sand":
+			var sx: float = fposmod(h1 * W - _time * (260.0 + h2 * 160.0) - scroll_x * 0.5, W)
+			draw_rect(Rect2(sx, snappedf(h2 * 560.0, 4.0), 18.0, 2.0), Color(Pal.YELLOW, 0.45))
+		else:
+			var cx: float = fposmod(h1 * W - scroll_x * 0.2, W)
+			var glint: float = maxf(sin(_time * 2.0 + float(i) * 1.3), 0.0)
+			var c: Color = Color(Pal.PINK if i % 2 == 0 else Pal.CYAN, glint)
+			draw_rect(Rect2(snappedf(cx, 4.0), snappedf(h2 * 520.0, 4.0), 4.0, 4.0), c)
+			draw_rect(Rect2(snappedf(cx, 4.0) - 4.0, snappedf(h2 * 520.0, 4.0), 12.0, 4.0), Color(c, glint * 0.4))

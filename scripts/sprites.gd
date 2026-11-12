@@ -6,7 +6,7 @@ extends RefCounted
 ## Leyenda:  . transparente   k tinta      p purpura   r rojo     o naranja
 ##           y amarillo       L lima       G verde     t turquesa n azul marino
 ##           b azul           B celeste    c cian      w blanco   l plata
-##           g acero          d pizarra    h piel     u marron   e marron oscuro
+##           g acero          d pizarra    h piel     u marron   e marron oscuro   m rosa
 
 const DATA := {
 	"sword": [
@@ -634,5 +634,32 @@ const DATA := {
 		".kwwywwk.",
 		"kwyyyyywk",
 		"kkkkkkkkk",
+	],
+	"icon_soul": [
+		"....k....",
+		"...kpk...",
+		"...kpk...",
+		"..kprpk..",
+		"..kprpk..",
+		".kprwrpk.",
+		".kprwrpk.",
+		"..kpppk..",
+		"...kkk...",
+	],
+	"goal_flag": [
+		"kk..........",
+		"kkwwkkwwkkww",
+		"kkwwkkwwkkww",
+		"kkkkwwkkwwkk",
+		"kkkkwwkkwwkk",
+		"kkwwkkwwkkww",
+		"kkwwkkwwkkww",
+		"kk..........",
+		"kk..........",
+		"kk..........",
+		"kk..........",
+		"kk..........",
+		"kk..........",
+		"kk..........",
 	],
 }

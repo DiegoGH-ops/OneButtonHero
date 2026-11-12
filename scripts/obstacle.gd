@@ -67,6 +67,19 @@ func get_center() -> Vector2:
 	return global_position + _collider.position
 
 
+## Zona de peligro para el sistema de timing: Vector3(izquierda, derecha,
+## altura) en coordenadas del mundo.
+func get_danger() -> Vector3:
+	var x: float = global_position.x
+	if kind == Kind.SPIKES or kind == Kind.FLAMES:
+		return Vector3(x + 6.0, x + float(count) * TILE - 6.0, 18.0)
+	if kind == Kind.ROCK:
+		return Vector3(x + 8.0, x + 48.0, 34.0)
+	if kind == Kind.TOTEM:
+		return Vector3(x + 9.0, x + 39.0, 98.0)
+	return Vector3(x - 18.0, x + 18.0, 40.0)
+
+
 ## Lo destruye (poderes Turbo y Onda). Devuelve false si ya no existia.
 func destroy() -> bool:
 	if destroyed:

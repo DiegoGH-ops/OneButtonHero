@@ -6,6 +6,7 @@ extends CanvasLayer
 signal restart_requested
 signal menu_requested
 signal power_pressed(index: int)
+signal next_requested
 
 const UI = preload("res://scripts/ui.gd")
 const Catalog = preload("res://scripts/catalog.gd")
@@ -15,7 +16,10 @@ const Shop = preload("res://scripts/shop.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
 const PixelButton = preload("res://scripts/pixel_button.gd")
+const PixelFont = preload("res://scripts/pixel_font.gd")
 const Pal = preload("res://scripts/palette.gd")
+const PixelArt = preload("res://scripts/pixel_art.gd")
+const Timing = preload("res://scripts/timing.gd")
 
 ## game.gd lo activa solo mientras se esta jugando.
 var can_pause: bool = false
@@ -43,6 +47,11 @@ var _banner_tween: Tween
 var _toaster: Toaster
 var _shop: Shop
 var _time: float = 0.0
+var _win_layer: Control
+var _win_canvas: Control
+var _win_data: Dictionary = {}
+var _win_buttons: Array = []
+var _next_button: PixelButton
 
 
 func _ready() -> void:
@@ -53,6 +62,7 @@ func _ready() -> void:
 	_build_banner()
 	_build_pause()
 	_build_game_over()
+	_build_victory()
 	_toaster = Toaster.new()
 	add_child(_toaster)
 	_shop = Shop.new()
@@ -135,7 +145,7 @@ func _build_hint() -> void:
 	_hint_layer = UI.layer(self, "Hint")
 	UI.label(_hint_layer, "ESPACIO / CLIC / TOQUE: SALTAR", Vector2(700.0, 612.0), 3.0, Pal.WHITE)
 	UI.label(_hint_layer, "MANTÉN: SALTO ALTO - ENEMIGO CERCA (!): ATACAR", Vector2(700.0, 648.0), 2.0, Pal.YELLOW)
-	UI.label(_hint_layer, "PODERES: TECLAS 1 2 3 O TOCA LOS BOTONES", Vector2(700.0, 676.0), 2.0, Pal.CYAN)
+	UI.label(_hint_layer, "APURA CADA SALTO Y ATAQUE: GOOD - PERFECT - LEGENDARY", Vector2(700.0, 674.0), 2.0, Pal.CYAN)
 	var tween: Tween = create_tween()
 	tween.tween_interval(8.0)
 	tween.tween_property(_hint_layer, "modulate:a", 0.0, 1.0)
@@ -215,6 +225,99 @@ func _build_game_over() -> void:
 	var menu_button: PixelButton = UI.button(_over_layer, "MENÚ", Rect2(648.0, 584.0, 272.0, 60.0), 3.0)
 	menu_button.pressed.connect(_on_menu_pressed)
 	_over_buttons = [_retry_button, shop_button, menu_button]
+
+
+## Pantalla de nivel superado: rango, estrellas, estadisticas y recompensas.
+func _build_victory() -> void:
+	_win_layer = UI.layer(self, "Victory")
+	_win_layer.visible = false
+	UI.dim(_win_layer, 0.7)
+	UI.panel(_win_layer, Rect2(300.0, 40.0, 680.0, 640.0))
+	_win_canvas = UI.layer(_win_layer, "Canvas")
+	_win_canvas.draw.connect(_draw_victory)
+	_next_button = UI.button(_win_layer, "SIGUIENTE NIVEL", Rect2(360.0, 508.0, 560.0, 72.0), 4.0)
+	_next_button.fill = Pal.GREEN
+	_next_button.fill_hot = Pal.LIME
+	_next_button.pressed.connect(_on_next_pressed)
+	var retry: PixelButton = UI.button(_win_layer, "REPETIR", Rect2(360.0, 596.0, 272.0, 60.0), 3.0)
+	retry.pressed.connect(_on_restart_pressed)
+	var map_button: PixelButton = UI.button(_win_layer, "MENÚ", Rect2(648.0, 596.0, 272.0, 60.0), 3.0)
+	map_button.pressed.connect(_on_menu_pressed)
+	_win_buttons = [_next_button, retry, map_button]
+
+
+func _win_text(text: String, y: float, px: float, color: Color) -> void:
+	var w: float = PixelFont.text_width(text, px)
+	PixelFont.draw_text_shadowed(_win_canvas, text, Vector2(roundf(640.0 - w * 0.5), y), px, color, Pal.INK)
+
+
+func _draw_victory() -> void:
+	if _win_data.is_empty():
+		return
+	var rank: int = int(_win_data["rank"])
+	var stars: int = int(_win_data["stars"])
+	_win_text("¡NIVEL %s SUPERADO!" % String(_win_data["name"]), 72.0, 5.0, Pal.LIME)
+	_win_text("RANGO", 132.0, 3.0, Pal.SILVER)
+	var rank_color: Color = [Pal.SILVER, Pal.SILVER, Pal.WHITE, Pal.LIME, Pal.YELLOW, Pal.ORANGE, Pal.RED][clampi(rank, 0, 6)]
+	_win_text(String(Timing.RANK_NAMES[rank]), 164.0, 14.0, rank_color)
+	_win_text(String(Timing.RANK_TITLES[rank]), 276.0, 3.0, rank_color)
+	for i in 3:
+		var tint: Color = Color(1.0, 1.0, 1.0, 1.0) if i < stars else Color(0.2, 0.2, 0.3, 1.0)
+		PixelArt.draw(_win_canvas, "star", Vector2(541.0 + float(i) * 72.0, 312.0), 6.0, tint)
+	_win_text("PUNTOS %d" % int(_win_data["score"]), 384.0, 3.0, Pal.WHITE)
+	_win_text("PERFECT %d - LEGENDARY %d - COMBO %d - GOLPES %d" % [int(_win_data["perfect"]), int(_win_data["legendary"]), int(_win_data["combo"]), int(_win_data["damage"])], 418.0, 2.0, Pal.CYAN)
+	var reward: String = "+%d MONEDAS" % int(_win_data["coins"])
+	if int(_win_data["diamonds"]) > 0:
+		reward += "   +%d DIAMANTES" % int(_win_data["diamonds"])
+	_win_text(reward, 452.0, 3.0, Pal.YELLOW)
+
+
+func show_victory(data: Dictionary) -> void:
+	can_pause = false
+	_win_data = data
+	_pause_button.visible = false
+	_hint_layer.visible = false
+	for item in _power_buttons:
+		var power_button: PowerButton = item
+		power_button.visible = false
+	_next_button.caption = "SIGUIENTE NIVEL" if bool(data["has_next"]) else "CAMPAÑA COMPLETADA"
+	_win_canvas.queue_redraw()
+	_win_layer.visible = true
+	_win_layer.modulate.a = 0.0
+	for item in _win_buttons:
+		var button: PixelButton = item
+		button.disabled = true
+	var tween: Tween = create_tween()
+	tween.tween_property(_win_layer, "modulate:a", 1.0, 0.3)
+	tween.tween_interval(0.5)
+	tween.tween_callback(_enable_victory_buttons)
+
+
+func _enable_victory_buttons() -> void:
+	for item in _win_buttons:
+		var button: PixelButton = item
+		button.disabled = false
+	_next_button.grab_focus()
+
+
+func _on_next_pressed() -> void:
+	next_requested.emit()
+
+
+## Combo de precision y multiplicador de valentia.
+func set_combo(count: int, multiplier: float) -> void:
+	_bar.combo_count = count
+	_bar.combo_mult = multiplier
+
+
+## Progreso hacia la meta en los niveles de campana (0..1).
+func set_progress(ratio: float) -> void:
+	_bar.progress = ratio
+
+
+func set_level_name(text: String) -> void:
+	_bar.level_name = text
+	_bar.progress = 0.0
 
 
 # ------------------------------------------------------------- marcadores --

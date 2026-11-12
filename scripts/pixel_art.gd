@@ -18,7 +18,7 @@ static func _color_table() -> Dictionary:
 			"y": Pal.YELLOW, "L": Pal.LIME, "G": Pal.GREEN, "t": Pal.TEAL,
 			"n": Pal.NAVY, "b": Pal.BLUE, "B": Pal.SKY, "c": Pal.CYAN,
 			"w": Pal.WHITE, "l": Pal.SILVER, "g": Pal.STEEL, "d": Pal.SLATE,
-			"h": Pal.SKIN, "u": Pal.BROWN, "e": Pal.DARK_BROWN,
+			"h": Pal.SKIN, "u": Pal.BROWN, "e": Pal.DARK_BROWN, "m": Pal.PINK,
 		}
 	return _colors
 

@@ -87,8 +87,43 @@ var effects_text: String = "":
 			queue_redraw()
 
 
+## Combo de precision: acciones perfectas seguidas y su multiplicador.
+var combo_count: int = 0:
+	set(value):
+		if combo_count != value:
+			combo_count = value
+			queue_redraw()
+
+var combo_mult: float = 1.0:
+	set(value):
+		if not is_equal_approx(combo_mult, value):
+			combo_mult = value
+			queue_redraw()
+
+## Progreso del nivel de campana (0..1; negativo = oculto).
+var progress: float = -1.0:
+	set(value):
+		if absf(progress - value) > 0.002:
+			progress = value
+			queue_redraw()
+
+var level_name: String = "":
+	set(value):
+		level_name = value
+		queue_redraw()
+
+var _time: float = 0.0
+
+
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _process(delta: float) -> void:
+	_time += delta
+	# Con multiplicadores altos el indicador de combo vibra de energia.
+	if combo_mult >= 2.0:
+		queue_redraw()
 
 
 func _disc(center: Vector2, radius: int, color: Color) -> void:
@@ -136,6 +171,37 @@ func _draw() -> void:
 	if multiplier_text != "":
 		var mult_w: float = PixelFont.text_width(multiplier_text, 3.0)
 		PixelFont.draw_text_shadowed(self, multiplier_text, Vector2(roundf(640.0 - mult_w * 0.5), 98.0), 3.0, Pal.ORANGE, Pal.INK, true)
+
+	# --- Combo de precision (muy visible; cambia con el multiplicador) ---
+	if combo_count > 0:
+		var combo_text: String = "COMBO %d" % combo_count
+		if combo_mult > 1.0:
+			combo_text += "  X%.1f" % combo_mult
+		var combo_px: float = 3.0
+		var combo_color: Color = Pal.WHITE
+		var jitter: Vector2 = Vector2.ZERO
+		if combo_mult >= 4.0:
+			combo_px = 5.0
+			combo_color = Pal.RED if int(_time * 10.0) % 2 == 0 else Pal.ORANGE
+			jitter = Vector2(sin(_time * 40.0) * 3.0, cos(_time * 33.0) * 2.0)
+		elif combo_mult >= 2.0:
+			combo_px = 4.0
+			combo_color = Pal.YELLOW if int(_time * 6.0) % 2 == 0 else Pal.ORANGE
+			jitter = Vector2(0.0, sin(_time * 12.0) * 2.0)
+		elif combo_mult > 1.0:
+			combo_px = 4.0
+			combo_color = Pal.LIME
+		var combo_w: float = PixelFont.text_width(combo_text, combo_px)
+		PixelFont.draw_text_shadowed(self, combo_text, Vector2(roundf(640.0 - combo_w * 0.5), 128.0) + jitter, combo_px, combo_color, Pal.INK, true)
+
+	# --- Progreso del nivel ---
+	if progress >= 0.0:
+		draw_rect(Rect2(436.0, 700.0, 408.0, 14.0), Pal.INK)
+		draw_rect(Rect2(440.0, 704.0, 400.0, 6.0), Pal.SLATE)
+		draw_rect(Rect2(440.0, 704.0, 400.0 * clampf(progress, 0.0, 1.0), 6.0), Pal.LIME)
+		draw_rect(Rect2(436.0 + 400.0 * clampf(progress, 0.0, 1.0), 698.0, 8.0, 18.0), Pal.YELLOW)
+		PixelFont.draw_text_shadowed(self, level_name, Vector2(424.0 - PixelFont.text_width(level_name, 2.0), 700.0), 2.0, Pal.WHITE, Pal.INK, true)
+		PixelFont.draw_text_shadowed(self, "META", Vector2(856.0, 700.0), 2.0, Pal.YELLOW, Pal.INK, true)
 
 	# --- Velocidad ---
 	var right: float = 1176.0

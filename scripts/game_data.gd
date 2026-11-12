@@ -9,6 +9,7 @@ signal wallet_changed
 signal notice(text: String)
 
 const Catalog = preload("res://scripts/catalog.gd")
+const Campaign = preload("res://scripts/campaign.gd")
 
 const SAVE_PATH := "user://one_button_hero.cfg"
 ## Accion principal: ESPACIO, clic izquierdo o toque en pantalla.
@@ -16,6 +17,12 @@ const ACTION := "hero_action"
 const POWER_ACTIONS := ["power_1", "power_2", "power_3"]
 
 var wallet: int = 0
+## Moneda especial: solo se consigue jugando (hitos, tres estrellas...).
+var diamonds: int = 0
+## Progreso de campana: "mundo_nivel" -> {"stars", "rank", "score"}.
+var campaign: Dictionary = {}
+## Partida que se va a jugar (no se guarda): modo "endless" o "level".
+var run: Dictionary = {"mode": "endless"}
 var upgrades: Dictionary = {}
 var stock: Dictionary = {}
 var owned: Dictionary = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}
@@ -25,7 +32,7 @@ var equipped: Dictionary = {"skin": "skin_azul", "sword": "sword_acero", "trail"
 var stats: Dictionary = {
 	"high_score": 0, "best_distance": 0, "games_played": 0, "total_coins": 0,
 	"total_kills": 0, "total_gems": 0, "total_distance": 0, "nights_survived": 0,
-	"powers_used": 0, "deaths": 0,
+	"powers_used": 0, "deaths": 0, "best_combo": 0, "perfects": 0, "legendaries": 0, "levels_cleared": 0,
 }
 var achievements: Dictionary = {}
 
@@ -93,6 +100,8 @@ func load_data() -> void:
 	if cfg.load(SAVE_PATH) != OK:
 		return
 	wallet = int(cfg.get_value("profile", "wallet", 0))
+	diamonds = int(cfg.get_value("profile", "diamonds", 0))
+	_merge(campaign, cfg.get_value("profile", "campaign", {}))
 	_merge(upgrades, cfg.get_value("profile", "upgrades", {}))
 	_merge(stock, cfg.get_value("profile", "stock", {}))
 	_merge(owned, cfg.get_value("profile", "owned", {}))
@@ -117,6 +126,8 @@ func load_data() -> void:
 func save_data() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value("profile", "wallet", wallet)
+	cfg.set_value("profile", "diamonds", diamonds)
+	cfg.set_value("profile", "campaign", campaign)
 	cfg.set_value("profile", "upgrades", upgrades)
 	cfg.set_value("profile", "stock", stock)
 	cfg.set_value("profile", "owned", owned)
@@ -233,6 +244,69 @@ func equip(slot: String, id: String) -> void:
 		save_data()
 
 
+# ----------------------------------------------------------------- campana --
+
+func level_key(world: int, level: int) -> String:
+	return "%d_%d" % [world, level]
+
+
+func level_record(world: int, level: int) -> Dictionary:
+	var record: Variant = campaign.get(level_key(world, level), {})
+	if record is Dictionary:
+		return record
+	return {}
+
+
+func level_stars(world: int, level: int) -> int:
+	return int(level_record(world, level).get("stars", 0))
+
+
+## Un mundo se abre al superar el nivel 20 del anterior.
+func is_world_unlocked(world: int) -> bool:
+	return world <= 0 or level_stars(world - 1, Campaign.LEVELS_PER_WORLD - 1) > 0
+
+
+func is_level_unlocked(world: int, level: int) -> bool:
+	if not is_world_unlocked(world):
+		return false
+	return level <= 0 or level_stars(world, level - 1) > 0
+
+
+func total_stars() -> int:
+	var total: int = 0
+	for key in campaign:
+		var record: Variant = campaign[key]
+		if record is Dictionary:
+			total += int(record.get("stars", 0))
+	return total
+
+
+## Guarda el resultado de un nivel y entrega las recompensas que toquen
+## (solo la primera vez). Devuelve {"coins", "diamonds", "first"}.
+func complete_level(world: int, level: int, stars: int, rank: int, score: int) -> Dictionary:
+	var old: Dictionary = level_record(world, level)
+	var first: bool = old.is_empty()
+	var coins: int = 0
+	var gems: int = 0
+	if first:
+		coins += 30 + world * 20 + level * 4
+		gems += Campaign.first_clear_diamonds(world, level)
+		add_stat("levels_cleared", 1)
+	# Tres estrellas por primera vez: un diamante.
+	if stars >= 3 and int(old.get("stars", 0)) < 3:
+		gems += 1
+	campaign[level_key(world, level)] = {
+		"stars": maxi(stars, int(old.get("stars", 0))),
+		"rank": maxi(rank, int(old.get("rank", 0))),
+		"score": maxi(score, int(old.get("score", 0))),
+	}
+	diamonds += gems
+	add_coins(coins)
+	save_data()
+	wallet_changed.emit()
+	return {"coins": coins, "diamonds": gems, "first": first}
+
+
 # --------------------------------------------------------------- progresion --
 
 ## Elige las tres misiones del dia (las mismas para toda la jornada).
@@ -311,6 +385,8 @@ func finish_run(score: int, coins: int, kills: int, gems: int, meters: int) -> b
 
 func reset_progress() -> void:
 	wallet = 0
+	diamonds = 0
+	campaign = {}
 	upgrades = {}
 	stock = {}
 	owned = {"skin_azul": true, "sword_acero": true, "trail_polvo": true, "aura_ninguna": true}

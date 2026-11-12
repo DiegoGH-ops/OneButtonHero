@@ -13,6 +13,7 @@ signal pickup_collected(kind: int, value: int, pos: Vector2)
 signal enemy_killed(points: int, pos: Vector2, kind: int)
 signal enemy_hit(pos: Vector2)
 signal hazard_smashed(pos: Vector2)
+signal soul_strike(pos: Vector2)
 signal shield_broken
 signal damaged
 signal fell
@@ -45,6 +46,8 @@ var alive: bool = true
 var demo_mode: bool = false
 ## Escudo comprado en la tienda: absorbe un golpe.
 var shield_active: bool = false
+## Soul Reaper: el proximo golpe elimina al enemigo al instante.
+var soul_armed: bool = false
 
 var _coyote: float = 0.0
 var _buffer: float = 0.0
@@ -336,6 +339,14 @@ func _strike(area: Area2D) -> void:
 	var kind: int = int(area.get("kind"))
 	var hit_pos: Vector2 = area.global_position
 	var result: int = int(area.call("hit"))
+	if soul_armed:
+		# Golpe de Soul Reaper: remata aunque el enemigo tenga escudo.
+		soul_armed = false
+		var guard: int = 0
+		while result < 0 and guard < 4:
+			result = int(area.call("hit"))
+			guard += 1
+		soul_strike.emit(hit_pos)
 	if result > 0:
 		enemy_killed.emit(result, hit_pos, kind)
 	elif result < 0:
@@ -498,5 +509,7 @@ func _draw_slash(hand: Vector2, current_angle: float, progress: float, alpha: fl
 			var radius: float = 44.0 + float(ring) * 10.0
 			var p: Vector2 = hand + dir * radius
 			var color: Color = _slash_b if ring == 1 else _slash_a
+			if soul_armed:
+				color = Pal.PURPLE if ring != 1 else Pal.RED
 			draw_rect(Rect2(snappedf(p.x, 4.0) - 4.0, snappedf(p.y, 4.0) - 4.0, 8.0, 8.0), Color(color, fade * closeness))
 		angle += 0.16

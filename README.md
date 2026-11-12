@@ -18,8 +18,23 @@ la fuente, las partículas, las luces, los efectos de sonido y las seis cancione
 | Atacar | El mismo botón cuando hay un enemigo cerca (aparece un **!** sobre él) |
 | Turbo | **1** o **Q**, o su botón en pantalla: corre más, cruza huecos y arrolla |
 | Onda | **2** o **W**: elimina enemigos y obstáculos cercanos |
-| Tiempo lento | **3** o **E**: ralentiza el mundo unos segundos |
+| Soul Reaper | **3** o **E** cuando está cargado: el siguiente ataque perfecto es letal |
 | Pausa | **Esc** o el botón de pausa |
+
+## Campaña y timing (fase 1 de la gran expansión)
+
+- **Campaña**: 5 mundos (Verdantia, Infernus, Amethystia, Frostfall, Solaris) × 20 niveles con
+  recorrido fijo, meta, estrellas, rango de D a SSS, récord y recompensas. Mapa de niveles en el menú.
+- **Timing**: cada salto, ataque y esquiva se evalúa según lo cerca del peligro que se ejecuta:
+  GOOD, PERFECT, LEGENDARY y LAST SECOND, con texto, sonido, partículas y puntos propios.
+  Las ventanas se configuran en `scripts/timing.gd` y se estrechan en cada mundo.
+- **Combo de precisión**: 3, 5, 8, 12 y 20 acciones perfectas seguidas dan x1,5 a x5. Recibir daño lo rompe.
+- **Soul Reaper**: sustituye al tiempo lento. Se carga con acciones perfectas.
+- **Diamantes**: se ganan en los niveles 5, 10, 15 y 20 de cada mundo y al lograr tres estrellas.
+- **Modo infinito**: la partida sin fin original sigue disponible desde el menú.
+
+Pendiente para las fases siguientes: jefes, enemigos y obstáculos exclusivos de cada mundo, tienda
+de diamantes, árboles de mejoras, retos por nivel, música por mundo y herramientas de depuración.
 
 ## Contenido
 
@@ -51,6 +66,10 @@ scripts/
   transition.gd      Autoload: fundido entre pantallas
   catalog.gd         Datos de la tienda, poderes, logros y misiones
   daylight.gd        Ciclo de día y noche (hora, luz ambiental, sombras)
+  campaign.gd        Mundos y niveles de la campaña
+  timing.gd          Ventanas de timing, combos y rangos
+  precision.gd       Árbitro del timing durante la partida
+  campaign_map.gd    Mapa de selección de niveles
   game.gd            Reglas de la partida, dificultad, poderes, eventos
   player.gd          Movimiento, salto variable, ataque, escudo, turbo, cosméticos
   level_generator.gd Generación procedural por patrones

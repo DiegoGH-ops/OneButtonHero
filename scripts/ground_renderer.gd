@@ -6,6 +6,7 @@ extends Node2D
 
 const Pal = preload("res://scripts/palette.gd")
 const PixelArt = preload("res://scripts/pixel_art.gd")
+const Daylight = preload("res://scripts/daylight.gd")
 
 const TILE := 32.0
 const GROUND_Y := 560.0
@@ -33,6 +34,10 @@ func _in_hole(x: float) -> bool:
 func _draw() -> void:
 	var first: int = int(floor(view_left / TILE)) - 1
 	var count: int = int(1280.0 / TILE) + 3
+	# Cada mundo recolorea el suelo (lava, cristal, nieve, arena...).
+	var remap: Dictionary = Daylight.theme.get("ground", {})
+	var remap_key: String = String(Daylight.theme.get("ground_key", ""))
+	var decor_on: bool = bool(Daylight.theme.get("decor", true))
 	for n in count:
 		var i: int = first + n
 		var x: float = float(i) * TILE
@@ -43,7 +48,7 @@ func _draw() -> void:
 			continue
 
 		var top: String = "ground_top_a" if PixelArt.hash01(i, 1) < 0.5 else "ground_top_b"
-		PixelArt.draw(self, top, Vector2(x, GROUND_Y - 4.0), 4.0)
+		PixelArt.draw_skin(self, top, Vector2(x, GROUND_Y - 4.0), 4.0, Color(1.0, 1.0, 1.0, 1.0), remap, remap_key)
 		for row in 4:
 			var r: float = PixelArt.hash01(i, 10 + row)
 			var sprite: String = "dirt_a"
@@ -52,7 +57,7 @@ func _draw() -> void:
 			elif r > 0.5:
 				sprite = "dirt_b"
 			var shade: float = 1.0 - 0.13 * float(row + 1)
-			PixelArt.draw(self, sprite, Vector2(x, GROUND_Y + 32.0 + float(row) * TILE), 4.0, Color(shade, shade, shade, 1.0))
+			PixelArt.draw_skin(self, sprite, Vector2(x, GROUND_Y + 32.0 + float(row) * TILE), 4.0, Color(shade, shade, shade, 1.0), remap, remap_key)
 
 		var hole_left: bool = _in_hole(x - TILE * 0.5)
 		var hole_right: bool = _in_hole(x + TILE * 1.5)
@@ -62,7 +67,7 @@ func _draw() -> void:
 			draw_rect(Rect2(x + TILE - 4.0, GROUND_Y, 4.0, DEPTH), Pal.INK)
 
 		# Decoracion estable (hierba, flores, setas) lejos de los bordes.
-		if not hole_left and not hole_right and PixelArt.hash01(i, 5) < 0.24:
+		if decor_on and not hole_left and not hole_right and PixelArt.hash01(i, 5) < 0.24:
 			var pick: int = int(PixelArt.hash01(i, 6) * float(DECOR.size())) % DECOR.size()
 			var decor: String = DECOR[pick]
 			var sz: Vector2 = PixelArt.size_of(decor, 4.0)

@@ -9,6 +9,8 @@ const Background = preload("res://scripts/background.gd")
 const GroundRenderer = preload("res://scripts/ground_renderer.gd")
 const Shop = preload("res://scripts/shop.gd")
 const ProgressPanel = preload("res://scripts/progress_panel.gd")
+const CampaignMap = preload("res://scripts/campaign_map.gd")
+const Campaign = preload("res://scripts/campaign.gd")
 const Toaster = preload("res://scripts/toaster.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const PixelLabel = preload("res://scripts/pixel_label.gd")
@@ -29,6 +31,8 @@ var _title_top: PixelLabel
 var _title_main: PixelLabel
 var _record: PixelLabel
 var _wallet: PixelLabel
+var _diamonds: PixelLabel
+var _map: CampaignMap
 var _main_layer: Control
 var _settings_layer: Control
 var _play_button: PixelButton
@@ -57,6 +61,7 @@ func _ready() -> void:
 	Engine.time_scale = 1.0
 	Daylight.time = 0.22
 	Daylight.holes = []
+	Daylight.theme = Campaign.theme(0)
 	Daylight.magnet_radius = 0.0
 	hero.demo_mode = true
 	hero.run_speed = 300.0
@@ -69,6 +74,9 @@ func _ready() -> void:
 	_progress = ProgressPanel.new()
 	ui_root.add_child(_progress)
 	_progress.closed.connect(_on_overlay_closed)
+	_map = CampaignMap.new()
+	ui_root.add_child(_map)
+	_map.closed.connect(_on_overlay_closed)
 	_toaster = Toaster.new()
 	ui_root.add_child(_toaster)
 	GameData.notice.connect(_on_notice)
@@ -130,11 +138,20 @@ func _build_main() -> void:
 	coin.focus_mode = Control.FOCUS_NONE
 	coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_wallet = UI.label(_main_layer, "0", Vector2(236.0, 40.0), 4.0, Pal.YELLOW, 2)
+	# Diamantes: solo se consiguen jugando la campana.
+	var gem_purse: Control = UI.panel(_main_layer, Rect2(24.0, 92.0, 230.0, 60.0))
+	gem_purse.set("fill", Pal.INK)
+	var gem: PixelButton = UI.button(_main_layer, "", Rect2(32.0, 98.0, 52.0, 48.0), 3.0)
+	gem.icon_sprite = "gem"
+	gem.disabled = true
+	gem.focus_mode = Control.FOCUS_NONE
+	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_diamonds = UI.label(_main_layer, "0", Vector2(236.0, 108.0), 4.0, Pal.CYAN, 2)
 
 	_record = UI.label(_main_layer, "", Vector2(640.0, 250.0), 3.0, Pal.CYAN)
 	_record.outline = true
 
-	_play_button = UI.button(_main_layer, "PLAY", Rect2(480.0, 284.0, 320.0, 84.0), 6.0)
+	_play_button = UI.button(_main_layer, "CAMPAÑA", Rect2(440.0, 284.0, 400.0, 84.0), 6.0)
 	_play_button.fill = Pal.GREEN
 	_play_button.fill_hot = Pal.LIME
 	_play_button.pressed.connect(_on_play_pressed)
@@ -152,7 +169,9 @@ func _build_main() -> void:
 	progress_button.fill_hot = Pal.YELLOW
 	progress_button.pressed.connect(_open_progress)
 
-	var settings_button: PixelButton = UI.button(_main_layer, "CONFIGURACIÓN", Rect2(480.0, 460.0, 320.0, 52.0), 3.0)
+	var endless_button: PixelButton = UI.button(_main_layer, "MODO INFINITO", Rect2(334.0, 460.0, 300.0, 52.0), 3.0)
+	endless_button.pressed.connect(_on_endless_pressed)
+	var settings_button: PixelButton = UI.button(_main_layer, "CONFIGURACIÓN", Rect2(646.0, 460.0, 300.0, 52.0), 3.0)
 	settings_button.pressed.connect(_open_settings)
 
 	if not OS.has_feature("web") and not OS.has_feature("mobile"):
@@ -167,16 +186,24 @@ func _build_main() -> void:
 	UI.label(_main_layer, "UN SOLO BOTÓN: ESPACIO / CLIC / TOQUE", Vector2(880.0, 584.0), 3.0, Pal.YELLOW)
 	UI.label(_main_layer, "PULSA: SALTAR  -  MANTÉN PULSADO: SALTO MÁS ALTO", Vector2(880.0, 620.0), 2.0, Pal.WHITE)
 	UI.label(_main_layer, "ENEMIGO CERCA (!): EL BOTÓN ATACA CON LA ESPADA", Vector2(880.0, 642.0), 2.0, Pal.WHITE)
-	UI.label(_main_layer, "PODERES: TECLAS 1 2 3 (TURBO, ONDA, TIEMPO LENTO)", Vector2(880.0, 664.0), 2.0, Pal.CYAN)
-	UI.label(_main_layer, "ESC: PAUSA  -  GASTA TUS MONEDAS EN LA TIENDA", Vector2(880.0, 686.0), 2.0, Pal.SILVER)
+	UI.label(_main_layer, "PODERES: TECLAS 1 2 3 (TURBO, ONDA, SOUL REAPER)", Vector2(880.0, 664.0), 2.0, Pal.CYAN)
+	UI.label(_main_layer, "APURA AL LÍMITE: GOOD, PERFECT, LEGENDARY Y LAST SECOND", Vector2(880.0, 686.0), 2.0, Pal.YELLOW)
 
 
 func _refresh_texts() -> void:
 	_record.text = "RÉCORD: %d  -  MEJOR DISTANCIA: %d M" % [GameData.high_score, int(GameData.stats.get("best_distance", 0))]
 	_wallet.text = str(GameData.wallet)
+	_diamonds.text = str(GameData.diamonds)
 
 
 func _on_play_pressed() -> void:
+	_main_layer.visible = false
+	_map.open()
+
+
+## Modo infinito: la partida sin fin de siempre.
+func _on_endless_pressed() -> void:
+	GameData.run = {"mode": "endless"}
 	Transition.change_scene(GAME_SCENE)
 
 

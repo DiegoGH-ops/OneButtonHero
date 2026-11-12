@@ -58,10 +58,11 @@ const AURAS := [
 ]
 
 ## Poderes activables (teclas 1-2-3 / Q-W-E o botones en pantalla).
+## Soul Reaper no tiene recarga por tiempo: se carga con acciones perfectas.
 const POWERS := [
 	{"id": "turbo", "name": "TURBO", "icon": "icon_bolt", "key": "1", "cooldown": 18.0, "duration": 3.5},
 	{"id": "wave", "name": "ONDA", "icon": "icon_wave", "key": "2", "cooldown": 26.0, "duration": 0.5},
-	{"id": "slow", "name": "TIEMPO", "icon": "icon_clock", "key": "3", "cooldown": 32.0, "duration": 5.0},
+	{"id": "soul", "name": "SOUL", "icon": "icon_soul", "key": "3", "cooldown": 0.0, "duration": 0.0},
 ]
 
 ## Logros: se cumplen cuando la estadistica `stat` alcanza `target`.

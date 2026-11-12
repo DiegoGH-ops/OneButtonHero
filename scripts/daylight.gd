@@ -22,6 +22,8 @@ static var holes: Array = []
 static var player_pos: Vector2 = Vector2.ZERO
 static var magnet_radius: float = 0.0
 static var run_speed: float = 340.0
+## Aspecto del mundo actual (ver campaign.gd). Vacio = bosque por defecto.
+static var theme: Dictionary = {}
 
 
 static func phase() -> int:
@@ -63,7 +65,7 @@ static func ambient() -> Color:
 	var day: Color = Color(1.0, 1.0, 1.0)
 	var warm: Color = Color(1.0, 0.74, 0.58)
 	var night: Color = Color(0.60, 0.64, 0.95)
-	return day.lerp(warm, warmth() * 0.8).lerp(night, darkness())
+	return (day.lerp(warm, warmth() * 0.8).lerp(night, darkness())) * theme_color("ambient", Color(1.0, 1.0, 1.0))
 
 
 ## Posicion del sol en pantalla (1280x720). Sale por la izquierda.
@@ -104,6 +106,13 @@ static func shadow_alpha() -> float:
 ## De noche los puntos valen mas.
 static func score_multiplier() -> float:
 	return 1.5 if darkness() > 0.6 else 1.0
+
+
+## Color del tema actual (hex) o `fallback` si el tema no lo define.
+static func theme_color(key: String, fallback: Color) -> Color:
+	if theme.has(key):
+		return Color(String(theme[key]))
+	return fallback
 
 
 static func is_ground(x: float) -> bool:

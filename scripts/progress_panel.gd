@@ -17,7 +17,8 @@ const STATS := [
 	["games_played", "PARTIDAS JUGADAS"], ["total_distance", "DISTANCIA TOTAL (M)"],
 	["total_coins", "MONEDAS RECOGIDAS"], ["total_gems", "GEMAS RECOGIDAS"],
 	["total_kills", "ENEMIGOS DERROTADOS"], ["nights_survived", "NOCHES SUPERADAS"],
-	["powers_used", "PODERES USADOS"],
+	["powers_used", "PODERES USADOS"], ["levels_cleared", "NIVELES SUPERADOS"],
+	["best_combo", "MEJOR COMBO PERFECTO"],
 ]
 
 var _tab: int = 0
@@ -148,8 +149,8 @@ func _draw_achievements() -> void:
 func _draw_stats() -> void:
 	for i in STATS.size():
 		var pair: Array = STATS[i]
-		var rect: Rect2 = Rect2(64.0, 196.0 + float(i) * 50.0, 1152.0, 44.0)
+		var rect: Rect2 = Rect2(64.0, 196.0 + float(i) * 42.0, 1152.0, 38.0)
 		_row(rect, i % 2 == 0)
-		_text(String(pair[1]), rect.position + Vector2(24.0, 12.0), 3.0, Pal.WHITE)
-		_text_right(str(int(GameData.stats.get(String(pair[0]), 0))), rect.end.x - 24.0, rect.position.y + 12.0, 3.0, Pal.YELLOW)
+		_text(String(pair[1]), rect.position + Vector2(24.0, 9.0), 3.0, Pal.WHITE)
+		_text_right(str(int(GameData.stats.get(String(pair[0]), 0))), rect.end.x - 24.0, rect.position.y + 9.0, 3.0, Pal.YELLOW)
 	_text_right("MONEDERO: %d" % GameData.wallet, 1216.0, 660.0, 2.0, Pal.CYAN)

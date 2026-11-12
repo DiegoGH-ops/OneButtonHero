@@ -11,6 +11,9 @@ const LevelGenerator = preload("res://scripts/level_generator.gd")
 const Lights = preload("res://scripts/lights.gd")
 const Coin = preload("res://scripts/coin.gd")
 const Catalog = preload("res://scripts/catalog.gd")
+const Campaign = preload("res://scripts/campaign.gd")
+const Precision = preload("res://scripts/precision.gd")
+const Timing = preload("res://scripts/timing.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
 const Pal = preload("res://scripts/palette.gd")
@@ -54,7 +57,14 @@ var _coins_f: float = 0.0
 var _kills: int = 0
 var _gems: int = 0
 var _lives: int = MAX_LIVES
-var _combo: int = 0
+var _damage_taken: int = 0
+## Modo campana: nivel con meta, velocidad propia y recorrido fijo.
+var _level_mode: bool = false
+var _def: Dictionary = {}
+var _goal_x: float = INF
+## Soul Reaper activado: el proximo ataque perfecto sera letal.
+var _soul_ready: bool = false
+var precision: Precision
 var _shake: float = 0.0
 var _zoom_punch: float = 0.0
 var _next_milestone: int = MILESTONE_METERS
@@ -78,7 +88,6 @@ var _phase: int = -1
 var _was_night: bool = false
 var _event_timer: float = 30.0
 var _gold_rush: float = 0.0
-var _slow_time: float = 0.0
 var _power_cooldowns: Array = [0.0, 0.0, 0.0]
 
 @onready var player: Player = $Player
@@ -100,7 +109,22 @@ func _ready() -> void:
 	# Cada partida empieza a una hora distinta del dia.
 	Daylight.time = randf_range(0.10, 0.50)
 	Daylight.magnet_radius = 0.0
+	Daylight.theme = Campaign.theme(0)
 	generator.setup(spans_root, objects_root)
+	precision = Precision.new()
+	add_child(precision)
+	precision.rated.connect(_on_rated)
+	if String(GameData.run.get("mode", "endless")) == "level":
+		_level_mode = true
+		_def = Campaign.level_def(int(GameData.run.get("world", 0)), int(GameData.run.get("level", 0)))
+		Daylight.theme = Campaign.theme(int(_def["world"]))
+		Daylight.time = float(_def["time"])
+		_speed = float(_def["speed"])
+		_target_speed = _speed + float(_def["speed_gain"])
+		_goal_x = float(_def["goal_px"])
+		_level = 5
+		precision.window_scale = float(_def["window_scale"])
+		generator.configure(_def)
 	ground.holes = generator.holes
 	Daylight.holes = generator.holes
 
@@ -115,6 +139,7 @@ func _ready() -> void:
 	player.enemy_hit.connect(_on_enemy_hit)
 	player.hazard_smashed.connect(_on_hazard_smashed)
 	player.shield_broken.connect(_on_shield_broken)
+	player.soul_strike.connect(_on_soul_strike)
 	player.damaged.connect(_on_player_damaged)
 	player.fell.connect(_on_player_fell)
 	_last_player_x = player.position.x
@@ -122,6 +147,9 @@ func _ready() -> void:
 	hud.restart_requested.connect(_restart)
 	hud.menu_requested.connect(_go_to_menu)
 	hud.power_pressed.connect(_use_power)
+	hud.next_requested.connect(_next_level)
+	if _level_mode:
+		hud.set_level_name("NIVEL " + String(_def["name"]))
 	hud.set_max_lives(MAX_LIVES)
 	hud.set_high_score(GameData.high_score)
 
@@ -185,11 +213,15 @@ func _process(delta: float) -> void:
 	# Tiempo real: no le afecta el poder "Tiempo lento".
 	var real_delta: float = delta / maxf(Engine.time_scale, 0.05)
 	if _state == State.PLAYING:
-		_level_timer += delta
-		if _level_timer >= LEVEL_SECONDS:
-			_level_timer -= LEVEL_SECONDS
-			_level_up()
-		_speed = move_toward(_speed, _target_speed, 24.0 * delta)
+		if _level_mode:
+			# En campana la velocidad sube poco a poco hasta la meta.
+			_speed = move_toward(_speed, _target_speed, 1.2 * delta)
+		else:
+			_level_timer += delta
+			if _level_timer >= LEVEL_SECONDS:
+				_level_timer -= LEVEL_SECONDS
+				_level_up()
+			_speed = move_toward(_speed, _target_speed, 24.0 * delta)
 		player.run_speed = _speed
 		Daylight.run_speed = player.get_speed()
 
@@ -206,6 +238,9 @@ func _process(delta: float) -> void:
 		_update_camera()
 		Daylight.time = fposmod(Daylight.time + delta / DAY_LENGTH, 1.0)
 		_update_daylight(false)
+		precision.update(player.position, delta)
+		if _level_mode and player.position.x >= _goal_x:
+			_level_complete()
 
 	# Efectos de camara: temblor y pequeno golpe de zoom.
 	if _shake > 0.0:
@@ -247,13 +282,8 @@ func _update_timers(delta: float, real_delta: float) -> void:
 
 	for i in _power_cooldowns.size():
 		_power_cooldowns[i] = maxf(float(_power_cooldowns[i]) - real_delta, 0.0)
-	if _slow_time > 0.0:
-		_slow_time -= real_delta
-		if _slow_time <= 0.0:
-			Engine.time_scale = 1.0
-
 	_event_timer -= delta
-	if _event_timer <= 0.0:
+	if _event_timer <= 0.0 and not _level_mode:
 		_event_timer = randf_range(38.0, 55.0)
 		_start_random_event()
 
@@ -299,7 +329,7 @@ func _update_daylight(first: bool) -> void:
 # -------------------------------------------------- puntos, monedas, hud --
 
 func _combo_multiplier() -> float:
-	return 1.0 + float(mini(_combo, 10)) * 0.1
+	return precision.multiplier()
 
 
 func _point_multiplier() -> float:
@@ -346,23 +376,27 @@ func _update_hud() -> void:
 		effects.append("TURBO")
 	elif player.is_raging():
 		effects.append("INVENCIBLE")
-	if _slow_time > 0.0:
-		effects.append("TIEMPO LENTO %d" % int(ceilf(_slow_time)))
+	if _soul_ready:
+		effects.append("SOUL REAPER LISTO")
 	if _gold_rush > 0.0:
 		effects.append("FIEBRE DEL ORO %d" % int(ceilf(_gold_rush)))
 	if _double_coins:
 		effects.append("MONEDAS X2")
 	if _magnet_boost > 0.0:
 		effects.append("SUPERIMÁN %d" % int(ceilf(_magnet_boost)))
-	if _combo >= 2:
-		effects.append("COMBO %d" % _combo)
 	hud.set_status(Daylight.phase_name(), Daylight.darkness() > 0.5, mult_text, player.shield_active, "\n".join(effects))
 
 	for i in Catalog.POWERS.size():
 		var power: Dictionary = Catalog.POWERS[i]
+		if i == 2:
+			# Soul Reaper se carga con acciones perfectas, no con el tiempo.
+			hud.set_power(i, 1.0 - precision.soul, _soul_ready)
+			continue
 		var total: float = float(power["cooldown"]) * _cooldown_factor
-		var running: bool = (i == 0 and player.is_turbo()) or (i == 2 and _slow_time > 0.0)
-		hud.set_power(i, float(_power_cooldowns[i]) / total, running)
+		hud.set_power(i, float(_power_cooldowns[i]) / total, i == 0 and player.is_turbo())
+	hud.set_combo(precision.perfects, precision.multiplier())
+	if _level_mode:
+		hud.set_progress(clampf(player.position.x / _goal_x, 0.0, 1.0))
 
 
 ## Pequenas recompensas por distancia recorrida.
@@ -409,6 +443,9 @@ func _start_random_event() -> void:
 func _use_power(index: int) -> void:
 	if _state != State.PLAYING or index < 0 or index >= Catalog.POWERS.size():
 		return
+	if index == 2:
+		_arm_soul_reaper()
+		return
 	if float(_power_cooldowns[index]) > 0.0:
 		Sfx.play("error")
 		return
@@ -424,12 +461,65 @@ func _use_power(index: int) -> void:
 		_zoom_punch = 1.0
 	elif index == 1:
 		_shockwave()
+
+
+## Soul Reaper: se activa cuando esta cargado (acciones perfectas) y hace
+## letal el siguiente ataque PERFECT o LEGENDARY.
+func _arm_soul_reaper() -> void:
+	if _soul_ready:
+		return
+	if precision.soul < 1.0:
+		Sfx.play("error")
+		hud.toast("SOUL REAPER SE CARGA CON ACCIONES PERFECTAS", Pal.PURPLE)
+		return
+	precision.soul = 0.0
+	_soul_ready = true
+	GameData.add_stat("powers_used", 1)
+	GameData.add_mission_progress("powers", 1)
+	Sfx.play("soul")
+	hud.flash(Pal.PURPLE, 0.35)
+	hud.show_banner("SOUL REAPER", "TU PRÓXIMO ATAQUE PERFECTO SERÁ LETAL")
+
+
+func _on_soul_strike(pos: Vector2) -> void:
+	_soul_ready = false
+	Sfx.play("soul")
+	_shake = maxf(_shake, 0.9)
+	_zoom_punch = 1.0
+	hud.flash(Pal.PURPLE, 0.4)
+	var gained: int = _add_points(150.0)
+	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.PURPLE, 34, 520.0, 0.7, 10.0, 300.0, 180.0, Vector2.UP)
+	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.RED, 18, 380.0, 0.5, 7.0, 0.0, 180.0, Vector2.UP)
+	Fx.burst(fx_root, pos + Vector2(0.0, -24.0), Pal.WHITE, 12, 640.0, 0.3, 5.0, 0.0, 180.0, Vector2.UP)
+	Fx.popup(fx_root, pos + Vector2(0.0, -100.0), "SOUL REAPER +%d" % gained, Pal.PURPLE, 4.0)
+
+
+## Respuesta a una accion evaluada: puntos, texto, sonido y efectos propios
+## de cada categoria.
+func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
+	var gained: int = _add_points(float(Timing.BONUS[rating]))
+	var where: Vector2 = player.position + Vector2(0.0, -34.0)
+	var color: Color = Pal.LIME
+	var size: float = 3.0
+	if rating == Timing.Rating.LEGENDARY:
+		color = Pal.ORANGE
+		size = 5.0
+		Sfx.play("legendary")
+		_zoom_punch = 1.0
+		_shake = maxf(_shake, 0.45)
+		hud.flash(Pal.WHITE, 0.22)
+		Fx.burst(fx_root, where, Pal.ORANGE, 28, 460.0, 0.6, 9.0, 300.0, 180.0, Vector2.UP)
+		Fx.burst(fx_root, where, Pal.WHITE, 14, 620.0, 0.3, 5.0, 0.0, 180.0, Vector2.UP)
+	elif rating == Timing.Rating.PERFECT:
+		color = Pal.YELLOW
+		size = 4.0
+		Sfx.play("perfect")
+		_zoom_punch = maxf(_zoom_punch, 0.4)
+		Fx.burst(fx_root, where, Pal.YELLOW, 14, 320.0, 0.45, 7.0, 300.0, 180.0, Vector2.UP)
 	else:
-		# Tiempo lento: el mundo se ralentiza unos segundos.
-		_slow_time = float(power["duration"])
-		Engine.time_scale = 0.55
-		Sfx.play("power_slow")
-		hud.flash(Pal.PURPLE, 0.35)
+		Sfx.play("good")
+		Fx.burst(fx_root, where, Pal.LIME, 6, 200.0, 0.3, 5.0, 300.0, 180.0, Vector2.UP)
+	Fx.popup(fx_root, player.position + Vector2(40.0, -120.0), "%s +%d" % [label, gained], color, size)
 
 
 ## Onda expansiva: elimina enemigos y obstaculos cercanos.
@@ -472,6 +562,8 @@ func _in_wave_range(x: float) -> bool:
 
 func _on_player_jumped(pos: Vector2) -> void:
 	Sfx.play("jump", randf_range(0.95, 1.05))
+	if not player.is_raging():
+		precision.on_jump(pos, player.get_speed())
 	Fx.burst(fx_root, pos, Color(Pal.WHITE, 0.8), 6, 130.0, 0.3, 5.0, 300.0, 70.0, Vector2.UP)
 
 
@@ -483,6 +575,9 @@ func _on_player_landed(pos: Vector2) -> void:
 
 func _on_player_attacked(pos: Vector2) -> void:
 	Sfx.play("attack", randf_range(0.92, 1.08))
+	var rating: int = precision.on_attack(pos, player.get_speed())
+	if _soul_ready and rating >= Timing.Rating.PERFECT:
+		player.soul_armed = true
 	Fx.burst(fx_root, pos + Vector2(60.0, -34.0), Pal.CYAN, 6, 260.0, 0.22, 5.0, 0.0, 35.0, Vector2.RIGHT)
 
 
@@ -533,7 +628,11 @@ func _on_pickup_collected(kind: int, value: int, pos: Vector2) -> void:
 
 func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	_kills += 1
-	_combo += 1
+	# Si el golpe venia de un ataque bien medido, se premia su categoria.
+	var rating: int = precision.consume_attack()
+	if rating >= Timing.Rating.GOOD:
+		var label: String = "LAST SECOND" if rating == Timing.Rating.LEGENDARY else String(Timing.NAMES[rating])
+		precision.register(rating, label, pos)
 	var gained: int = _add_points(float(points))
 	if _bounty > 0:
 		_add_coins(float(_bounty))
@@ -544,8 +643,6 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	Fx.burst(fx_root, pos + Vector2(0.0, -20.0), color, 18, 340.0, 0.55, 8.0, 700.0, 180.0, Vector2.UP)
 	Fx.burst(fx_root, pos + Vector2(0.0, -20.0), Pal.WHITE, 10, 260.0, 0.3, 6.0, 0.0, 180.0, Vector2.UP)
 	Fx.popup(fx_root, pos + Vector2(0.0, -60.0), "+%d" % gained, Pal.WHITE, 4.0)
-	if _combo >= 3 and _combo % 5 == 0:
-		hud.toast("¡COMBO %d!  PUNTOS X%.1f" % [_combo, _combo_multiplier()], Pal.ORANGE)
 
 
 ## Golpe que no mata (escudo del escudero roto).
@@ -584,7 +681,8 @@ func _lose_life(fell_in_hole: bool) -> void:
 	if _state != State.PLAYING:
 		return
 	_lives -= 1
-	_combo = 0
+	_damage_taken += 1
+	precision.on_damage()
 	_shake = 1.0
 	Sfx.play("hurt")
 	hud.flash(Pal.RED, 0.45)
@@ -626,6 +724,9 @@ func _bank_run() -> bool:
 		return false
 	_banked = true
 	GameData.add_mission_progress("distance", _meters())
+	GameData.stats["best_combo"] = maxi(int(GameData.stats.get("best_combo", 0)), precision.best_combo)
+	GameData.add_stat("perfects", int(precision.counts[3]))
+	GameData.add_stat("legendaries", int(precision.counts[4]))
 	return GameData.finish_run(_score(), int(_coins_f), _kills, _gems, _meters())
 
 
@@ -634,9 +735,6 @@ func _game_over() -> void:
 	_lives = 0
 	hud.can_pause = false
 	player.die()
-	# Camara lenta dramatica durante la caida.
-	Engine.time_scale = 0.5
-	_slow_time = 0.0
 	Sfx.play("gameover")
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
 	_update_hud()
@@ -649,6 +747,55 @@ func _game_over() -> void:
 	var is_record: bool = _bank_run()
 	Sfx.play_music("gameover")
 	hud.show_game_over(final_score, GameData.high_score, is_record, int(_coins_f), _kills, _meters())
+
+
+## Meta alcanzada: calcula rango y estrellas, entrega recompensas y
+## muestra la pantalla de victoria.
+func _level_complete() -> void:
+	_state = State.GAME_OVER
+	hud.can_pause = false
+	player.active = false
+	var grade: float = precision.grade(_damage_taken)
+	var rank: int = Timing.rank_for(grade)
+	# Estrellas: 1 por llegar, 2 con rango B o mejor, 3 con rango A o mejor
+	# y como mucho un golpe recibido.
+	var stars: int = 1
+	if rank >= 2:
+		stars += 1
+	if rank >= 3 and _damage_taken <= 1:
+		stars += 1
+	var world: int = int(_def["world"])
+	var level: int = int(_def["level"])
+	var final_score: int = _score()
+	var rewards: Dictionary = GameData.complete_level(world, level, stars, rank, final_score)
+	_bank_run()
+	GameData.check_achievements()
+	Sfx.play("victory")
+	Sfx.play_music("menu")
+	hud.flash(Pal.WHITE, 0.4)
+	Fx.burst(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 40, 520.0, 0.9, 9.0, 600.0, 180.0, Vector2.UP)
+	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world < Campaign.world_count() - 1
+	hud.show_victory({
+		"name": String(_def["name"]), "rank": rank, "stars": stars, "score": final_score,
+		"perfect": int(precision.counts[3]), "legendary": int(precision.counts[4]),
+		"combo": precision.best_combo, "damage": _damage_taken,
+		"coins": int(_coins_f) + int(rewards["coins"]), "diamonds": int(rewards["diamonds"]),
+		"has_next": has_next,
+	})
+
+
+## Pasa al siguiente nivel de la campana (o al primero del mundo siguiente).
+func _next_level() -> void:
+	var world: int = int(_def.get("world", 0))
+	var level: int = int(_def.get("level", 0)) + 1
+	if level >= Campaign.LEVELS_PER_WORLD:
+		level = 0
+		world += 1
+	if world >= Campaign.world_count():
+		_go_to_menu()
+		return
+	GameData.run = {"mode": "level", "world": world, "level": level}
+	Transition.reload()
 
 
 func _restart() -> void:
