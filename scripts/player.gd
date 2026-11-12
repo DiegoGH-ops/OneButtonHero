@@ -251,6 +251,9 @@ func _nearest_enemy_in_reach() -> Node2D:
 	var best_dx: float = INF
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy: Node2D = node as Node2D
+		# Las criaturas no atacables en este momento se saltan, no se atacan.
+		if enemy != null and enemy.get("targetable") == false:
+			continue
 		if enemy != null and is_enemy_in_reach(enemy):
 			var dx: float = enemy.global_position.x - global_position.x
 			if dx < best_dx:

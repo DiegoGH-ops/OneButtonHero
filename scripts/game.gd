@@ -20,6 +20,7 @@ const Timing = preload("res://scripts/timing.gd")
 const Boss = preload("res://scripts/boss.gd")
 const Enemy = preload("res://scripts/enemy.gd")
 const Bestiary = preload("res://scripts/bestiary.gd")
+const Creature = preload("res://scripts/creature.gd")
 const Buffs = preload("res://scripts/buffs.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
@@ -669,6 +670,7 @@ func _on_player_landed(pos: Vector2) -> void:
 func _on_player_attacked(pos: Vector2) -> void:
 	Sfx.play("attack", randf_range(0.92, 1.08))
 	var rating: int = precision.on_attack(pos, player.get_speed())
+	Daylight.attack_rating = rating
 	# El tajo crece con la precision del ataque.
 	player.slash_power = clampi(rating - 1, 0, 3)
 	if rating >= Timing.Rating.PERFECT:
@@ -744,7 +746,7 @@ func _on_enemy_killed(points: int, pos: Vector2, kind: int) -> void:
 	if Buffs.has("zen"):
 		kill_points *= 0.5
 	# Proyectiles cortados: mejoras "Devolver" y "Espejo de acero".
-	if kind == Enemy.Kind.ORB or kind == 109:
+	if kind == Enemy.Kind.ORB or kind == Creature.PROJECTILE_KIND:
 		kill_points = (kill_points + 20.0) * Buffs.factor("reflect_points")
 		if Buffs.stat("reflect_coins") > 0.0:
 			_add_coins(Buffs.stat("reflect_coins"))
@@ -812,7 +814,7 @@ func _announce_new_content() -> void:
 	var creature: int = Bestiary.introduced(level)
 	if creature >= 0:
 		var data: Array = Bestiary.entry(world_index, creature)
-		hud.show_banner("NUEVO: " + String(data[0]), String(Bestiary.TIPS[int(data[1])]))
+		hud.show_banner("NUEVO: " + String(data[0]), String(data[6]))
 	if world_index == 0:
 		for item in LevelGenerator.MECHANICS:
 			var mechanic: Array = item

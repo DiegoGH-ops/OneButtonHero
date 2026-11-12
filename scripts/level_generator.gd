@@ -602,27 +602,35 @@ func _pattern_creature() -> void:
 	if test_creature >= 0:
 		index = test_creature
 	var data: Array = Bestiary.entry(_creature_world, index)
-	var archetype: int = data[1]
-	if archetype == Bestiary.Archetype.CHASER:
+	var space: String = data[5]
+	if space == "chase":
 		_gen_x += _gap()
 		_add_creature(index, _gen_x)
 		_gen_x += _speed * 3.6
-	elif archetype == Bestiary.Archetype.BRUTE:
+	elif space == "mash":
 		_gen_x += maxf(_gap(), _attack_reach() + 200.0)
 		_add_creature(index, _gen_x)
 		_gen_x += _speed * 2.6 + 260.0
-	elif archetype == Bestiary.Archetype.SHOOTER:
+	elif space == "ranged":
 		_gen_x += _speed * 2.0 + 300.0
 		_add_creature(index, _gen_x)
-		_gen_x += 80.0
-	elif archetype == Bestiary.Archetype.SPLITTER:
+		_gen_x += 120.0
+	elif space == "split":
 		_gen_x += maxf(_gap(), _attack_reach() + 90.0)
 		_add_creature(index, _gen_x)
-		_gen_x += 420.0
+		_gen_x += 460.0
+	elif space == "wide":
+		_gen_x += maxf(_gap(), _attack_reach() + 260.0)
+		_add_creature(index, _gen_x)
+		_gen_x += _speed * 1.5 + 520.0
+	elif space == "mover":
+		_gen_x += maxf(_gap(), _attack_reach() + 340.0)
+		_add_creature(index, _gen_x)
+		_gen_x += 160.0
 	else:
 		_gen_x += maxf(_gap(), _attack_reach() + 120.0)
 		_add_creature(index, _gen_x)
-		_gen_x += 80.0
+		_gen_x += 120.0
 
 
 func _add_creature(index: int, x: float) -> void:
