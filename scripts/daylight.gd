@@ -48,8 +48,8 @@ static var attack_rating: int = 0
 ## Proyectiles cortados desde el ultimo fotograma (lo lee game.gd).
 static var reflected: int = 0
 ## Velocidad del juego respecto al original: 1.2 normal, 1.8 con el boton
-## 1.5X. game.gd la aplica con Engine.time_scale y mas pasos de fisica.
-static var game_speed: float = 1.2
+## 2X. game.gd la aplica con Engine.time_scale y mas pasos de fisica.
+static var game_speed: float = 1.0
 ## Sucesos de los portales RAPID SIX desde el ultimo fotograma (los lee
 ## game.gd): {"event": "start" | "success" | "fail", "variant", ...}.
 static var rapid_events: Array = []

@@ -1,6 +1,6 @@
 extends Button
-## Boton de velocidad 1.5X de la partida (esquina superior derecha).
-## Pequeno y discreto: icono de velocidad (doble flecha) e indicador "1.5X".
+## Boton de velocidad 2X de la partida (esquina superior derecha).
+## Pequeno y discreto: icono de velocidad (doble flecha) e indicador "2X".
 ## Encendido cambia de color, brilla y sus flechas se mueven; al pulsarlo
 ## lanza una onda. Desactivado (modo infinito y jefes) se ve apagado con un
 ## candado y no responde.
@@ -83,8 +83,8 @@ func _draw() -> void:
 		for row in 5:
 			var dx: float = float(2 - absi(row - 2)) * 3.0
 			draw_rect(Rect2(x0 + dx, 12.0 + float(row) * 4.0 + lift, 4.0, 4.0), icon_color)
-	var label: String = "1.5X"
-	PixelFont.draw_text_shadowed(self, label, Vector2(w - PixelFont.text_width(label, 2.0) - 8.0, 16.0 + lift), 2.0, Pal.YELLOW if on else icon_color, Pal.INK)
+	var label: String = "2X"
+	PixelFont.draw_text_shadowed(self, label, Vector2(w - PixelFont.text_width(label, 3.0) - 10.0, 13.0 + lift), 3.0, Pal.YELLOW if on else icon_color, Pal.INK)
 	if not available:
 		# Candado: no disponible en este modo.
 		draw_rect(Rect2(w - 16.0, h - 18.0, 10.0, 8.0), Pal.SILVER)

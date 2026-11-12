@@ -71,7 +71,7 @@ var glow_day: float = 0.3
 
 
 func _process(delta: float) -> void:
-	# Tiempo real: la ventana no depende de la velocidad del juego (1.5X/3X).
+	# Tiempo real: la ventana no depende de la velocidad del juego (1X o 2X).
 	var real: float = delta / maxf(Engine.time_scale, 0.05)
 	_time += real
 	_shake = maxf(_shake - real * 6.0, 0.0)

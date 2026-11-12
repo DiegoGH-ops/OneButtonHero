@@ -21,7 +21,7 @@ const STATS := [
 	["kills", "ENEMIGOS DERROTADOS"], ["boss_kill", "JEFES DERROTADOS"], ["level_unique", "NIVELES SUPERADOS"],
 	["three_star_levels", "NIVELES CON 3 ESTRELLAS"], ["best_combo", "MEJOR COMBO PERFECTO"], ["perfects", "ACCIONES PERFECT"],
 	["legendaries", "ACCIONES LEGENDARY"], ["jump", "SALTOS"], ["rapid_success", "RAPID SIX SUPERADOS"],
-	["flawless", "NIVELES SIN DAÑO"], ["turbo_clear", "NIVELES A 1.5X"], ["nights", "NOCHES SUPERADAS"],
+	["flawless", "NIVELES SIN DAÑO"], ["turbo_clear", "NIVELES A 2X"], ["nights", "NOCHES SUPERADAS"],
 	["missions_claimed", "MISIONES COBRADAS"], ["death", "CAÍDAS"],
 ]
 

@@ -6,7 +6,7 @@ extends CanvasLayer
 signal restart_requested
 signal menu_requested
 signal next_requested
-## Boton de velocidad: el jugador ha activado o desactivado la velocidad 1.5X.
+## Boton de velocidad: el jugador ha activado o desactivado la velocidad 2X.
 signal speed_toggled(on: bool)
 
 const UI = preload("res://scripts/ui.gd")
@@ -138,7 +138,7 @@ func _build_bar() -> void:
 	_speed_button.turbo_changed.connect(func(on: bool) -> void: speed_toggled.emit(on))
 
 
-## Estado del boton de velocidad 1.5X (disponible solo en niveles normales de campana).
+## Estado del boton de velocidad 2X (disponible solo en niveles normales de campana).
 func set_speed_button(on: bool, available: bool) -> void:
 	_speed_button.set_state(on, available)
 

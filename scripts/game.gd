@@ -106,10 +106,10 @@ var _slowmo: float = 0.0
 ## Luz dinamica del heroe (PointLight2D): alumbra el mundo a su alrededor
 ## de noche y en los mundos oscuros.
 var _hero_light: PointLight2D
-## Boton de velocidad 1.5X activo en esta partida (y si se uso en algun momento).
+## Boton de velocidad 2X activo en esta partida (y si se uso en algun momento).
 var _turbo: bool = false
 var _turbo_used: bool = false
-## El boton 1.5X ha estado activo durante todo el nivel.
+## El boton 2X ha estado activo durante todo el nivel.
 var _turbo_whole: bool = false
 ## Legendary de esta partida (para "un solo nivel").
 var _run_legendary: int = 0
@@ -246,9 +246,10 @@ func _ready() -> void:
 
 	player.active = true
 	hud.can_pause = true
-	# Velocidad: 1.2X siempre; el boton 1.5X solo en niveles normales.
+	# Velocidad original (1X). El boton 2X es opcional: cada nivel empieza
+	# siempre a 1X y solo se acelera si el jugador lo pulsa.
 	_base_window = precision.window_scale
-	_turbo = GameData.speed_2x and _turbo_allowed()
+	_turbo = false
 	_turbo_used = _turbo
 	_turbo_whole = _turbo
 	hud.set_speed_button(_turbo, _turbo_allowed())
@@ -261,16 +262,16 @@ func _exit_tree() -> void:
 	Sfx.set_intensity(0)
 
 
-## Velocidad general del juego: 1.2X respecto al original y 1.8X con el
-## boton 1.5X. Se aplica a TODO el gameplay a la vez (fisica, enemigos, proyectiles,
+## Velocidad del juego: la original (1X) y 2X con el boton opcional.
+## Se aplica a TODO el gameplay a la vez (fisica, enemigos, proyectiles,
 ## temporizadores y animaciones) con Engine.time_scale, y se suben los pasos
 ## de fisica por segundo en la misma proporcion: cada paso sigue simulando
 ## 1/60 s de juego, asi las colisiones y el salto variable no pierden
 ## precision. Las ventanas de timing se ensanchan un poco para compensar el
-## menor tiempo de reaccion real.
-const BASE_SPEED_FACTOR := 1.2
-## Multiplicador extra del boton de velocidad.
-const TURBO_FACTOR := 1.5
+## menor tiempo de reaccion real (solo a 2X; a 1X todo queda como siempre).
+const TURBO_FACTOR := 2.0
+## Ensanche de las ventanas de timing a 2X.
+const TURBO_WINDOW := 1.25
 
 
 func _turbo_allowed() -> bool:
@@ -278,11 +279,11 @@ func _turbo_allowed() -> bool:
 
 
 func _apply_game_speed() -> void:
-	Daylight.game_speed = BASE_SPEED_FACTOR * (TURBO_FACTOR if _turbo else 1.0)
+	Daylight.game_speed = TURBO_FACTOR if _turbo else 1.0
 	Engine.physics_ticks_per_second = int(roundf(60.0 * Daylight.game_speed))
 	Engine.max_physics_steps_per_frame = 12
 	Engine.time_scale = Daylight.game_speed * (0.55 if _slowmo > 0.0 else 1.0)
-	precision.window_scale = _base_window * (1.2 if _turbo else 1.08)
+	precision.window_scale = _base_window * (TURBO_WINDOW if _turbo else 1.0)
 
 
 func _reset_engine_speed() -> void:
@@ -299,10 +300,8 @@ func _on_speed_toggled(on: bool) -> void:
 	if not on:
 		_turbo_whole = false
 	GameData.track("speed_toggle")
-	GameData.speed_2x = on
-	GameData.save_data()
 	_apply_game_speed()
-	hud.toast("VELOCIDAD 1.5X" if on else "VELOCIDAD NORMAL", Pal.ORANGE if on else Pal.WHITE)
+	hud.toast("VELOCIDAD 2X" if on else "VELOCIDAD NORMAL", Pal.ORANGE if on else Pal.WHITE)
 	lights.flash(Pal.ORANGE if on else Pal.WHITE, 0.2, 0.25)
 
 
