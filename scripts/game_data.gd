@@ -33,6 +33,9 @@ var tree: Dictionary = {}
 var powerups: Dictionary = {}
 ## Gemas acumuladas para la mejora "Fragmentos" (se funden en diamantes).
 var shards: int = 0
+## Acaba de derrotarse al ultimo jefe: hay que mostrar la presentacion del
+## conjunto del Caballero del Abismo (no se guarda).
+var abyss_pending: bool = false
 
 ## Herramientas del panel de administrador (ver admin_panel.gd).
 ## admin_worlds: "normal" (progreso real), "all" (todos abiertos) o "locked".
@@ -587,11 +590,20 @@ func complete_level(world: int, level: int, stars: int, rank: int, score: int) -
 		coins += int(1500.0 * reward)
 		gems += 3
 		call_deferred("emit_signal", "notice", "¡MUNDO DOMINADO! +%d Y 3 DIAMANTES" % int(1500.0 * reward))
+		unlocked_items.append_array(grant_reward_key("m_%d" % world))
 	diamonds += gems
 	add_coins(coins)
 	save_data()
 	wallet_changed.emit()
 	return {"coins": coins, "diamonds": gems, "first": first, "items": unlocked_items}
+
+
+func world_challenges_done(world: int) -> bool:
+	for i in Campaign.LEVELS_PER_WORLD:
+		var done: Array = level_record(world, i).get("ch", [])
+		if done.size() < 3 or not (bool(done[0]) and bool(done[1]) and bool(done[2])):
+			return false
+	return true
 
 
 func world_stars(world: int) -> int:
@@ -603,8 +615,18 @@ func world_stars(world: int) -> int:
 
 ## Entrega los objetos de aspecto ligados a un nivel. Devuelve sus nombres.
 func grant_level_rewards(world: int, level: int) -> Array:
+	var names: Array = grant_reward_key(level_key(world, level))
+	# Ultimo jefe del juego: conjunto exclusivo del Caballero del Abismo.
+	if world == Campaign.world_count() - 1 and level == Campaign.LEVELS_PER_WORLD - 1:
+		names.append_array(grant_reward_key("abyss"))
+		abyss_pending = true
+	return names
+
+
+## Entrega los cosmeticos ligados a una clave de recompensa ("1_4", "m_2",
+## "c_3", "abyss"). Devuelve sus nombres.
+func grant_reward_key(key: String) -> Array:
 	var names: Array = []
-	var key: String = level_key(world, level)
 	for slot in ["skin", "sword", "trail", "aura"]:
 		for item in Catalog.cosmetics(String(slot)):
 			var entry: Dictionary = item
@@ -677,6 +699,11 @@ func complete_challenges(world: int, level: int, results: Array) -> Dictionary:
 	var gems: int = 1 if all_new and not all_old else 0
 	record["ch"] = merged
 	campaign[key] = record
+	# Todos los retos de un mundo: espada exclusiva de ese mundo.
+	if gems > 0 and world_challenges_done(world):
+		var names: Array = grant_reward_key("c_%d" % world)
+		if not names.is_empty():
+			call_deferred("emit_signal", "notice", "EXCLUSIVO DESBLOQUEADO: " + ", ".join(PackedStringArray(names)))
 	diamonds += gems
 	add_coins(coins)
 	save_data()

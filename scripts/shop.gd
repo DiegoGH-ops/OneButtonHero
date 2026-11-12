@@ -24,7 +24,7 @@ const CATEGORIES := ["skin", "sword", "trail", "aura", "powerup"]
 const SLOT_NAMES := {"skin": "HÉROE", "sword": "ESPADA", "trail": "ESTELA", "aura": "AURA"}
 const CARD_SIZE := Vector2(190.0, 196.0)
 const GRID_ORIGIN := Vector2(64.0, 196.0)
-const INFO_LINES := 10
+const INFO_LINES := 12
 
 var _tab: int = 0
 var _tab_buttons: Array = []
@@ -89,7 +89,7 @@ func _ready() -> void:
 	_info_name = UI.label(self, "", Vector2(1050.0, 320.0), 3.0, Pal.YELLOW)
 	_info_price = UI.label(self, "", Vector2(1050.0, 352.0), 2.0, Pal.CYAN)
 	for i in INFO_LINES:
-		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 384.0 + float(i) * 26.0), 2.0, Pal.WHITE)
+		var line: PixelLabel = UI.label(self, "", Vector2(1050.0, 380.0 + float(i) * 22.0), 2.0, Pal.WHITE)
 		_info_lines.append(line)
 
 	_toaster = Toaster.new()
@@ -208,8 +208,9 @@ func _refresh_card(card: ShopCard) -> void:
 	var rarity: String = String(entry.get("rarity", ""))
 	if entry.has("reward") and not GameData.is_owned(id):
 		# Recompensa de campana: no se vende.
-		var parts: PackedStringArray = String(entry["reward"]).split("_")
-		card.configure(title, rarity, "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1], Pal.SILVER, false, -1, 0, false)
+		var reward_key: String = String(entry["reward"])
+		var short: String = "ÚLTIMO JEFE" if reward_key == "abyss" else ("EXCLUSIVO" if not reward_key.substr(0, 1).is_valid_int() else Catalog.reward_text(reward_key))
+		card.configure(title, rarity, short, Pal.SILVER, false, -1, 0, false)
 		return
 	card.currency_sprite = "gem" if gems > 0 else "coin_0"
 	var price: int = gems if gems > 0 else int(entry["price"])
@@ -260,13 +261,13 @@ func _show_info(card: ShopCard) -> void:
 	else:
 		var gems: int = GameData.diamond_price(entry)
 		if entry.has("reward"):
-			var parts: PackedStringArray = String(entry["reward"]).split("_")
-			_info_price.text = "RECOMPENSA DEL NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1]
+			_info_price.text = Catalog.reward_text(String(entry["reward"]))
 		elif gems > 0:
 			_info_price.text = "PRECIO: %d DIAMANTES" % gems
 		else:
 			_info_price.text = "PRECIO: %d MONEDAS" % int(entry["price"])
 		var buff: Dictionary = entry.get("buff", {})
+		lines.append_array(_wrap(Catalog.cosmetic_desc(entry), 24))
 		lines.append("BUFF:")
 		lines.append_array(_wrap(Buffs.describe(buff, Buffs.affinity(card.category)), 24))
 		if entry.has("rarity"):
@@ -283,8 +284,10 @@ func _show_info(card: ShopCard) -> void:
 		var label: PixelLabel = _info_lines[i]
 		label.text = String(lines[i]) if i < lines.size() else ""
 		label.color = Pal.WHITE
-		if card.category != "powerup" and i == 1:
+		if card.category != "powerup" and i > 0 and i - 1 < lines.size() and String(lines[i - 1]) == "BUFF:":
 			label.color = Pal.LIME
+		elif card.category != "powerup" and i < 2 and lines.size() > 0 and String(lines[0]) != "BUFF:" and String(label.text) != "BUFF:":
+			label.color = Pal.SILVER
 		elif card.category == "powerup" and (i == 0 or String(label.text).begins_with("CONTRAPARTIDA") or String(label.text).begins_with("SE VENDE")):
 			label.color = Pal.ORANGE if i > 0 else Color(String(entry["color"]))
 

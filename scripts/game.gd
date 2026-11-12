@@ -25,6 +25,7 @@ const Buffs = preload("res://scripts/buffs.gd")
 const Daylight = preload("res://scripts/daylight.gd")
 const Fx = preload("res://scripts/fx.gd")
 const Pal = preload("res://scripts/palette.gd")
+const AbyssReveal = preload("res://scripts/abyss_reveal.gd")
 
 enum State { PLAYING, DYING, GAME_OVER }
 
@@ -1138,14 +1139,22 @@ func _level_complete() -> void:
 	Fx.ring(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 140.0)
 	Fx.ring(fx_root, player.position + Vector2(0.0, -40.0), Pal.WHITE, 220.0)
 	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world_index < Campaign.world_count() - 1
-	hud.show_victory({
+	var victory: Dictionary = {
 		"name": String(_def["name"]), "rank": rank, "stars": stars, "score": final_score,
 		"perfect": int(precision.counts[3]), "legendary": int(precision.counts[4]),
 		"combo": precision.best_combo, "damage": _damage_taken,
 		"coins": int(_coins_f) + int(rewards["coins"]) + int(extra["coins"]), "diamonds": int(rewards["diamonds"]) + int(extra["diamonds"]),
 		"challenges": challenge_texts, "results": challenge_results, "mode": mode_line,
 		"has_next": has_next,
-	})
+	}
+	# Ultimo jefe derrotado por primera vez: presentacion del Caballero del Abismo.
+	if GameData.abyss_pending:
+		GameData.abyss_pending = false
+		var reveal: AbyssReveal = AbyssReveal.new()
+		hud.add_child(reveal)
+		reveal.finished.connect(hud.show_victory.bind(victory))
+		return
+	hud.show_victory(victory)
 
 
 ## Pasa al siguiente nivel de la campana (o al primero del mundo siguiente).

@@ -8,6 +8,7 @@ signal hovered(card: Button)
 const PixelFont = preload("res://scripts/pixel_font.gd")
 const PixelArt = preload("res://scripts/pixel_art.gd")
 const Pal = preload("res://scripts/palette.gd")
+const Catalog = preload("res://scripts/catalog.gd")
 
 ## Categoria: "skin", "sword", "trail", "aura" o "powerup".
 var category: String = ""
@@ -104,11 +105,11 @@ func _draw() -> void:
 		draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, 8.0)), band_color)
 	# Halo de rareza (o del color del power-up) detras del icono.
 	var halo: Color = band_color if band_color.a > 0.0 else Color(0.0, 0.0, 0.0, 0.0)
-	if ["RARE", "EPIC", "LEGENDARY", "MYTHIC"].has(_status):
+	if ["RARO", "ÉPICO", "LEGENDARIO", "MÍTICO"].has(_status):
 		halo = _status_color()
 	if halo.a > 0.0:
 		PixelArt.draw_glow(self, o + Vector2(w * 0.5, 46.0), 54.0 + 6.0 * sin(_time * 3.0), Color(halo, 0.45))
-	if _status == "MYTHIC" or _status == "LEGENDARY":
+	if _status == "MÍTICO" or _status == "LEGENDARIO":
 		var sweep: float = fposmod(_time * 0.6, 1.0)
 		draw_rect(Rect2(o + Vector2(4.0 + (w - 16.0) * sweep, 4.0), Vector2(8.0, 84.0)), Color(1.0, 1.0, 1.0, 0.15))
 
@@ -142,14 +143,8 @@ func _draw() -> void:
 
 ## Color del estado; las rarezas tienen el suyo.
 func _status_color() -> Color:
-	if _status == "RARE":
-		return Pal.SKY
-	if _status == "EPIC":
-		return Pal.PINK
-	if _status == "LEGENDARY":
-		return Pal.ORANGE
-	if _status == "MYTHIC":
-		return Pal.RED
+	if Catalog.RARITIES.has(_status):
+		return Catalog.rarity_color(_status)
 	return Pal.LIME if _highlight else Pal.SILVER
 
 
@@ -158,10 +153,10 @@ func _draw_icon(center: Vector2) -> void:
 	var white: Color = Color(1.0, 1.0, 1.0, 1.0)
 	if category == "skin":
 		var color_map: Dictionary = item["remap"]
-		PixelArt.draw_skin(self, "hero_top", center + Vector2(-28.0, -30.0), 4.0, white, color_map, String(item["id"]))
+		PixelArt.draw_skin(self, String(item.get("top", "hero_top")), center + Vector2(-28.0, -30.0), 4.0, white, color_map, String(item["id"]))
 	elif category == "sword":
 		var sword_remap: Dictionary = item["remap"]
-		PixelArt.draw_skin(self, "sword", center + Vector2(-10.0, -32.0), 4.0, white, sword_remap, String(item["id"]))
+		PixelArt.draw_skin(self, String(item.get("sprite", "sword")), center + Vector2(-10.0, -32.0), 4.0, white, sword_remap, String(item["id"]))
 	elif category == "trail":
 		var colors: Array = item["colors"]
 		for i in 7:

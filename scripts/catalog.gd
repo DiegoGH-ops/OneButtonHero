@@ -8,73 +8,117 @@ extends RefCounted
 
 ## Aspectos del heroe: remapeo de colores y un buff que define su estilo.
 const SKINS := [
-	{"id": "skin_azul", "name": "CABALLERO AZUL", "price": 0, "remap": {}, "buff": {"points": 1.0}},
-	{"id": "skin_carmesi", "name": "CARMESÍ", "price": 300, "remap": {"b": "r", "B": "o", "r": "w"}, "buff": {"jump_cut": 6.0}},
-	{"id": "skin_esmeralda", "name": "ESMERALDA", "price": 300, "remap": {"b": "G", "B": "L", "r": "y"}, "buff": {"good": 4.0}},
-	{"id": "skin_hielo", "name": "GLACIAR", "price": 500, "remap": {"b": "B", "B": "c", "r": "c", "l": "w"}, "buff": {"ice_grip": 15.0}},
-	{"id": "skin_sombra", "name": "SOMBRA", "price": 800, "remap": {"l": "g", "w": "l", "b": "p", "B": "r", "r": "c", "h": "l"}, "buff": {"legend": 3.0}},
-	{"id": "skin_dorado", "name": "PALADÍN DORADO", "price": 1500, "remap": {"l": "y", "g": "o", "b": "w", "B": "w", "r": "b"}, "buff": {"coins": 3.0}},
-	{"id": "skin_bosque", "name": "GUARDABOSQUES", "price": 0, "reward": "0_19", "rarity": "EPIC", "remap": {"b": "t", "B": "G", "r": "L", "l": "u", "g": "e"}, "buff": {"mash": 8.0}},
-	{"id": "skin_demonio", "name": "DEMONÍACO", "price": 0, "reward": "1_19", "rarity": "EPIC", "remap": {"b": "r", "B": "o", "l": "d", "g": "k", "w": "g", "r": "y"}, "buff": {"jump_height": 2.0}},
-	{"id": "skin_arcano", "name": "ARCANO", "price": 0, "reward": "2_19", "rarity": "LEGENDARY", "remap": {"b": "p", "B": "m", "r": "c", "l": "m", "g": "p"}, "buff": {"perfect": 3.0}},
-	{"id": "skin_yeti", "name": "YETI", "price": 0, "reward": "3_19", "rarity": "LEGENDARY", "remap": {"b": "w", "B": "l", "r": "B", "l": "w", "g": "l"}, "buff": {"warn": 8.0}},
-	{"id": "skin_faraon", "name": "FARAÓN", "price": 0, "reward": "4_19", "rarity": "MYTHIC", "remap": {"l": "y", "g": "o", "b": "t", "B": "c", "r": "y"}, "buff": {"combo_points": 6.0}},
+	{"id": "skin_azul", "name": "CABALLERO AZUL", "price": 0, "rarity": "COMÚN", "remap": {}, "buff": {"points": 1.0}},
+	{"id": "skin_carmesi", "name": "CARMESÍ", "price": 300, "rarity": "COMÚN", "remap": {"b": "r", "B": "o", "r": "w"}, "buff": {"jump_cut": 6.0}},
+	{"id": "skin_esmeralda", "name": "ESMERALDA", "price": 300, "rarity": "COMÚN", "remap": {"b": "G", "B": "L", "r": "y"}, "buff": {"good": 4.0}},
+	{"id": "skin_hielo", "name": "GLACIAR", "price": 500, "rarity": "POCO COMÚN", "remap": {"b": "B", "B": "c", "r": "c", "l": "w"}, "buff": {"ice_grip": 15.0}},
+	{"id": "skin_sombra", "name": "SOMBRA", "price": 800, "rarity": "POCO COMÚN", "remap": {"l": "g", "w": "l", "b": "p", "B": "r", "r": "c", "h": "l"}, "buff": {"legend": 3.0}},
+	{"id": "skin_dorado", "name": "PALADÍN DORADO", "price": 1500, "rarity": "POCO COMÚN", "remap": {"l": "y", "g": "o", "b": "w", "B": "w", "r": "b"}, "buff": {"coins": 3.0}},
+	{"id": "skin_bosque", "name": "GUARDABOSQUES", "price": 0, "reward": "0_19", "rarity": "ÉPICO", "remap": {"b": "t", "B": "G", "r": "L", "l": "u", "g": "e"}, "buff": {"mash": 8.0}},
+	{"id": "skin_demonio", "name": "DEMONÍACO", "price": 0, "reward": "1_19", "rarity": "ÉPICO", "remap": {"b": "r", "B": "o", "l": "d", "g": "k", "w": "g", "r": "y"}, "buff": {"jump_height": 2.0}},
+	{"id": "skin_arcano", "name": "ARCANO", "price": 0, "reward": "2_19", "rarity": "LEGENDARIO", "remap": {"b": "p", "B": "m", "r": "c", "l": "m", "g": "p"}, "buff": {"perfect": 3.0}},
+	{"id": "skin_yeti", "name": "YETI", "price": 0, "reward": "3_19", "rarity": "LEGENDARIO", "remap": {"b": "w", "B": "l", "r": "B", "l": "w", "g": "l"}, "buff": {"warn": 8.0}},
+	{"id": "skin_faraon", "name": "FARAÓN", "price": 0, "reward": "4_19", "rarity": "MÍTICO", "remap": {"l": "y", "g": "o", "b": "t", "B": "c", "r": "y"}, "buff": {"combo_points": 6.0}},
+	# --- Tienda (monedas y diamantes) ---
+	{"id": "skin_explorador", "name": "EXPLORADOR", "price": 250, "rarity": "COMÚN", "desc": "ROPA DE VIAJE PARA LOS PRIMEROS PASOS", "remap": {"b": "u", "B": "o"}, "buff": {"coins": 1.5}},
+	{"id": "skin_marino", "name": "MARINERO", "price": 300, "rarity": "COMÚN", "desc": "PIERNAS DE MAR: AGUANTA UN INSTANTE MÁS EN LOS BORDES", "remap": {"b": "n", "B": "b", "r": "w"}, "buff": {"coyote": 8.0}},
+	{"id": "skin_bronce", "name": "BRONCE", "price": 900, "rarity": "POCO COMÚN", "desc": "ARMADURA BRUÑIDA DE GUARDIA REAL", "remap": {"b": "o", "B": "y", "r": "u", "l": "o"}, "buff": {"good": 3.0}},
+	{"id": "skin_jade", "name": "JADE", "price": 1100, "rarity": "POCO COMÚN", "desc": "PIEDRA PULIDA QUE CAE SIEMPRE DE PIE", "remap": {"b": "t", "B": "G", "r": "L"}, "buff": {"land": 6.0}},
+	{"id": "skin_tormenta", "name": "TORMENTA", "price": 0, "gems": 3, "rarity": "RARO", "desc": "OYE EL PELIGRO ANTES QUE NADIE", "remap": {"b": "d", "B": "c", "r": "y", "l": "g"}, "buff": {"warn": 5.0}},
+	{"id": "skin_carmin", "name": "CABALLERO CARMÍN", "price": 0, "gems": 7, "rarity": "ÉPICO", "desc": "VETERANO DE MIL DUELOS", "remap": {"b": "r", "B": "p", "r": "y", "l": "d", "g": "k"}, "buff": {"attack_points": 6.0}},
+	{"id": "skin_celeste", "name": "GUARDIÁN CELESTE", "price": 0, "gems": 13, "rarity": "LEGENDARIO", "desc": "FORJADO CON LA LUZ DEL AMANECER", "remap": {"b": "w", "B": "c", "r": "y", "l": "c"}, "buff": {"perfect": 3.5}},
+	{"id": "skin_eclipse", "name": "ECLIPSE", "price": 0, "gems": 22, "rarity": "MÍTICO", "desc": "CUANDO EL SOL SE APAGA, ÉL BRILLA", "remap": {"b": "k", "B": "o", "r": "y", "l": "d", "g": "k", "w": "o"}, "buff": {"legend": 4.0}},
+	# --- Exclusivos de cada mundo: 60 estrellas (m_) ---
+	{"id": "skin_druida", "name": "DRUIDA", "price": 0, "reward": "m_0", "rarity": "ÉPICO", "desc": "EL BOSQUE DE VERDANTIA LO RECONOCE COMO SUYO", "remap": {"b": "G", "B": "L", "r": "u", "l": "G"}, "buff": {"jump_points": 5.0}},
+	{"id": "skin_brasa", "name": "SEÑOR DE BRASAS", "price": 0, "reward": "m_1", "rarity": "ÉPICO", "desc": "DOMÓ EL FUEGO DE INFERNUS", "remap": {"b": "o", "B": "r", "r": "y", "l": "r"}, "buff": {"mash": 8.0}},
+	{"id": "skin_cristal", "name": "CRISTALINO", "price": 0, "reward": "m_2", "rarity": "LEGENDARIO", "desc": "REFLEJA LA LUZ DE AMETHYSTIA", "remap": {"b": "m", "B": "c", "r": "w", "l": "m"}, "buff": {"perfect": 3.0}},
+	{"id": "skin_glaciar", "name": "REY GLACIAR", "price": 0, "reward": "m_3", "rarity": "LEGENDARIO", "desc": "EL HIELO DE FROSTFALL LE OBEDECE", "remap": {"b": "c", "B": "w", "r": "B", "l": "w"}, "buff": {"ice_grip": 20.0}},
+	{"id": "skin_sol", "name": "HIJO DEL SOL", "price": 0, "reward": "m_4", "rarity": "MÍTICO", "desc": "NACIDO DE LAS DUNAS DE SOLARIS", "remap": {"b": "y", "B": "o", "r": "w", "l": "y"}, "buff": {"combo_points": 6.0}},
+	# --- Conjunto exclusivo: derrota al ultimo jefe ---
+	{"id": "skin_abyss", "name": "CABALLERO DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "EL GUERRERO QUE VOLVIÓ DEL ABISMO. ARMADURA NEGRA, VISOR VIOLETA Y ENERGÍA OSCURA", "top": "abyss_top", "cape": "abyss_cape_", "remap": {"b": "x", "g": "d", "B": "p", "l": "g"}, "buff": {"legend": 4.0, "perfect": 2.0}},
 ]
 
 ## Espadas: el alcance crece MUY poco y de forma progresiva con el precio
 ## (el alcance base es de unos 180 px; +3.5% son apenas 6 px).
 const SWORDS := [
-	{"id": "sword_acero", "name": "ACERO", "price": 0, "remap": {}, "slash": ["73eff7", "f4f4f4"], "buff": {"reach": 0.0}},
-	{"id": "sword_fuego", "name": "LLAMA", "price": 350, "remap": {"w": "o", "y": "r", "o": "p"}, "slash": ["ef7d57", "ffcd75"], "buff": {"reach": 0.5}},
-	{"id": "sword_hielo", "name": "ESCARCHA", "price": 350, "remap": {"w": "c", "y": "B", "o": "b"}, "slash": ["41a6f6", "f4f4f4"], "buff": {"reach": 0.5}},
-	{"id": "sword_esmeralda", "name": "ESPINA", "price": 500, "remap": {"w": "L", "y": "G", "o": "t"}, "slash": ["38b764", "a7f070"], "buff": {"reach": 1.0}},
-	{"id": "sword_sombra", "name": "PENUMBRA", "price": 800, "remap": {"w": "p", "y": "d", "o": "k"}, "slash": ["5d275d", "b13e53"], "buff": {"reach": 1.5}},
-	{"id": "sword_oro", "name": "SOLAR", "price": 1200, "remap": {"w": "y", "y": "o", "o": "r"}, "slash": ["ffcd75", "f4f4f4"], "buff": {"reach": 2.0}},
-	{"id": "sword_amatista", "name": "AMATISTA", "price": 0, "gems": 3, "rarity": "RARE", "remap": {"w": "m", "y": "p", "o": "n"}, "slash": ["f29cb5", "5d275d"], "buff": {"reach": 1.5}},
-	{"id": "sword_celestial", "name": "CELESTIAL", "price": 0, "gems": 6, "rarity": "EPIC", "remap": {"w": "c", "y": "w", "o": "B"}, "slash": ["73eff7", "ffcd75"], "buff": {"reach": 2.5}},
-	{"id": "sword_oscura", "name": "OSCURA", "price": 0, "gems": 6, "rarity": "EPIC", "remap": {"w": "d", "y": "p", "o": "k"}, "slash": ["5d275d", "b13e53"], "buff": {"reach": 2.5}},
-	{"id": "sword_legendaria", "name": "LEGENDARIA", "price": 0, "gems": 15, "rarity": "MYTHIC", "remap": {"w": "y", "y": "r", "o": "p", "k": "e"}, "slash": ["ffcd75", "ef7d57"], "buff": {"reach": 3.5}},
-	{"id": "sword_raiz", "name": "HOJA DE RAÍZ", "price": 0, "reward": "0_4", "rarity": "RARE", "remap": {"w": "L", "y": "G", "o": "u"}, "slash": ["a7f070", "38b764"], "buff": {"reach": 1.0}},
-	{"id": "sword_ignea", "name": "COLMILLO ÍGNEO", "price": 0, "reward": "1_4", "rarity": "RARE", "remap": {"w": "y", "y": "r", "o": "k"}, "slash": ["ef7d57", "b13e53"], "buff": {"reach": 1.5}},
-	{"id": "sword_prisma", "name": "FILO PRISMA", "price": 0, "reward": "2_4", "rarity": "EPIC", "remap": {"w": "m", "y": "c", "o": "p"}, "slash": ["f29cb5", "73eff7"], "buff": {"reach": 2.0}},
-	{"id": "sword_gelida", "name": "GÉLIDA", "price": 0, "reward": "3_4", "rarity": "EPIC", "remap": {"w": "w", "y": "c", "o": "B"}, "slash": ["f4f4f4", "73eff7"], "buff": {"reach": 2.5}},
-	{"id": "sword_eterna", "name": "SOL ETERNO", "price": 0, "reward": "4_4", "rarity": "LEGENDARY", "remap": {"w": "y", "y": "u", "o": "e"}, "slash": ["ffcd75", "8a5a44"], "buff": {"reach": 3.0}},
+	{"id": "sword_acero", "name": "ACERO", "price": 0, "rarity": "COMÚN", "remap": {}, "slash": ["73eff7", "f4f4f4"], "buff": {"reach": 0.0}},
+	{"id": "sword_fuego", "name": "LLAMA", "price": 350, "rarity": "COMÚN", "remap": {"w": "o", "y": "r", "o": "p"}, "slash": ["ef7d57", "ffcd75"], "buff": {"reach": 0.5}},
+	{"id": "sword_hielo", "name": "ESCARCHA", "price": 350, "rarity": "COMÚN", "remap": {"w": "c", "y": "B", "o": "b"}, "slash": ["41a6f6", "f4f4f4"], "buff": {"reach": 0.5}},
+	{"id": "sword_esmeralda", "name": "ESPINA", "price": 500, "rarity": "POCO COMÚN", "remap": {"w": "L", "y": "G", "o": "t"}, "slash": ["38b764", "a7f070"], "buff": {"reach": 1.0}},
+	{"id": "sword_sombra", "name": "PENUMBRA", "price": 800, "rarity": "POCO COMÚN", "remap": {"w": "p", "y": "d", "o": "k"}, "slash": ["5d275d", "b13e53"], "buff": {"reach": 1.5}},
+	{"id": "sword_oro", "name": "SOLAR", "price": 1200, "rarity": "POCO COMÚN", "remap": {"w": "y", "y": "o", "o": "r"}, "slash": ["ffcd75", "f4f4f4"], "buff": {"reach": 2.0}},
+	{"id": "sword_amatista", "name": "AMATISTA", "price": 0, "gems": 3, "rarity": "RARO", "remap": {"w": "m", "y": "p", "o": "n"}, "slash": ["f29cb5", "5d275d"], "buff": {"reach": 1.5}},
+	{"id": "sword_celestial", "name": "CELESTIAL", "price": 0, "gems": 6, "rarity": "ÉPICO", "remap": {"w": "c", "y": "w", "o": "B"}, "slash": ["73eff7", "ffcd75"], "buff": {"reach": 2.5}},
+	{"id": "sword_oscura", "name": "OSCURA", "price": 0, "gems": 6, "rarity": "ÉPICO", "remap": {"w": "d", "y": "p", "o": "k"}, "slash": ["5d275d", "b13e53"], "buff": {"reach": 2.5}},
+	{"id": "sword_legendaria", "name": "LEGENDARIA", "price": 0, "gems": 15, "rarity": "MÍTICO", "remap": {"w": "y", "y": "r", "o": "p", "k": "e"}, "slash": ["ffcd75", "ef7d57"], "buff": {"reach": 3.5}},
+	{"id": "sword_raiz", "name": "HOJA DE RAÍZ", "price": 0, "reward": "0_4", "rarity": "RARO", "remap": {"w": "L", "y": "G", "o": "u"}, "slash": ["a7f070", "38b764"], "buff": {"reach": 1.0}},
+	{"id": "sword_ignea", "name": "COLMILLO ÍGNEO", "price": 0, "reward": "1_4", "rarity": "RARO", "remap": {"w": "y", "y": "r", "o": "k"}, "slash": ["ef7d57", "b13e53"], "buff": {"reach": 1.5}},
+	{"id": "sword_prisma", "name": "FILO PRISMA", "price": 0, "reward": "2_4", "rarity": "ÉPICO", "remap": {"w": "m", "y": "c", "o": "p"}, "slash": ["f29cb5", "73eff7"], "buff": {"reach": 2.0}},
+	{"id": "sword_gelida", "name": "GÉLIDA", "price": 0, "reward": "3_4", "rarity": "ÉPICO", "remap": {"w": "w", "y": "c", "o": "B"}, "slash": ["f4f4f4", "73eff7"], "buff": {"reach": 2.5}},
+	{"id": "sword_eterna", "name": "SOL ETERNO", "price": 0, "reward": "4_4", "rarity": "LEGENDARIO", "remap": {"w": "y", "y": "u", "o": "e"}, "slash": ["ffcd75", "8a5a44"], "buff": {"reach": 3.0}},
+	{"id": "sword_madera", "name": "MADERA", "price": 200, "rarity": "COMÚN", "desc": "PARA ENTRENAR SIN HACERSE DAÑO", "remap": {"w": "u", "y": "e", "o": "e"}, "slash": ["8a5a44", "ffcd75"], "buff": {"reach": 0.3}},
+	{"id": "sword_cobre", "name": "COBRE", "price": 700, "rarity": "POCO COMÚN", "desc": "LIGERA Y FIABLE", "remap": {"w": "o", "y": "u"}, "slash": ["ef7d57", "ffcd75"], "buff": {"reach": 0.8}},
+	{"id": "sword_jade", "name": "JADE", "price": 0, "gems": 3, "rarity": "RARO", "desc": "TALLADA EN UNA SOLA PIEDRA", "remap": {"w": "G", "y": "L", "o": "t"}, "slash": ["38b764", "a7f070"], "buff": {"reach": 1.5}},
+	{"id": "sword_trueno", "name": "TRUENO", "price": 0, "gems": 7, "rarity": "ÉPICO", "desc": "SU FILO CHISPEA ANTES DE CADA GOLPE", "remap": {"w": "y", "y": "c", "o": "b"}, "slash": ["ffcd75", "73eff7"], "buff": {"reach": 2.5}},
+	{"id": "sword_dragon", "name": "COLMILLO DE DRAGÓN", "price": 0, "gems": 13, "rarity": "LEGENDARIO", "desc": "ARRANCADO A UNA BESTIA ANTIGUA", "remap": {"w": "r", "y": "o", "o": "k"}, "slash": ["b13e53", "ef7d57"], "buff": {"reach": 3.0}},
+	{"id": "sword_vacio", "name": "VACÍO ESTELAR", "price": 0, "gems": 22, "rarity": "MÍTICO", "desc": "CORTA HASTA LA OSCURIDAD", "remap": {"w": "n", "y": "m", "o": "p"}, "slash": ["29366f", "f29cb5"], "buff": {"reach": 3.5}},
+	# --- Exclusivas de cada mundo: todos sus retos (c_) ---
+	{"id": "sword_espino", "name": "ESPINO ANCESTRAL", "price": 0, "reward": "c_0", "rarity": "ÉPICO", "desc": "RAMA VIVA DEL ÁRBOL MÁS VIEJO DE VERDANTIA", "remap": {"w": "G", "y": "u", "o": "e"}, "slash": ["38b764", "8a5a44"], "buff": {"reach": 2.0}},
+	{"id": "sword_volcan", "name": "FILO VOLCÁNICO", "price": 0, "reward": "c_1", "rarity": "ÉPICO", "desc": "TEMPLADA EN LAVA DE INFERNUS", "remap": {"w": "o", "y": "r", "o": "k"}, "slash": ["ef7d57", "b13e53"], "buff": {"reach": 2.5}},
+	{"id": "sword_geoda", "name": "HOJA DE GEODA", "price": 0, "reward": "c_2", "rarity": "LEGENDARIO", "desc": "CRISTAL DE AMETHYSTIA QUE NUNCA SE ROMPE", "remap": {"w": "m", "y": "p", "o": "c"}, "slash": ["f29cb5", "b06fd0"], "buff": {"reach": 2.5}},
+	{"id": "sword_escarcha", "name": "ESCARCHA ETERNA", "price": 0, "reward": "c_3", "rarity": "LEGENDARIO", "desc": "HIELO DE FROSTFALL QUE NO SE DERRITE", "remap": {"w": "w", "y": "c", "o": "B"}, "slash": ["f4f4f4", "73eff7"], "buff": {"reach": 3.0}},
+	{"id": "sword_faraon", "name": "CETRO DEL FARAÓN", "price": 0, "reward": "c_4", "rarity": "MÍTICO", "desc": "EL ARMA DE LOS REYES DE SOLARIS", "remap": {"w": "y", "y": "b", "o": "y"}, "slash": ["ffcd75", "41a6f6"], "buff": {"reach": 3.0}},
+	{"id": "sword_abyss", "name": "HOJA DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "HOJA OSCURA CON FILO VIOLETA QUE ARDE CON ENERGÍA DEL ABISMO", "sprite": "abyss_sword", "remap": {}, "slash": ["b06fd0", "5d275d"], "buff": {"reach": 3.5}},
 ]
 
 ## Estelas: buffs de movimiento y timing.
 const TRAILS := [
-	{"id": "trail_polvo", "name": "POLVO", "price": 0, "colors": ["f4f4f4"], "buff": {"coyote": 10.0}},
-	{"id": "trail_chispas", "name": "CHISPAS", "price": 250, "colors": ["ffcd75", "f4f4f4"], "buff": {"perfect": 2.0}},
-	{"id": "trail_fuego", "name": "FUEGO", "price": 400, "colors": ["ef7d57", "b13e53", "ffcd75"], "buff": {"jump_points": 5.0}},
-	{"id": "trail_hielo", "name": "ESCARCHA", "price": 400, "colors": ["73eff7", "41a6f6", "f4f4f4"], "buff": {"land": 8.0}},
-	{"id": "trail_arcoiris", "name": "ARCOÍRIS", "price": 900, "colors": ["b13e53", "ef7d57", "ffcd75", "38b764", "41a6f6", "5d275d"], "buff": {"good": 4.0}},
-	{"id": "trail_cristales", "name": "CRISTALES", "price": 0, "gems": 3, "rarity": "RARE", "colors": ["f29cb5", "73eff7", "f4f4f4"], "buff": {"perfect": 3.0}},
-	{"id": "trail_electrica", "name": "ELÉCTRICA", "price": 0, "gems": 5, "rarity": "EPIC", "colors": ["ffcd75", "f4f4f4", "41a6f6"], "buff": {"coyote": 20.0}},
-	{"id": "trail_estrellas", "name": "ESTRELLAS", "price": 0, "gems": 8, "rarity": "LEGENDARY", "colors": ["f4f4f4", "ffcd75"], "buff": {"legend": 3.0}},
-	{"id": "trail_energia", "name": "ENERGÍA PURA", "price": 0, "gems": 12, "rarity": "MYTHIC", "colors": ["a7f070", "73eff7", "5d275d", "f4f4f4"], "buff": {"chain": 12.0}},
-	{"id": "trail_hojas", "name": "HOJAS", "price": 0, "reward": "0_14", "rarity": "RARE", "colors": ["38b764", "a7f070", "8a5a44"], "buff": {"jump_points": 4.0}},
-	{"id": "trail_cenizas", "name": "CENIZAS", "price": 0, "reward": "1_14", "rarity": "EPIC", "colors": ["ef7d57", "333c57", "ffcd75"], "buff": {"land": 10.0}},
-	{"id": "trail_prisma", "name": "PRISMA", "price": 0, "reward": "2_14", "rarity": "EPIC", "colors": ["f29cb5", "b06fd0", "73eff7"], "buff": {"perfect": 2.5}},
-	{"id": "trail_nieve", "name": "VENTISCA", "price": 0, "reward": "3_14", "rarity": "LEGENDARY", "colors": ["f4f4f4", "94b0c2", "73eff7"], "buff": {"coyote": 15.0}},
-	{"id": "trail_arena", "name": "ARENA DORADA", "price": 0, "reward": "4_14", "rarity": "LEGENDARY", "colors": ["ffcd75", "ef7d57", "8a5a44"], "buff": {"good": 5.0}},
+	{"id": "trail_polvo", "name": "POLVO", "price": 0, "rarity": "COMÚN", "colors": ["f4f4f4"], "buff": {"coyote": 10.0}},
+	{"id": "trail_chispas", "name": "CHISPAS", "price": 250, "rarity": "COMÚN", "colors": ["ffcd75", "f4f4f4"], "buff": {"perfect": 2.0}},
+	{"id": "trail_fuego", "name": "FUEGO", "price": 400, "rarity": "COMÚN", "colors": ["ef7d57", "b13e53", "ffcd75"], "buff": {"jump_points": 5.0}},
+	{"id": "trail_hielo", "name": "ESCARCHA", "price": 400, "rarity": "COMÚN", "colors": ["73eff7", "41a6f6", "f4f4f4"], "buff": {"land": 8.0}},
+	{"id": "trail_arcoiris", "name": "ARCOÍRIS", "price": 900, "rarity": "POCO COMÚN", "colors": ["b13e53", "ef7d57", "ffcd75", "38b764", "41a6f6", "5d275d"], "buff": {"good": 4.0}},
+	{"id": "trail_cristales", "name": "CRISTALES", "price": 0, "gems": 3, "rarity": "RARO", "colors": ["f29cb5", "73eff7", "f4f4f4"], "buff": {"perfect": 3.0}},
+	{"id": "trail_electrica", "name": "ELÉCTRICA", "price": 0, "gems": 5, "rarity": "ÉPICO", "colors": ["ffcd75", "f4f4f4", "41a6f6"], "buff": {"coyote": 20.0}},
+	{"id": "trail_estrellas", "name": "ESTRELLAS", "price": 0, "gems": 8, "rarity": "LEGENDARIO", "colors": ["f4f4f4", "ffcd75"], "buff": {"legend": 3.0}},
+	{"id": "trail_energia", "name": "ENERGÍA PURA", "price": 0, "gems": 12, "rarity": "MÍTICO", "colors": ["a7f070", "73eff7", "5d275d", "f4f4f4"], "buff": {"chain": 12.0}},
+	{"id": "trail_hojas", "name": "HOJAS", "price": 0, "reward": "0_14", "rarity": "RARO", "colors": ["38b764", "a7f070", "8a5a44"], "buff": {"jump_points": 4.0}},
+	{"id": "trail_cenizas", "name": "CENIZAS", "price": 0, "reward": "1_14", "rarity": "ÉPICO", "colors": ["ef7d57", "333c57", "ffcd75"], "buff": {"land": 10.0}},
+	{"id": "trail_prisma", "name": "PRISMA", "price": 0, "reward": "2_14", "rarity": "ÉPICO", "colors": ["f29cb5", "b06fd0", "73eff7"], "buff": {"perfect": 2.5}},
+	{"id": "trail_nieve", "name": "VENTISCA", "price": 0, "reward": "3_14", "rarity": "LEGENDARIO", "colors": ["f4f4f4", "94b0c2", "73eff7"], "buff": {"coyote": 15.0}},
+	{"id": "trail_arena", "name": "ARENA DORADA", "price": 0, "reward": "4_14", "rarity": "LEGENDARIO", "colors": ["ffcd75", "ef7d57", "8a5a44"], "buff": {"good": 5.0}},
+	{"id": "trail_humo", "name": "HUMO", "price": 150, "rarity": "COMÚN", "desc": "UN RASTRO DISCRETO", "colors": ["94b0c2", "566c86"], "buff": {"coyote": 5.0}},
+	{"id": "trail_burbujas", "name": "BURBUJAS", "price": 800, "rarity": "POCO COMÚN", "desc": "SUAVE COMO UN ATERRIZAJE EN EL AGUA", "colors": ["73eff7", "f4f4f4"], "buff": {"land": 5.0}},
+	{"id": "trail_petalos", "name": "PÉTALOS", "price": 0, "gems": 3, "rarity": "RARO", "desc": "FLORES QUE SE ABREN A TU PASO", "colors": ["f29cb5", "f4f4f4", "a7f070"], "buff": {"good": 3.0}},
+	{"id": "trail_rayo", "name": "RAYO", "price": 0, "gems": 6, "rarity": "ÉPICO", "desc": "CHISPAS QUE CRUZAN EL AIRE", "sparkle": true, "colors": ["ffcd75", "f4f4f4"], "buff": {"perfect": 2.5}},
+	{"id": "trail_cometa", "name": "COMETA", "price": 0, "gems": 11, "rarity": "LEGENDARIO", "desc": "UNA COLA DE FUEGO QUE ILUMINA EL CIELO", "sparkle": true, "colors": ["ef7d57", "ffcd75", "f4f4f4"], "buff": {"jump_points": 6.0}},
+	{"id": "trail_galaxia", "name": "GALAXIA", "price": 0, "gems": 20, "rarity": "MÍTICO", "desc": "LLEVAS LAS ESTRELLAS DETRÁS", "sparkle": true, "colors": ["29366f", "b06fd0", "f4f4f4", "73eff7"], "buff": {"legend": 3.5}},
+	{"id": "trail_abyss", "name": "ESTELA DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "PARTÍCULAS VIOLETAS Y DESTELLOS DE ENERGÍA OSCURA", "sparkle": true, "colors": ["b06fd0", "5d275d", "0f0e18"], "buff": {"chain": 15.0}},
 ]
 
 ## Auras: buffs de recompensas (monedas, puntos, iman, gemas, combo).
 const AURAS := [
-	{"id": "aura_ninguna", "name": "SIN AURA", "price": 0, "color": "", "buff": {"points": 1.0}},
-	{"id": "aura_dorada", "name": "AURA DORADA", "price": 600, "color": "ffcd75", "buff": {"coins": 4.0}},
-	{"id": "aura_arcana", "name": "AURA ARCANA", "price": 600, "color": "b13e53", "buff": {"combo_points": 5.0}},
-	{"id": "aura_glacial", "name": "AURA GLACIAL", "price": 600, "color": "73eff7", "buff": {"magnet": 20.0}},
-	{"id": "aura_fuego", "name": "AURA DE FUEGO", "price": 0, "gems": 3, "rarity": "RARE", "color": "ef7d57", "buff": {"coins": 5.0}},
-	{"id": "aura_electrica", "name": "AURA ELÉCTRICA", "price": 0, "gems": 4, "rarity": "RARE", "color": "f4f4f4", "buff": {"magnet": 30.0}},
-	{"id": "aura_violeta", "name": "AURA VIOLETA", "price": 0, "gems": 5, "rarity": "EPIC", "color": "b06fd0", "buff": {"gems": 3.0}},
-	{"id": "aura_celestial", "name": "AURA CELESTIAL", "price": 0, "gems": 8, "rarity": "LEGENDARY", "color": "41a6f6", "buff": {"points": 4.0}},
-	{"id": "aura_oscura", "name": "AURA OSCURA", "price": 0, "gems": 8, "rarity": "LEGENDARY", "color": "8a5a9a", "buff": {"combo_points": 8.0}},
-	{"id": "aura_bosque", "name": "AURA DEL BOSQUE", "price": 0, "reward": "0_9", "rarity": "RARE", "color": "38b764", "buff": {"coins": 3.0}},
-	{"id": "aura_infernal", "name": "AURA INFERNAL", "price": 0, "reward": "1_9", "rarity": "EPIC", "color": "e04a2a", "buff": {"points": 3.0}},
-	{"id": "aura_prisma", "name": "AURA PRISMA", "price": 0, "reward": "2_9", "rarity": "EPIC", "color": "f29cb5", "buff": {"gems": 4.0}},
-	{"id": "aura_boreal", "name": "AURA BOREAL", "price": 0, "reward": "3_9", "rarity": "LEGENDARY", "color": "7af0c0", "buff": {"magnet": 40.0}},
-	{"id": "aura_solar", "name": "AURA SOLAR", "price": 0, "reward": "4_9", "rarity": "MYTHIC", "color": "ffb030", "buff": {"coins": 6.0}},
+	{"id": "aura_ninguna", "name": "SIN AURA", "price": 0, "rarity": "COMÚN", "color": "", "buff": {"points": 1.0}},
+	{"id": "aura_dorada", "name": "AURA DORADA", "price": 600, "rarity": "POCO COMÚN", "color": "ffcd75", "buff": {"coins": 4.0}},
+	{"id": "aura_arcana", "name": "AURA ARCANA", "price": 600, "rarity": "POCO COMÚN", "color": "b13e53", "buff": {"combo_points": 5.0}},
+	{"id": "aura_glacial", "name": "AURA GLACIAL", "price": 600, "rarity": "POCO COMÚN", "color": "73eff7", "buff": {"magnet": 20.0}},
+	{"id": "aura_fuego", "name": "AURA DE FUEGO", "price": 0, "gems": 3, "rarity": "RARO", "color": "ef7d57", "buff": {"coins": 5.0}},
+	{"id": "aura_electrica", "name": "AURA ELÉCTRICA", "price": 0, "gems": 4, "rarity": "RARO", "color": "f4f4f4", "buff": {"magnet": 30.0}},
+	{"id": "aura_violeta", "name": "AURA VIOLETA", "price": 0, "gems": 5, "rarity": "ÉPICO", "color": "b06fd0", "buff": {"gems": 3.0}},
+	{"id": "aura_celestial", "name": "AURA CELESTIAL", "price": 0, "gems": 8, "rarity": "LEGENDARIO", "color": "41a6f6", "buff": {"points": 4.0}},
+	{"id": "aura_oscura", "name": "AURA OSCURA", "price": 0, "gems": 8, "rarity": "LEGENDARIO", "color": "8a5a9a", "buff": {"combo_points": 8.0}},
+	{"id": "aura_bosque", "name": "AURA DEL BOSQUE", "price": 0, "reward": "0_9", "rarity": "RARO", "color": "38b764", "buff": {"coins": 3.0}},
+	{"id": "aura_infernal", "name": "AURA INFERNAL", "price": 0, "reward": "1_9", "rarity": "ÉPICO", "color": "e04a2a", "buff": {"points": 3.0}},
+	{"id": "aura_prisma", "name": "AURA PRISMA", "price": 0, "reward": "2_9", "rarity": "ÉPICO", "color": "f29cb5", "buff": {"gems": 4.0}},
+	{"id": "aura_boreal", "name": "AURA BOREAL", "price": 0, "reward": "3_9", "rarity": "LEGENDARIO", "color": "7af0c0", "buff": {"magnet": 40.0}},
+	{"id": "aura_solar", "name": "AURA SOLAR", "price": 0, "reward": "4_9", "rarity": "MÍTICO", "color": "ffb030", "buff": {"coins": 6.0}},
+	{"id": "aura_tenue", "name": "AURA TENUE", "price": 300, "rarity": "COMÚN", "desc": "UN BRILLO APENAS VISIBLE", "color": "94b0c2", "buff": {"points": 1.5}},
+	{"id": "aura_esmeralda", "name": "AURA ESMERALDA", "price": 1000, "rarity": "POCO COMÚN", "desc": "ATRAE LA BUENA SUERTE", "color": "38b764", "buff": {"coins": 2.5}},
+	{"id": "aura_marea", "name": "AURA DE MAREA", "price": 0, "gems": 3, "rarity": "RARO", "desc": "ARRASTRA LAS MONEDAS COMO LAS OLAS", "color": "41a6f6", "buff": {"magnet": 25.0}},
+	{"id": "aura_ignea", "name": "AURA ÍGNEA", "price": 0, "gems": 7, "rarity": "ÉPICO", "desc": "ARDE MÁS CUANTO MAYOR ES EL COMBO", "color": "ef7d57", "buff": {"combo_points": 6.0}},
+	{"id": "aura_tormenta", "name": "AURA DE TORMENTA", "price": 0, "gems": 12, "rarity": "LEGENDARIO", "desc": "RELÁMPAGOS QUE DESCUBREN GEMAS", "color": "73eff7", "buff": {"gems": 4.0}},
+	{"id": "aura_estelar", "name": "AURA ESTELAR", "price": 0, "gems": 20, "rarity": "MÍTICO", "desc": "POLVO DE ESTRELLAS A TU ALREDEDOR", "particles": true, "color": "f4f4f4", "buff": {"points": 5.0}},
+	{"id": "aura_abyss", "name": "AURA DEL ABISMO", "price": 0, "reward": "abyss", "rarity": "MÍTICO", "set": "abyss", "desc": "ENERGÍA VIOLETA QUE TE ENVUELVE CON MOTAS FLOTANTES", "particles": true, "color": "b06fd0", "buff": {"combo_points": 8.0}},
 ]
 
 ## Power-ups de la tienda: EXACTAMENTE DOS POR MUNDO, ligados a su tematica,
@@ -426,6 +470,49 @@ static func world_powerups(world: int) -> Array:
 		if int(entry["world"]) == world:
 			result.append(entry)
 	return result
+
+
+## Rarezas de los cosmeticos (de menos a mas) y su color.
+const RARITIES := ["COMÚN", "POCO COMÚN", "RARO", "ÉPICO", "LEGENDARIO", "MÍTICO"]
+const RARITY_COLORS := ["94b0c2", "a7f070", "41a6f6", "f29cb5", "ef7d57", "b13e53"]
+
+
+static func rarity_color(rarity: String) -> Color:
+	var index: int = RARITIES.find(rarity)
+	return Color(String(RARITY_COLORS[index])) if index >= 0 else Color("94b0c2")
+
+
+## Como se consigue un cosmetico de recompensa.
+static func reward_text(key: String) -> String:
+	if key == "abyss":
+		return "DERROTA AL ÚLTIMO JEFE"
+	var parts: PackedStringArray = key.split("_")
+	if parts.size() == 2 and parts[0] == "m":
+		return "60 ESTRELLAS EN EL MUNDO %d" % (int(parts[1]) + 1)
+	if parts.size() == 2 and parts[0] == "c":
+		return "TODOS LOS RETOS DEL MUNDO %d" % (int(parts[1]) + 1)
+	if parts.size() == 2:
+		return "NIVEL %d-%d" % [int(parts[0]) + 1, int(parts[1]) + 1]
+	return "RECOMPENSA ESPECIAL"
+
+
+## Descripcion de un cosmetico (los antiguos la deducen de su buff).
+static func cosmetic_desc(entry: Dictionary) -> String:
+	if entry.has("desc"):
+		return String(entry["desc"])
+	var flavor: Dictionary = {
+		"coins": "PARA LOS QUE PERSIGUEN EL ORO", "points": "PARA BATIR RÉCORDS", "perfect": "PARA LOS QUE APURAN AL MÁXIMO",
+		"legend": "PARA LOS MAESTROS DEL ÚLTIMO SEGUNDO", "good": "PARA APRENDER SIN PRISA", "reach": "UN FILO QUE LLEGA MÁS LEJOS",
+		"coyote": "PIES LIGEROS EN LOS BORDES", "land": "ATERRIZAJES LIMPIOS", "jump_points": "PARA LOS AMANTES DEL SALTO",
+		"magnet": "LAS MONEDAS VIENEN SOLAS", "gems": "OJO PARA LAS GEMAS", "combo_points": "PARA LOS COMBOS LARGOS",
+		"mash": "PULSACIONES DEMOLEDORAS", "warn": "SIEMPRE ALERTA", "ice_grip": "FIRME SOBRE EL HIELO", "chain": "SALTOS EN CADENA",
+		"jump_cut": "SALTOS CORTOS PRECISOS", "jump_height": "SALTOS MÁS ALTOS",
+	}
+	var buff: Dictionary = entry.get("buff", {})
+	for key in buff:
+		if flavor.has(key):
+			return String(flavor[key])
+	return "UN CLÁSICO DE LOS HÉROES"
 
 
 ## Lista de cosmeticos de una categoria: "skin", "sword", "trail" o "aura".
