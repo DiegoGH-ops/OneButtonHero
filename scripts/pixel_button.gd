@@ -70,6 +70,9 @@ func _process(delta: float) -> void:
 	if not is_equal_approx(_hover, target):
 		_hover = move_toward(_hover, target, delta * 9.0)
 		queue_redraw()
+	elif _hover > 0.5:
+		# Mantiene vivo el destello mientras el boton esta activo.
+		queue_redraw()
 
 
 func _draw() -> void:
@@ -84,6 +87,9 @@ func _draw() -> void:
 	var lift: float = roundf(_hover * px)
 	var body_y: float = drop if down else -lift
 
+	# Resplandor al pasar el cursor.
+	if _hover > 0.05 and not disabled:
+		PixelArt.draw_glow(self, Vector2(w * 0.5, body_y + body_h * 0.5), maxf(w, body_h) * 0.75, Color(fill_hot, 0.22 * _hover))
 	draw_rect(Rect2(0.0, drop, w, body_h), Pal.INK)
 	draw_rect(Rect2(0.0, body_y, w, body_h), Pal.YELLOW if hot else Pal.INK)
 	var c: Color = fill.lerp(fill_hot, maxf(_hover, 1.0 if selected else 0.0))
@@ -92,6 +98,13 @@ func _draw() -> void:
 	draw_rect(Rect2(px, body_y + px, w - px * 2.0, body_h - px * 2.0), c)
 	draw_rect(Rect2(px, body_y + px, w - px * 2.0, px), c.lightened(0.35))
 	draw_rect(Rect2(px, body_y + body_h - px * 2.0, w - px * 2.0, px), c.darkened(0.3))
+	# Destello que recorre el boton cuando esta activo.
+	if _hover > 0.5 and not disabled:
+		var sweep: float = fposmod(float(Time.get_ticks_msec()) * 0.0012, 1.6) - 0.3
+		var sx: float = px + (w - px * 2.0) * sweep
+		var band: float = maxf(px * 3.0, 10.0)
+		if sx - band * 0.6 > px and sx + band < w - px:
+			draw_colored_polygon(PackedVector2Array([Vector2(sx, body_y + px), Vector2(sx + band, body_y + px), Vector2(sx + band - band * 0.6, body_y + body_h - px), Vector2(sx - band * 0.6, body_y + body_h - px)]), Color(1.0, 1.0, 1.0, 0.18))
 
 	var text_w: float = PixelFont.text_width(caption, px)
 	var icon_w: float = 0.0

@@ -100,6 +100,9 @@ var _endless_creatures: int = 0
 var _coin_factor: float = 1.0
 ## Tiempo bala (mejora del arbol): segundos reales que quedan.
 var _slowmo: float = 0.0
+## Luz dinamica del heroe (PointLight2D): alumbra el mundo a su alrededor
+## de noche y en los mundos oscuros.
+var _hero_light: PointLight2D
 
 # Dia y noche y eventos.
 var _phase: int = -1
@@ -216,6 +219,7 @@ func _ready() -> void:
 	if _level_mode and not is_equal_approx(_coin_factor, 1.0):
 		var conquered: bool = int(_def["world"]) < GameData.highest_world()
 		hud.toast(("MUNDO SUPERADO: MONEDAS X%.1f" if conquered else "MONEDAS DEL MUNDO X%.1f") % _coin_factor, Pal.YELLOW)
+	_create_hero_light()
 	camera.make_current()
 	_update_camera()
 	_update_daylight(true)
@@ -337,6 +341,12 @@ func _update_daylight(first: bool) -> void:
 	var ambient: Color = Daylight.ambient()
 	world.modulate = ambient
 	player.modulate = ambient.lerp(Color(1.0, 1.0, 1.0), 0.4)
+	if _hero_light != null:
+		var dark: float = Daylight.darkness()
+		var style: String = String(Daylight.theme.get("style", "forest"))
+		var base: float = 0.12 if style == "inferno" or style == "crystal" else 0.0
+		_hero_light.energy = base + 0.55 * dark
+		_hero_light.visible = _hero_light.energy > 0.02
 	var phase: int = Daylight.phase()
 	if phase == _phase:
 		return
@@ -620,6 +630,7 @@ func _on_rated(rating: int, label: String, _pos: Vector2) -> void:
 		color = Pal.ORANGE
 		size = 5.0
 		Sfx.play("legendary")
+		lights.flash(Pal.ORANGE, 0.35, 0.3)
 		_zoom_punch = 1.0
 		Fx.ring(fx_root, where, Pal.ORANGE, 120.0)
 		_shake = maxf(_shake, 0.45)
@@ -884,6 +895,26 @@ func _setup_test() -> void:
 	hud.toast("MODO PRUEBA: NO SE GUARDA NADA", Pal.ORANGE)
 
 
+func _create_hero_light() -> void:
+	var gradient: Gradient = Gradient.new()
+	gradient.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+	gradient.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+	var texture: GradientTexture2D = GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	texture.width = 128
+	texture.height = 128
+	_hero_light = PointLight2D.new()
+	_hero_light.texture = texture
+	_hero_light.texture_scale = 4.0
+	_hero_light.color = Color(1.0, 0.86, 0.62)
+	_hero_light.energy = 0.0
+	player.add_child(_hero_light)
+	_hero_light.position = Vector2(0.0, -30.0)
+
+
 ## Reaparece al otro lado del hueco.
 func _respawn_player() -> void:
 	var x: float = generator.get_respawn_x(player.position.x)
@@ -918,7 +949,12 @@ func _game_over() -> void:
 	player.die()
 	Sfx.set_intensity(0)
 	Sfx.play("gameover")
+	# Muerte: camara lenta breve, destello rojo y onda.
+	Engine.time_scale = 0.4
+	lights.flash(Pal.RED, 0.6, 0.5)
 	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.WHITE, 24, 420.0, 0.7, 8.0, 600.0, 180.0, Vector2.UP)
+	Fx.burst(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 16, 300.0, 0.6, 7.0, 400.0, 180.0, Vector2.UP)
+	Fx.ring(fx_root, player.position + Vector2(0.0, -28.0), Pal.RED, 120.0)
 	_update_hud()
 	var wait: float = 0.5 if Buffs.has("quick_retry") else 1.3
 	await get_tree().create_timer(wait, true, false, true).timeout
@@ -988,7 +1024,13 @@ func _level_complete() -> void:
 	Sfx.play_music("victory")
 	Sfx.set_intensity(0)
 	hud.flash(Pal.WHITE, 0.4)
+	lights.flash(Pal.YELLOW, 0.5, 0.8)
+	# Meta: confeti de colores y ondas de luz.
 	Fx.burst(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 40, 520.0, 0.9, 9.0, 600.0, 180.0, Vector2.UP)
+	for color in [Pal.CYAN, Pal.PINK, Pal.LIME, Pal.ORANGE]:
+		Fx.burst(fx_root, player.position + Vector2(randf_range(-80.0, 80.0), -60.0), color, 14, 480.0, 1.1, 7.0, 500.0, 70.0, Vector2.UP)
+	Fx.ring(fx_root, player.position + Vector2(0.0, -40.0), Pal.YELLOW, 140.0)
+	Fx.ring(fx_root, player.position + Vector2(0.0, -40.0), Pal.WHITE, 220.0)
 	var has_next: bool = level < Campaign.LEVELS_PER_WORLD - 1 or world_index < Campaign.world_count() - 1
 	hud.show_victory({
 		"name": String(_def["name"]), "rank": rank, "stars": stars, "score": final_score,

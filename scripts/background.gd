@@ -25,14 +25,35 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	_draw_sky()
+	var style: String = String(Daylight.theme.get("style", "forest"))
+	if style == "frost" or style == "crystal":
+		_draw_aurora(style == "crystal")
 	_draw_celestial()
-	_draw_clouds()
-	_draw_ridge(0.04, 170.0, 220.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.SILVER.lerp(Pal.CYAN, 0.3))), 300.0)
-	_draw_castles()
-	_draw_ridge(0.10, 110.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.STEEL.lerp(Pal.SKY, 0.12))), 0.0)
-	_draw_hills()
-	_draw_ruins()
-	_draw_forest()
+	# Cada mundo tiene su propio paisaje por capas (parallax): cada capa se
+	# desplaza a una velocidad distinta segun su distancia.
+	match style:
+		"inferno":
+			_draw_inferno()
+		"crystal":
+			_draw_clouds()
+			_draw_crystal()
+		"frost":
+			_draw_clouds()
+			_draw_frost()
+		"desert":
+			_draw_clouds()
+			_draw_desert()
+		_:
+			_draw_clouds()
+			_draw_light_shafts()
+			_draw_ridge(0.04, 170.0, 220.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.SILVER.lerp(Pal.CYAN, 0.3))), 300.0)
+			_draw_castles()
+			_draw_ridge(0.10, 110.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.STEEL.lerp(Pal.SKY, 0.12))), 0.0)
+			_draw_giant_trees()
+			_draw_hills()
+			_draw_ruins()
+			_draw_birds()
+			_draw_forest()
 	_draw_particles()
 
 
@@ -290,3 +311,324 @@ func _draw_world_particles() -> void:
 			var c: Color = Color(Pal.PINK if i % 2 == 0 else Pal.CYAN, glint)
 			draw_rect(Rect2(snappedf(cx, 4.0), snappedf(h2 * 520.0, 4.0), 4.0, 4.0), c)
 			draw_rect(Rect2(snappedf(cx, 4.0) - 4.0, snappedf(h2 * 520.0, 4.0), 12.0, 4.0), Color(c, glint * 0.4))
+
+
+# ------------------------------------------------------- paisajes por mundo --
+
+## Columnas suavizadas (dunas, laderas) con una funcion seno.
+func _draw_waves(factor: float, base_h: float, amp: float, freq: float, phase: float, color: Color, rim: Color) -> void:
+	var scroll: float = scroll_x * factor
+	var first: int = int(floor(scroll / COLUMN))
+	var offset: float = roundf(scroll - float(first) * COLUMN)
+	var count: int = int(W / COLUMN) + 2
+	for i in count:
+		var wx: float = float(first + i) * COLUMN
+		var sx: float = float(i) * COLUMN - offset
+		var h: float = snappedf(base_h + amp * (0.5 + 0.5 * sin(wx * freq + phase)) + amp * 0.3 * sin(wx * freq * 2.7 + phase * 1.3), 4.0)
+		draw_rect(Rect2(sx, BASELINE - h, COLUMN, h + 720.0 - BASELINE), color)
+		draw_rect(Rect2(sx, BASELINE - h, COLUMN, 4.0), rim)
+
+
+## Elementos repetidos a lo largo del mundo: devuelve [indice, x en pantalla]
+## de los que caen dentro de la vista para una capa con `factor` de parallax.
+func _cells(factor: float, period: float, margin: float) -> Array:
+	var scroll: float = scroll_x * factor
+	var first: int = int(floor((scroll - margin) / period))
+	var count: int = int((W + margin * 2.0) / period) + 2
+	var result: Array = []
+	for n in count:
+		var c: int = first + n
+		result.append([c, float(c) * period - scroll])
+	return result
+
+
+## Rayos de luz entre las nubes del bosque (solo de dia).
+func _draw_light_shafts() -> void:
+	var strength: float = (1.0 - Daylight.darkness()) * (1.0 - Daylight.warmth() * 0.4)
+	if strength < 0.05:
+		return
+	for i in 4:
+		var x: float = fposmod(PixelArt.hash01(i, 71) * W + _time * 6.0 - scroll_x * 0.02, W + 300.0) - 300.0
+		var w: float = 50.0 + PixelArt.hash01(i, 72) * 60.0
+		var alpha: float = strength * (0.05 + 0.03 * sin(_time * 0.7 + float(i)))
+		draw_colored_polygon(PackedVector2Array([Vector2(x, 0.0), Vector2(x + w, 0.0), Vector2(x + w + 260.0, BASELINE), Vector2(x + 260.0, BASELINE)]), Color(Pal.YELLOW.lerp(Pal.WHITE, 0.6), alpha))
+
+
+## Arboles ancestrales gigantes en segundo plano.
+func _draw_giant_trees() -> void:
+	var color: Color = _tint(Daylight.theme_color("forest", Pal.TEAL)).darkened(0.25)
+	for item in _cells(0.16, 900.0, 300.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 81) < 0.4:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 82) * 300.0
+		var h: float = 300.0 + PixelArt.hash01(c, 83) * 120.0
+		draw_rect(Rect2(x - 18.0, BASELINE - h * 0.6, 36.0, h * 0.6), color.darkened(0.2))
+		for k in 4:
+			var cx: float = x + (PixelArt.hash01(c * 4 + k, 84) - 0.5) * 160.0
+			var cy: float = BASELINE - h + PixelArt.hash01(c * 4 + k, 85) * 120.0
+			_draw_disc(Vector2(cx, cy), 9 + k % 3, 8.0, color)
+
+
+## Bandada de pajaros que cruza el cielo.
+func _draw_birds() -> void:
+	if Daylight.darkness() > 0.7:
+		return
+	var tint: Color = _tint(Pal.INK)
+	for i in 6:
+		var x: float = fposmod(PixelArt.hash01(i, 91) * W - _time * (60.0 + float(i) * 6.0) - scroll_x * 0.05, W + 200.0) - 100.0
+		var y: float = 140.0 + float(i % 3) * 22.0 + sin(_time * 1.5 + float(i)) * 8.0 + float(i) * 6.0
+		var flap: float = 4.0 if int(_time * 6.0 + float(i)) % 2 == 0 else -2.0
+		draw_rect(Rect2(x - 8.0, y + flap, 8.0, 4.0), tint)
+		draw_rect(Rect2(x, y, 4.0, 4.0), tint)
+		draw_rect(Rect2(x + 4.0, y + flap, 8.0, 4.0), tint)
+
+
+## Aurora: bandas de luz ondulantes en el cielo nocturno (mas debil de dia
+## en el mundo de cristal).
+func _draw_aurora(crystal: bool) -> void:
+	var dark: float = Daylight.darkness()
+	var strength: float = dark if not crystal else 0.35 + 0.65 * dark
+	if strength < 0.05:
+		return
+	var colors: Array = [Pal.LIME, Pal.CYAN, Pal.GREEN] if not crystal else [Pal.PINK, Pal.CYAN, Color("b06fd0")]
+	for band in 3:
+		var color: Color = colors[band]
+		var x: float = 0.0
+		while x < W:
+			var y: float = 70.0 + float(band) * 36.0 + sin(x * 0.006 + _time * 0.5 + float(band) * 1.7) * 34.0
+			var h: float = 50.0 + 30.0 * sin(x * 0.011 + _time * 0.8 + float(band))
+			draw_rect(Rect2(x, y, 16.0, h), Color(color, 0.10 * strength))
+			draw_rect(Rect2(x, y, 16.0, 6.0), Color(color, 0.18 * strength))
+			x += 16.0
+
+
+# ----------------------------------------------------------------- Infernus --
+
+func _draw_inferno() -> void:
+	# Nubes de ceniza en lugar de nubes blancas.
+	for i in 6:
+		var x: float = fposmod(PixelArt.hash01(i, 11) * (W + 400.0) - scroll_x * 0.03 - _time * 8.0, W + 400.0) - 200.0
+		var y: float = 40.0 + PixelArt.hash01(i, 13) * 160.0
+		PixelArt.draw(self, "cloud_a" if i % 2 == 0 else "cloud_b", Vector2(roundf(x), roundf(y)), 8.0, Color(0.25, 0.12, 0.14, 0.85))
+	_draw_ridge(0.04, 160.0, 200.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.PURPLE)), 0.0)
+	_draw_volcanoes()
+	_draw_ridge(0.10, 100.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.INK)), 0.0)
+	_draw_lavafalls()
+	# Agujas de obsidiana.
+	var spire: Color = _tint(Daylight.theme_color("hill", Pal.RED)).darkened(0.35)
+	for item in _cells(0.24, 260.0, 120.0):
+		var c: int = item[0]
+		var x: float = float(item[1]) + PixelArt.hash01(c, 31) * 120.0
+		var h: float = 90.0 + PixelArt.hash01(c, 32) * 140.0
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 26.0, BASELINE), Vector2(x - 4.0, BASELINE - h), Vector2(x + 4.0, BASELINE - h), Vector2(x + 26.0, BASELINE)]), spire)
+		draw_rect(Rect2(x - 2.0, BASELINE - h * 0.7, 4.0, h * 0.5), Color(Pal.ORANGE, 0.5 + 0.3 * sin(_time * 3.0 + float(c))))
+	_draw_waves(0.45, 50.0, 26.0, 0.012, 0.0, _tint(Daylight.theme_color("forest", Pal.INK)), Color(Pal.RED, 0.9))
+	# Resplandor de lava sobre el horizonte y calima.
+	for i in 6:
+		var a: float = 0.16 * (1.0 - float(i) / 6.0)
+		draw_rect(Rect2(0.0, BASELINE - 40.0 - float(i) * 20.0, W, 20.0), Color(Pal.ORANGE, a))
+	for i in 4:
+		var y: float = 420.0 + float(i) * 34.0 + sin(_time * 2.0 + float(i)) * 6.0
+		draw_rect(Rect2(0.0, y, W, 2.0), Color(Pal.YELLOW, 0.05))
+
+
+func _draw_volcanoes() -> void:
+	var color: Color = _tint(Daylight.theme_color("mid", Pal.INK)).lightened(0.05)
+	for item in _cells(0.06, 1100.0, 400.0):
+		var c: int = item[0]
+		var x: float = float(item[1]) + PixelArt.hash01(c, 41) * 400.0
+		var h: float = 300.0 + PixelArt.hash01(c, 42) * 80.0
+		var top: float = BASELINE - h
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 260.0, BASELINE), Vector2(x - 46.0, top), Vector2(x + 46.0, top), Vector2(x + 260.0, BASELINE)]), color)
+		# Rios de lava por la ladera.
+		for k in 3:
+			var lx: float = x - 30.0 + float(k) * 30.0
+			draw_line(Vector2(lx, top + 4.0), Vector2(lx + (float(k) - 1.0) * 120.0, BASELINE), Color(Pal.ORANGE, 0.55), 4.0)
+		PixelArt.draw_glow(self, Vector2(x, top), 110.0, Color(Pal.ORANGE, 0.45))
+		draw_rect(Rect2(x - 46.0, top - 4.0, 92.0, 8.0), Pal.YELLOW)
+		# Erupcion periodica: bolas de fuego que suben y caen.
+		var cycle: float = fposmod(_time + float(c) * 2.3, 7.0)
+		if cycle < 2.2:
+			for k in 8:
+				var t: float = cycle - float(k) * 0.08
+				if t <= 0.0:
+					continue
+				var vx: float = (PixelArt.hash01(c * 8 + k, 43) - 0.5) * 160.0
+				var vy: float = -260.0 - PixelArt.hash01(c * 8 + k, 44) * 140.0
+				var p: Vector2 = Vector2(x + vx * t, top + vy * t + 160.0 * t * t)
+				draw_rect(Rect2(p, Vector2(8.0, 8.0)), Pal.ORANGE if k % 2 == 0 else Pal.YELLOW)
+
+
+func _draw_lavafalls() -> void:
+	for item in _cells(0.10, 700.0, 100.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 51) < 0.4:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 52) * 300.0
+		var top: float = BASELINE - _ridge_height(x + scroll_x * 0.10, 100.0, 150.0, 0.0062, 0.0171, 1.7) + 8.0
+		draw_rect(Rect2(x, top, 16.0, BASELINE - top), Color(Pal.RED, 0.9))
+		var flow: float = fposmod(_time * 120.0, 24.0)
+		var y: float = top - 24.0 + flow
+		while y < BASELINE:
+			draw_rect(Rect2(x + 4.0, maxf(y, top), 8.0, 10.0), Pal.ORANGE)
+			y += 24.0
+		PixelArt.draw_glow(self, Vector2(x + 8.0, BASELINE - 10.0), 50.0, Color(Pal.ORANGE, 0.4))
+
+
+# --------------------------------------------------------------- Amethystia --
+
+func _draw_crystal() -> void:
+	_draw_ridge(0.04, 160.0, 200.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.PURPLE)), 0.0)
+	_draw_crystal_spires(0.08, 1.0)
+	_draw_ridge(0.10, 100.0, 150.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.PURPLE)), 0.0)
+	_draw_floating_shards()
+	_draw_hills()
+	_draw_crystal_spires(0.45, 0.35)
+
+
+## Agujas de cristal hexagonales con una faceta iluminada y un destello que
+## las recorre.
+func _draw_crystal_spires(factor: float, size: float) -> void:
+	var base_color: Color = _tint(Daylight.theme_color("hill", Pal.PINK)).lightened(0.1)
+	for item in _cells(factor, 520.0 * size + 140.0, 200.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 61) < 0.3:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 62) * 200.0 * size
+		var h: float = (220.0 + PixelArt.hash01(c, 63) * 200.0) * size
+		var w: float = (50.0 + PixelArt.hash01(c, 64) * 30.0) * size
+		var lean: float = (PixelArt.hash01(c, 65) - 0.5) * 60.0 * size
+		var tip: Vector2 = Vector2(x + lean, BASELINE - h)
+		var body: PackedVector2Array = PackedVector2Array([Vector2(x - w, BASELINE), Vector2(x - w, BASELINE - h * 0.75 + lean * 0.2), tip, Vector2(x + w, BASELINE - h * 0.75 - lean * 0.2), Vector2(x + w, BASELINE)])
+		draw_colored_polygon(body, base_color)
+		draw_colored_polygon(PackedVector2Array([Vector2(x, BASELINE), Vector2(x, BASELINE - h * 0.75), tip, Vector2(x + w, BASELINE - h * 0.75 - lean * 0.2), Vector2(x + w, BASELINE)]), base_color.lightened(0.18))
+		var shine: float = fposmod(_time * 0.35 + PixelArt.hash01(c, 66), 1.0)
+		var sy: float = BASELINE - h * 0.75 * shine
+		draw_rect(Rect2(x - w, sy, w * 2.0, 4.0 * size + 2.0), Color(Pal.WHITE, 0.35 * (1.0 - shine)))
+		if size < 0.5:
+			PixelArt.draw_glow(self, Vector2(x, BASELINE - h * 0.4), w * 2.5, Color(Pal.PINK, 0.25 + 0.35 * Daylight.darkness()))
+
+
+func _draw_floating_shards() -> void:
+	for item in _cells(0.25, 300.0, 100.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 67) < 0.4:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 68) * 140.0
+		var y: float = 200.0 + PixelArt.hash01(c, 69) * 200.0 + sin(_time * 1.2 + float(c)) * 14.0
+		var s: float = 10.0 + PixelArt.hash01(c, 70) * 14.0
+		var color: Color = Pal.PINK if c % 2 == 0 else Pal.CYAN
+		draw_colored_polygon(PackedVector2Array([Vector2(x, y - s * 1.6), Vector2(x + s, y), Vector2(x, y + s * 1.6), Vector2(x - s, y)]), _tint(color))
+		draw_colored_polygon(PackedVector2Array([Vector2(x, y - s * 1.6), Vector2(x + s, y), Vector2(x, y)]), _tint(color.lightened(0.3)))
+		PixelArt.draw_glow(self, Vector2(x, y), s * 3.0, Color(color, 0.2))
+
+
+# ---------------------------------------------------------------- Frostfall --
+
+func _draw_frost() -> void:
+	_draw_ridge(0.04, 180.0, 230.0, 0.0045, 0.0117, 0.0, _tint(Daylight.theme_color("far", Pal.WHITE)), 260.0)
+	_draw_castles()
+	_draw_ridge(0.10, 110.0, 160.0, 0.0062, 0.0171, 1.7, _tint(Daylight.theme_color("mid", Pal.SILVER)), 150.0)
+	_draw_hills()
+	# Picos de hielo.
+	for item in _cells(0.30, 340.0, 100.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 73) < 0.35:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 74) * 160.0
+		for k in 3:
+			var h: float = 60.0 + PixelArt.hash01(c * 3 + k, 75) * 90.0
+			var px: float = x + float(k) * 22.0 - 22.0
+			draw_colored_polygon(PackedVector2Array([Vector2(px - 14.0, BASELINE - 30.0), Vector2(px, BASELINE - 30.0 - h), Vector2(px + 14.0, BASELINE - 30.0)]), _tint(Pal.CYAN.lerp(Pal.WHITE, 0.4)))
+			draw_line(Vector2(px, BASELINE - 30.0 - h), Vector2(px + 5.0, BASELINE - 34.0), _tint(Pal.WHITE), 3.0)
+	_draw_forest()
+	# Nieve acumulada sobre el bosque.
+	var cap: Color = _tint(Pal.WHITE)
+	var scroll: float = scroll_x * 0.45
+	var first: int = int(floor(scroll / COLUMN))
+	var offset: float = roundf(scroll - float(first) * COLUMN)
+	for i in int(W / COLUMN) + 2:
+		var wx: float = float(first + i) * COLUMN
+		draw_rect(Rect2(float(i) * COLUMN - offset, BASELINE - _forest_height(wx) - 2.0, COLUMN, 8.0), cap)
+
+
+# ------------------------------------------------------------------ Solaris --
+
+func _draw_desert() -> void:
+	_draw_waves(0.03, 120.0, 70.0, 0.003, 0.0, _tint(Daylight.theme_color("far", Pal.YELLOW)), _tint(Daylight.theme_color("far", Pal.YELLOW)).lightened(0.15))
+	_draw_pyramids()
+	_draw_waves(0.10, 80.0, 60.0, 0.0045, 1.4, _tint(Daylight.theme_color("mid", Pal.ORANGE)), _tint(Daylight.theme_color("mid", Pal.ORANGE)).lightened(0.15))
+	_draw_obelisks()
+	_draw_waves(0.22, 60.0, 34.0, 0.007, 2.2, _tint(Daylight.theme_color("hill", Pal.YELLOW)), _tint(Daylight.theme_color("hill", Pal.YELLOW)).lightened(0.2))
+	_draw_palms()
+	_draw_waves(0.45, 40.0, 20.0, 0.011, 0.6, _tint(Daylight.theme_color("forest", Pal.BROWN)), _tint(Daylight.theme_color("forest", Pal.BROWN)).lightened(0.2))
+	# Calima: lineas de aire caliente que tiemblan.
+	var heat: float = (1.0 - Daylight.darkness()) * 0.06
+	for i in 5:
+		var y: float = 380.0 + float(i) * 40.0 + sin(_time * 3.0 + float(i) * 1.7) * 5.0
+		draw_rect(Rect2(0.0, y, W, 3.0), Color(Pal.WHITE, heat))
+	# Buitres en circulo.
+	for i in 3:
+		var a: float = _time * 0.6 + float(i) * TAU / 3.0
+		var center: Vector2 = Vector2(fposmod(900.0 - scroll_x * 0.05, W + 400.0) - 200.0, 150.0)
+		var p: Vector2 = center + Vector2(cos(a) * 90.0, sin(a) * 26.0)
+		var flap: float = 3.0 if int(_time * 5.0 + float(i)) % 2 == 0 else -2.0
+		draw_rect(Rect2(p.x - 10.0, p.y + flap, 10.0, 3.0), _tint(Pal.INK))
+		draw_rect(Rect2(p.x, p.y, 4.0, 4.0), _tint(Pal.INK))
+		draw_rect(Rect2(p.x + 4.0, p.y + flap, 10.0, 3.0), _tint(Pal.INK))
+
+
+func _draw_pyramids() -> void:
+	for item in _cells(0.06, 1300.0, 400.0):
+		var c: int = item[0]
+		var x: float = float(item[1]) + PixelArt.hash01(c, 76) * 500.0
+		var h: float = 200.0 + PixelArt.hash01(c, 77) * 110.0
+		var base_y: float = BASELINE - 60.0
+		var light: Color = _tint(Color("e0b060"))
+		draw_colored_polygon(PackedVector2Array([Vector2(x - h * 1.1, base_y), Vector2(x, base_y - h), Vector2(x, base_y)]), light)
+		draw_colored_polygon(PackedVector2Array([Vector2(x, base_y - h), Vector2(x + h * 1.1, base_y), Vector2(x, base_y)]), light.darkened(0.25))
+		# Escalones.
+		var steps: int = int(h / 24.0)
+		for k in steps:
+			var y: float = base_y - float(k) * 24.0
+			var half: float = (h - float(k) * 24.0) * 1.1
+			draw_rect(Rect2(x - half, y - 2.0, half * 2.0, 2.0), Color(light.darkened(0.35), 0.6))
+		draw_rect(Rect2(x - 6.0, base_y - h - 4.0, 12.0, 8.0), Color(Pal.YELLOW, 0.9))
+
+
+func _draw_obelisks() -> void:
+	var color: Color = _tint(Color("b8763a"))
+	for item in _cells(0.16, 640.0, 120.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 78) < 0.45:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 79) * 260.0
+		var h: float = 140.0 + PixelArt.hash01(c, 80) * 90.0
+		var base_y: float = BASELINE - 40.0
+		draw_rect(Rect2(x - 14.0, base_y - h, 28.0, h), color)
+		draw_rect(Rect2(x, base_y - h, 14.0, h), color.darkened(0.2))
+		draw_colored_polygon(PackedVector2Array([Vector2(x - 14.0, base_y - h), Vector2(x, base_y - h - 26.0), Vector2(x + 14.0, base_y - h)]), _tint(Pal.YELLOW))
+		for k in 3:
+			draw_rect(Rect2(x - 8.0, base_y - h + 30.0 + float(k) * 28.0, 10.0, 6.0), color.darkened(0.35))
+
+
+func _draw_palms() -> void:
+	var trunk: Color = _tint(Pal.BROWN)
+	var leaves: Color = _tint(Pal.GREEN.darkened(0.15))
+	for item in _cells(0.36, 520.0, 120.0):
+		var c: int = item[0]
+		if PixelArt.hash01(c, 86) < 0.5:
+			continue
+		var x: float = float(item[1]) + PixelArt.hash01(c, 87) * 220.0
+		var base_y: float = BASELINE - 30.0
+		var sway: float = sin(_time * 1.3 + float(c)) * 6.0
+		for k in 8:
+			var bend: float = float(k * k) * 0.6 + sway * float(k) / 8.0
+			draw_rect(Rect2(x + bend - 6.0, base_y - float(k + 1) * 16.0, 12.0, 16.0), trunk if k % 2 == 0 else trunk.darkened(0.15))
+		var crown: Vector2 = Vector2(x + 38.0 + sway, base_y - 132.0)
+		for k in 5:
+			var a: float = -PI * 0.15 - float(k) * PI * 0.175 + sin(_time * 1.3 + float(c + k)) * 0.06
+			var tip: Vector2 = crown + Vector2(cos(a), -sin(a)) * Vector2(70.0, 34.0) * Vector2(1.0, -1.0)
+			draw_line(crown, tip, leaves, 8.0)
+			draw_line(crown, crown + (tip - crown) * 0.6 + Vector2(0.0, 6.0), leaves.lightened(0.15), 4.0)

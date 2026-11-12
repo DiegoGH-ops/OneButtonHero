@@ -102,6 +102,15 @@ func _draw() -> void:
 	draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, 84.0)), fill.darkened(0.25))
 	if band_color.a > 0.0:
 		draw_rect(Rect2(o + Vector2(4.0, 4.0), Vector2(w - 8.0, 8.0)), band_color)
+	# Halo de rareza (o del color del power-up) detras del icono.
+	var halo: Color = band_color if band_color.a > 0.0 else Color(0.0, 0.0, 0.0, 0.0)
+	if ["RARE", "EPIC", "LEGENDARY", "MYTHIC"].has(_status):
+		halo = _status_color()
+	if halo.a > 0.0:
+		PixelArt.draw_glow(self, o + Vector2(w * 0.5, 46.0), 54.0 + 6.0 * sin(_time * 3.0), Color(halo, 0.45))
+	if _status == "MYTHIC" or _status == "LEGENDARY":
+		var sweep: float = fposmod(_time * 0.6, 1.0)
+		draw_rect(Rect2(o + Vector2(4.0 + (w - 16.0) * sweep, 4.0), Vector2(8.0, 84.0)), Color(1.0, 1.0, 1.0, 0.15))
 
 	_draw_icon(o + Vector2(w * 0.5, 46.0))
 
