@@ -20,12 +20,17 @@ const AchievementPopup = preload("res://scripts/achievement_popup.gd")
 const SAVE_PATH := "user://one_button_hero.cfg"
 ## Accion principal: ESPACIO, clic izquierdo o toque en pantalla.
 const ACTION := "hero_action"
+## Dispositivo comodin de InputMap: el evento vale para cualquier teclado,
+## raton o mando, incluido el raton emulado desde la pantalla tactil.
+const ALL_INPUT_DEVICES := -1
 ## Precios de las mejoras y objetos de versiones anteriores: al cargar una
 ## partida antigua se devuelve lo gastado para invertirlo en el arbol nuevo.
 const OLD_UPGRADE_PRICES := [150, 400, 900, 1800, 3200]
 const OLD_CONSUMABLE_PRICES := {"revive": 300, "guard": 120, "double": 200, "magnet_boost": 120}
 
 var wallet: int = 0
+## Pulsaciones del unico boton que siguen mantenidas ("key", "mouse", "touch_N").
+var _holds: Dictionary = {}
 ## Moneda especial: solo se consigue jugando (hitos, tres estrellas...).
 var diamonds: int = 0
 ## Progreso de campana: "mundo_nivel" -> {"stars", "rank", "score"}.
@@ -115,6 +120,7 @@ var high_score: int:
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_register_input()
+	_setup_web_touch()
 	load_data()
 	_migrate_stats()
 	refresh_missions()
@@ -124,15 +130,112 @@ func _ready() -> void:
 
 
 ## Crea las acciones por codigo para no depender del mapa de entrada.
+## Los eventos se registran para TODOS los dispositivos (-1). Un evento creado
+## por codigo nace con device = 0 y entonces solo coincide con el raton y el
+## teclado reales: el clic que Godot emula a partir de un toque (device -1)
+## no activaba la accion y en moviles el salto no respondia.
 func _register_input() -> void:
 	if not InputMap.has_action(ACTION):
 		InputMap.add_action(ACTION)
 		var key: InputEventKey = InputEventKey.new()
 		key.physical_keycode = KEY_SPACE
+		key.device = ALL_INPUT_DEVICES
 		InputMap.action_add_event(ACTION, key)
 		var click: InputEventMouseButton = InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_LEFT
+		click.device = ALL_INPUT_DEVICES
 		InputMap.action_add_event(ACTION, click)
+
+
+# ------------------------------------------------------------ unico boton --
+# Teclado, raton y pantalla tactil comparten el mismo boton. Cada pulsacion
+# aceptada por la partida abre una "retencion" (tecla, raton o un dedo
+# concreto) que se cierra al soltar, aunque se suelte encima de la interfaz.
+# Asi el salto variable funciona igual con cualquier metodo de entrada.
+
+## Devuelve true si el evento es una pulsacion del unico boton y, en ese caso,
+## empieza a contarla como mantenida. Los clics que Godot emula a partir de un
+## toque se descartan: el toque ya llega como InputEventScreenTouch y contarlo
+## dos veces duplicaria saltos y golpes.
+func button_down(event: InputEvent) -> bool:
+	var id: String = _press_id(event)
+	if id == "":
+		return false
+	_holds[id] = true
+	return true
+
+
+## true mientras siga pulsado alguno de los toques, clics o teclas que la
+## partida acepto (sustituye a Input.is_action_pressed en el salto variable).
+func button_held() -> bool:
+	return not _holds.is_empty()
+
+
+## Olvida las pulsaciones mantenidas (cambio de escena o perdida de foco).
+func clear_holds() -> void:
+	_holds.clear()
+
+
+func _press_id(event: InputEvent) -> String:
+	var touch: InputEventScreenTouch = event as InputEventScreenTouch
+	if touch != null:
+		return "touch_%d" % touch.index if touch.pressed else ""
+	var mouse: InputEventMouseButton = event as InputEventMouseButton
+	if mouse != null:
+		if mouse.device == InputEvent.DEVICE_ID_EMULATION:
+			return ""
+		return "mouse" if mouse.is_action_pressed(ACTION) else ""
+	if event.is_action_pressed(ACTION):
+		return "key"
+	return ""
+
+
+## Las liberaciones se escuchan aqui (antes que la interfaz) para cerrar la
+## retencion aunque el dedo o el raton se suelten encima de un boton.
+func _input(event: InputEvent) -> void:
+	if _holds.is_empty():
+		return
+	var touch: InputEventScreenTouch = event as InputEventScreenTouch
+	if touch != null:
+		if not touch.pressed:
+			_holds.erase("touch_%d" % touch.index)
+		return
+	var mouse: InputEventMouseButton = event as InputEventMouseButton
+	if mouse != null:
+		if mouse.device != InputEvent.DEVICE_ID_EMULATION and mouse.is_action_released(ACTION):
+			_holds.erase("mouse")
+		return
+	if event.is_action_released(ACTION):
+		_holds.erase("key")
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		clear_holds()
+
+
+## Ajustes del navegador para moviles: sin zoom por doble toque, sin menu ni
+## lupa al mantener pulsado (en iOS cancelaban el toque y cortaban el salto
+## largo) y sin desplazar la pagina al tocar el lienzo.
+func _setup_web_touch() -> void:
+	if not OS.has_feature("web"):
+		return
+	var js: PackedStringArray = PackedStringArray([
+		"(function () {",
+		"var style = document.createElement('style');",
+		"style.textContent = 'html, body, canvas { touch-action: none; -ms-touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }';",
+		"document.head.appendChild(style);",
+		"var meta = document.querySelector('meta[name=viewport]');",
+		"if (!meta) { meta = document.createElement('meta'); meta.name = 'viewport'; document.head.appendChild(meta); }",
+		"meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';",
+		"var block = function (e) { e.preventDefault(); };",
+		"document.addEventListener('gesturestart', block, { passive: false });",
+		"document.addEventListener('dblclick', block, { passive: false });",
+		"document.addEventListener('contextmenu', block);",
+		"document.addEventListener('selectstart', block);",
+		"})();",
+	])
+	JavaScriptBridge.eval("\n".join(js), true)
 
 
 # ---------------------------------------------------------------- guardado --

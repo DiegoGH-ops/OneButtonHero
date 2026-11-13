@@ -142,6 +142,7 @@ var _gold_rush: float = 0.0
 func _ready() -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
+	GameData.clear_holds()
 	# Cada partida empieza a una hora distinta del dia.
 	Daylight.time = randf_range(0.10, 0.50)
 	Daylight.magnet_radius = 0.0
@@ -316,7 +317,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_debug = not _debug
 		hud.set_debug("")
 		return
-	if event.is_action_pressed(GameData.ACTION):
+	# Espacio, clic o toque en cualquier zona libre de la pantalla. Los toques
+	# sobre botones (pausa, velocidad...) los consume la interfaz antes y no
+	# llegan aqui, asi que no provocan saltos ni ataques accidentales.
+	if GameData.button_down(event):
+		get_viewport().set_input_as_handled()
 		if _state == State.PLAYING:
 			player.press()
 		elif Buffs.has("quick_retry") and _state != State.PLAYING and _death_time > 0.35 and not _level_mode_won():

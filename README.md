@@ -162,3 +162,22 @@ Capas de colisión: 1 mundo · 2 jugador · 3 peligros · 4 enemigos · 5 moneda
 | Patrones, pesos y nivel en que aparecen | `TABLE` en `scripts/level_generator.gd` |
 | Canciones y efectos | `TRACKS` y `_build_sounds()` en `scripts/sfx.gd` |
 | Aspecto de personajes y objetos | `scripts/sprites.gd` |
+
+## Controles táctiles y exportación Web
+
+- El único botón acepta **Espacio**, **clic izquierdo** y **toque de pantalla**
+  (`GameData.button_down` / `GameData.button_held` en `scripts/game_data.gd`).
+- Los toques llegan como `InputEventScreenTouch`; el clic que Godot emula a
+  partir de un toque se descarta para no contar dos veces la misma pulsación.
+  La emulación de ratón sigue activa para que los botones de la interfaz
+  respondan al tacto.
+- En la versión Web el juego desactiva el zoom por doble toque y el menú de
+  pulsación larga de iOS (que cortaban el salto largo).
+
+Exportar para itch.io (Proyecto > Exportar > Web):
+
+- **Thread Support: desactivado** (no necesita cabeceras especiales en itch.io).
+- **Experimental Virtual Keyboard: activado** (para escribir en el móvil la
+  frase de borrado de progreso).
+- Ruta de exportación: `build/web/index.html`; sube un .zip con el contenido
+  de esa carpeta (con `index.html` en la raíz del zip).

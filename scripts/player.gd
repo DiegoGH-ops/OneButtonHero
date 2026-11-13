@@ -395,7 +395,7 @@ func _physics_process(delta: float) -> void:
 			if _hang > 0.0 and absf(velocity.y) < 170.0:
 				fall_gravity *= 1.0 - _hang
 			# Planeo: manteniendo el boton al caer se desciende mas despacio.
-			elif _glide > 0.0 and velocity.y > 0.0 and Input.is_action_pressed(GameData.ACTION):
+			elif _glide > 0.0 and velocity.y > 0.0 and GameData.button_held():
 				fall_gravity *= 1.0 - _glide
 		velocity.y = minf(velocity.y + fall_gravity * delta, STOMP_SPEED if _stomping else MAX_FALL_SPEED)
 
@@ -421,7 +421,7 @@ func _physics_process(delta: float) -> void:
 		_jump_time += delta
 		if velocity.y >= 0.0:
 			_jumping = false
-		elif _jump_time >= MIN_JUMP_TIME and not Input.is_action_pressed(GameData.ACTION):
+		elif _jump_time >= MIN_JUMP_TIME and not GameData.button_held():
 			# Al soltar: recorte proporcional a la velocidad que quedaba.
 			velocity.y = maxf(velocity.y, velocity.y * _release)
 			_jumping = false
